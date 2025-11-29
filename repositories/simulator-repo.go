@@ -4,13 +4,13 @@ import (
 	"errors"
 	"github.com/brocaar/lorawan"
 
-	"github.com/arslab/lwnsimulator/models"
-	e "github.com/arslab/lwnsimulator/socket"
+	"github.com/R3DPanda1/LWN-Sim-Plus/models"
+	e "github.com/R3DPanda1/LWN-Sim-Plus/socket"
 
-	"github.com/arslab/lwnsimulator/simulator"
-	dev "github.com/arslab/lwnsimulator/simulator/components/device"
-	gw "github.com/arslab/lwnsimulator/simulator/components/gateway"
-	"github.com/arslab/lwnsimulator/simulator/util"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator"
+	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
+	gw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	socketio "github.com/googollee/go-socket.io"
 )
 

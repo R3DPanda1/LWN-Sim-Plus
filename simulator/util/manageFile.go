@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/arslab/lwnsimulator/models"
+	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 )
 
 // GetPath returns the path of the config directory path, and creates it if it does not exist

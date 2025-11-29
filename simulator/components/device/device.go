@@ -5,13 +5,13 @@ import (
 	"sync"
 	"time"
 
-	c "github.com/arslab/lwnsimulator/simulator/console"
-	res "github.com/arslab/lwnsimulator/simulator/resources"
+	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
+	res "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources"
 
-	"github.com/arslab/lwnsimulator/simulator/components/device/classes"
-	"github.com/arslab/lwnsimulator/simulator/components/device/models"
-	"github.com/arslab/lwnsimulator/simulator/util"
-	"github.com/arslab/lwnsimulator/socket"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/models"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
+	"github.com/R3DPanda1/LWN-Sim-Plus/socket"
 )
 
 type Device struct {

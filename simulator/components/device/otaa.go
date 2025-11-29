@@ -4,11 +4,11 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/arslab/lwnsimulator/simulator/util"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 
-	act "github.com/arslab/lwnsimulator/simulator/components/device/activation"
-	"github.com/arslab/lwnsimulator/simulator/components/device/classes"
-	dl "github.com/arslab/lwnsimulator/simulator/components/device/frames/downlink"
+	act "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/activation"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
+	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
 	"github.com/brocaar/lorawan"
 )
 

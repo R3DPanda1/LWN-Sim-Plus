@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/arslab/lwnsimulator/simulator/components/device/classes"
-	"github.com/arslab/lwnsimulator/simulator/components/device/features/channels"
-	"github.com/arslab/lwnsimulator/simulator/util"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features/channels"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 )
 
 func (d *Device) CanExecute() bool {

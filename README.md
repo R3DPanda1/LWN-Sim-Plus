@@ -1,134 +1,217 @@
-# LWN Simulator
+# LWN-Sim-Plus
 
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/UniCT-ARSLab/LWN-Simulator/go_build.yml)
-[![GitHub license](https://img.shields.io/github/license/UniCT-ARSLab/LWN-Simulator)](https://github.com/UniCT-ARSLab/LWN-Simulator/blob/main/LICENSE.txt)
+[![GitHub license](https://img.shields.io/github/license/R3DPanda1/LWN-Sim-Plus)](https://github.com/R3DPanda1/LWN-Sim-Plus/blob/main/LICENSE.txt)
 [![made-with-Go](https://img.shields.io/badge/Made%20with-Go-1f425f.svg)](https://golang.org)
-[![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/UniCT-ARSLab/LWN-Simulator.svg)](https://github.com/UniCT-ARSLab/LWN-Simulator)
-[![GitHub release](https://img.shields.io/github/release/UniCT-ARSLab/LWN-Simulator.svg)](https://github.com/UniCT-ARSLab/LWN-Simulator/releases/)
 
-A LoRaWAN nodes' simulator to simulate a LoRaWAN Network.
+**Advanced LoRaWAN Device Simulator with JavaScript Codecs and State Management**
+
+Master's Thesis Project - An enhanced fork of [LWN-Simulator](https://github.com/UniCT-ARSLab/LWN-Simulator) with dynamic payload generation, stateful codec execution, and production-ready Kubernetes deployment.
+
+## Key Enhancements Over LWN-Simulator
+
+- **JavaScript Codec Support**: ChirpStack-compatible payload encoder/decoder system
+- **Stateful Device Simulation**: Persistent counters, variables, and message history
+- **Multi-Part Message Support**: Stateful payload generation for complex scenarios
+- **Production-Ready**: Kubernetes manifests, health checks, Prometheus metrics
+- **Scalable**: Optimized for 100+ concurrent devices
+- **Device Profiles**: Pre-configured templates for real LoRaWAN devices
 
 ## Table of Contents
 
-* [General Info](#general-info)
+* [What's New](#whats-new)
+* [Quick Start](#quick-start)
+* [JavaScript Codec System](#javascript-codec-system)
+* [Device Profiles](#device-profiles)
+* [Kubernetes Deployment](#kubernetes-deployment)
 * [Requirements](#requirements)
 * [Installation](#installation)
+* [Original LWN-Simulator Features](#original-lwn-simulator-features)
+* [Thesis Information](#thesis-information)
 
-## General Info
+## What's New
 
-LWN Simulator is a LoRaWAN nodes' simulator equipped with web interface. It allows to comunicate with a real
-infrastructure LoRaWAN or ad-hoc infrastructure, such as [Chirpstack](https://www.chirpstack.io/).
+### JavaScript Codec System
 
-![dashboard](./.github/dashboard.png)
+Execute ChirpStack-compatible JavaScript codecs server-side for dynamic payload generation:
 
-The project consists of three main components: devices, forwarder and gateways.
+```javascript
+function Encode(fPort, obj) {
+    // Access persistent state
+    var counter = getCounter("messageCount");
+    setCounter("messageCount", counter + 1);
 
-### The device
+    // Build payload
+    var bytes = [];
+    bytes.push((obj.temperature + 50) * 2);
+    bytes.push(obj.humidity);
+    bytes.push((counter >> 8) & 0xFF);
+    bytes.push(counter & 0xFF);
 
-* Based [specification LoRaWAN v1.0.3](https://lora-alliance.org/resource_hub/lorawan-specification-v1-0-3/);
-* Supports
-  all [LoRaWAN Regional Parameters v1.0.3](https://lora-alliance.org/resource_hub/lorawan-regional-parameters-v1-0-3reva/).
-* Implements class A,C and partially even the B class;
-* Implements ADR Algorithm;
-* Sends periodically a frame that including some configurable payload;
-* Supports MAC Command;
-* Implements FPending procedure;
-* It is possibile to interact with it in real-time;
+    return bytes;
+}
 
-### The forwarder
+function Decode(fPort, bytes) {
+    return {
+        temperature: (bytes[0] / 2) - 50,
+        humidity: bytes[1],
+        counter: (bytes[2] << 8) | bytes[3]
+    };
+}
+```
 
-It receives the frames from devices, creates a RXPK object including them within and forwards to gateways.
+**Built-in Helper Functions:**
+- `getCounter(name)` / `setCounter(name, value)` - Persistent counters
+- `getState(name)` / `setState(name, value)` - Custom state variables
+- `getPreviousPayload()` / `getPreviousPayloads(n)` - Message history
+- `log(message)` - Debug logging
 
-### The gateway
+### Stateful Device Simulation
 
-There are two types of gateway:
+- **Persistent State**: Counters and variables survive restarts
+- **Message History**: Access previous N payloads
+- **Multi-Part Messages**: Stateful payload generation with automatic sequencing
 
-* A virtual gateway that communicates with a real gateway bridge (if it exists);
-* A real gateway to which datagrams UDP are forwarded.
+### Production Kubernetes Deployment
+
+```bash
+kubectl apply -f k8s/
+```
+
+Includes:
+- StatefulSet with persistent storage
+- Health and readiness probes
+- Prometheus metrics endpoint
+- ConfigMap-based configuration
+- Resource limits and requests
+
+## Quick Start
+
+### Using Docker Compose (with ChirpStack)
+
+```bash
+# Start the entire stack
+docker compose up -d
+
+# Access the simulator
+open http://localhost:8000
+```
+
+### From Source
+
+```bash
+# Clone the repository
+git clone https://github.com/R3DPanda1/LWN-Sim-Plus.git
+cd LWN-Sim-Plus
+
+# Install dependencies
+make install-dep
+
+# Build
+make build
+
+# Run
+./bin/lwn-sim-plus
+```
+
+## JavaScript Codec System
+
+### Creating a Codec
+
+1. Open the web UI at `http://localhost:8000`
+2. Create or select a device
+3. Click "Configure Codec"
+4. Write your JavaScript codec (ChirpStack-compatible format)
+5. Test and save
+
+### Example: Multi-Part Messages
+
+```javascript
+function Encode(fPort, obj) {
+    var partIndex = getCounter("partIndex");
+    var totalParts = 3;
+
+    // Generate large payload that needs splitting
+    var fullMessage = [];
+    for (var i = 0; i < 150; i++) {
+        fullMessage.push((i + obj.value) & 0xFF);
+    }
+
+    var maxSize = 51; // LoRaWAN max payload for SF7
+
+    var start = partIndex * maxSize;
+    var part = fullMessage.slice(start, start + maxSize);
+
+    // Increment for next message
+    setCounter("partIndex", (partIndex + 1) % totalParts);
+
+    // Add fragmentation header
+    return [partIndex, totalParts].concat(part);
+}
+```
+
+## Device Profiles
+
+Pre-configured device profiles with real-world codecs:
+
+- **Dragino LHT65**: Temperature & humidity sensor
+- **Browan Temperature Sensor**: Simple sensor
+- **Milesight AM107**: Counter tracking
+- **Custom Multi-Part**: Complex payload scenarios
+
+Import from The Things Network codec library or create your own.
+
+## Kubernetes Deployment
+
+Deploy to production Kubernetes cluster:
+
+```bash
+# Apply all manifests
+kubectl apply -f k8s/
+
+# Check status
+kubectl get pods -n lorawan-simulator
+
+# Access via port-forward
+kubectl port-forward svc/lwn-sim-plus 8000:8000 -n lorawan-simulator
+```
+
+See [k8s/README.md](k8s/README.md) for detailed deployment guide.
 
 ## Requirements
 
-* If you don't have a real infrastructure, you can
-  download [ChirpStack open-source LoRaWAN® Network Server](https://www.chirpstack.io/project/), or a similar software,
-  to prove it;
-
-> [!TIP]
-> A ChirpStack instance can be easily started using Docker. You can find the
-> instructions [here](https://www.chirpstack.io/docs/getting-started/docker.html).
+* **Go**: Version >= 1.21
+* **ChirpStack**: For testing (optional, Docker Compose included)
+* **Kubernetes**: For production deployment (optional)
 
 ## Installation
 
-### From binary file
+### From Binary File
 
-You can download from releases section the pre-compiled binary file.
+Download pre-compiled binaries from the [Releases Page](https://github.com/R3DPanda1/LWN-Sim-Plus/releases)
 
-[Releases Page](https://github.com/UniCT-ARSLab/LWN-Simulator/releases)
-
-### From source code
-
-#### Requirements
-
-The simulator is written in Go, so you must have installed Go on your machine.
-
-* You must install [Go](https://golang.org/). Version >= 1.21
-
-> [!NOTE]
-> Windows users should install [GnuMake for Windows](https://www.gnu.org/software/make/) to use the makefile.
-> If you use winget, you can install it with the following command:
-> ```bash
-> winget install GnuWin32.Make
-> ```
+### From Source Code
 
 #### Build Steps
 
-Firstly, you must clone this repository:
-
 ```bash
-git clone https://github.com/UniCT-ARSLab/LWN-Simulator.git
-```
+# Clone repository
+git clone https://github.com/R3DPanda1/LWN-Sim-Plus.git
+cd LWN-Sim-Plus
 
-After the download, you must enter in main directory:
-
-```bash
-cd LWN-Simulator
-```
-
-You must install all dependencies to build the simulator:
-
-```bash
+# Install dependencies
 make install-dep
-```
 
-Now you can launch the build of the simulator:
-
-```bash
+# Build
 make build
+
+# Run
+./bin/lwn-sim-plus  # Linux
+./bin/lwn-sim-plus.exe  # Windows
 ```
 
-The binary file will be created in the `bin` directory.
+### Configuration File
 
-#### Run the simulator
-
-To run the simulator, you can:
-
-- Run from the built binary file:
-
-```bash
-./bin/lwnsimulator // for Linux
-./bin/lwnsimulator.exe // for Windows
-
-make run-release // if you use makefile
-```
-
-- Run from the source code:
-
-```bash
-make run
-```
-
-### Configuration file
-
-The simulator depends on a configuration file (`config.json`) which specifies some configurations for the simulator:
+The simulator uses `config.json` for configuration:
 
 ```json
 {
@@ -137,33 +220,84 @@ The simulator depends on a configuration file (`config.json`) which specifies so
   "metricsPort": 8001,
   "configDirname": "lwnsimulator",
   "autoStart": false,
-  "verbose": false
+  "verbose": true
 }
 ```
 
-- `address`: the address where the simulator will listen for incoming connections;
-- `port`: the port where the simulator will listen for incoming connections;
-- `metricsPort`: the port where the simulator will listen for incoming connections for metrics (Prometheus);
-- `configDirname`: the directory where the simulator will store the configuration files;
-- `autoStart`: if true, the simulator will start automatically the simulation;
-- `verbose`: if true, the simulator will print more logs.
+## Original LWN-Simulator Features
 
-## Tutorials
+This project is based on [LWN-Simulator](https://github.com/UniCT-ARSLab/LWN-Simulator) and retains all original features:
 
-More coming soon...
+### The Device
 
-### Arabic (thanks to [IdealBit](https://www.youtube.com/@IdealBit365))
+* Based on [LoRaWAN specification v1.0.3](https://lora-alliance.org/resource_hub/lorawan-specification-v1-0-3/)
+* Supports all [LoRaWAN Regional Parameters v1.0.3](https://lora-alliance.org/resource_hub/lorawan-regional-parameters-v1-0-3reva/)
+* Implements Class A, C, and partial Class B
+* ADR (Adaptive Data Rate) Algorithm
+* MAC Commands support
+* FPending procedure
+* Real-time interaction via web UI
 
-[How to Install on Linux or WLS](https://www.youtube.com/watch?v=TEZcyVdanYE)
+### The Forwarder
 
-[How to Install on Windows](https://www.youtube.com/watch?v=BbemBm3Lzvo)
+Receives frames from devices, creates RXPK objects, and forwards to gateways.
 
-[How to use LWN Simulator with ChirpStack](https://www.youtube.com/watch?v=OpQkb00gfjs)
+### The Gateway
 
-## Publications and Citations
+Two types supported:
+* **Virtual gateway**: Communicates with real gateway bridges
+* **UDP gateway**: Receives/sends UDP datagrams
+
+## Thesis Information
+
+**Project**: LWN-Sim-Plus - Advanced LoRaWAN Device Simulator
+**Type**: Master's Thesis Project
+**Timeline**: December 2024 - April 2025
+**Author**: Alper Ramadan
+**Institution**: [Your University]
+
+### Thesis Objectives
+
+1. Implement server-side JavaScript codec execution for dynamic payload generation
+2. Design stateful device simulation with persistent state management
+3. Support complex scenarios (multi-part messages, stateful payloads)
+4. Achieve scalability targets (100+ concurrent devices)
+5. Provide production-ready Kubernetes deployment
+
+### Documentation
+
+- [Codec Creation Guide](docs/CODEC_GUIDE.md)
+- [User Guide](docs/USER_GUIDE.md)
+- [API Reference](docs/API.md)
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [Performance Tuning](docs/PERFORMANCE.md)
+
+## Performance Benchmarks
+
+| Metric | Target | Status |
+|--------|--------|--------|
+| Concurrent Devices | 100+ | In Progress |
+| Codec Execution (p95) | <10ms | In Progress |
+| Memory per Device | <2MB | In Progress |
+| CPU (100 devices, 2-core) | <50% | In Progress |
+
+## License
+
+This project inherits the MIT License from LWN-Simulator.
+
+## Acknowledgments
+
+- Original [LWN-Simulator](https://github.com/UniCT-ARSLab/LWN-Simulator) by UniCT-ARSLab
+- [ChirpStack](https://www.chirpstack.io/) for LoRaWAN Network Server
+- [The Things Network](https://www.thethingsnetwork.org/) for codec library inspiration
+- [goja](https://github.com/dop251/goja) for JavaScript runtime
+
+## Publications Citing Original LWN-Simulator
 
 - [LWN Simulator-A LoRaWAN Network Simulator](https://ieeexplore.ieee.org/document/10477816)
 - [Lightweight Root Key Management Scheme in Smart Grid IoT Network based on Blockchain Technology](https://www.researchsquare.com/article/rs-3330383/v1)
 - [Optimizing LoRa for Edge Computing with TinyML Pipeline for Channel Hopping](https://arxiv.org/abs/2412.01609)
-- [Compute Continuum in Bioengineering: Enhanced Motion Capture and Real-Time Data Processing on Cloud-Edge Infrastructures](https://tesidottorato.depositolegale.it/handle/20.500.14242/188170)
-- [ChirpPark: A Smart and Sustainable Parking System Protocol for Smart Cities and Multi-Agent Vehicles](https://ieeexplore.ieee.org/abstract/document/10697994)
+
+---
+
+**Status**: Active Development - Master's Thesis Project (Dec 2024 - Apr 2025)
