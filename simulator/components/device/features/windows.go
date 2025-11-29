@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"time"
 
-	c "github.com/arslab/lwnsimulator/simulator/components/device/features/channels"
-	dl "github.com/arslab/lwnsimulator/simulator/components/device/frames/downlink"
+	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features/channels"
+	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
 	"github.com/brocaar/lorawan"
 )
 

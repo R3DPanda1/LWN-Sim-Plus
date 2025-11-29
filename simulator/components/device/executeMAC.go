@@ -7,12 +7,12 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/arslab/lwnsimulator/simulator/components/device/classes"
-	"github.com/arslab/lwnsimulator/simulator/components/device/features"
-	dl "github.com/arslab/lwnsimulator/simulator/components/device/frames/downlink"
-	mac "github.com/arslab/lwnsimulator/simulator/components/device/macCommands"
-	rp "github.com/arslab/lwnsimulator/simulator/components/device/regional_parameters"
-	"github.com/arslab/lwnsimulator/simulator/util"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features"
+	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
+	mac "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/macCommands"
+	rp "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/brocaar/lorawan"
 )
 
