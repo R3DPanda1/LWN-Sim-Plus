@@ -4,11 +4,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 
-	modelClass "github.com/arslab/lwnsimulator/simulator/components/device/classes/models_classes"
-	"github.com/arslab/lwnsimulator/simulator/components/device/features/channels"
-	dl "github.com/arslab/lwnsimulator/simulator/components/device/frames/downlink"
-	up "github.com/arslab/lwnsimulator/simulator/components/device/frames/uplink"
-	mup "github.com/arslab/lwnsimulator/simulator/components/device/frames/uplink/models"
+	modelClass "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes/models_classes"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features/channels"
+	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
+	up "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/uplink"
+	mup "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/uplink/models"
 	"github.com/brocaar/lorawan"
 )
 

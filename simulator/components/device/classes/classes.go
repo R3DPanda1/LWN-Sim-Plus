@@ -3,9 +3,9 @@ package classes
 import (
 	"time"
 
-	dl "github.com/arslab/lwnsimulator/simulator/components/device/frames/downlink"
-	"github.com/arslab/lwnsimulator/simulator/components/device/models"
-	pkt "github.com/arslab/lwnsimulator/simulator/resources/communication/packets"
+	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/models"
+	pkt "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/packets"
 	"github.com/brocaar/lorawan"
 )
 

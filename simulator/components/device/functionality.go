@@ -8,11 +8,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/arslab/lwnsimulator/simulator/components/device/classes"
-	"github.com/arslab/lwnsimulator/simulator/components/device/features/adr"
-	dl "github.com/arslab/lwnsimulator/simulator/components/device/frames/downlink"
-	rp "github.com/arslab/lwnsimulator/simulator/components/device/regional_parameters"
-	"github.com/arslab/lwnsimulator/simulator/util"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features/adr"
+	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
+	rp "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/brocaar/lorawan"
 )
 

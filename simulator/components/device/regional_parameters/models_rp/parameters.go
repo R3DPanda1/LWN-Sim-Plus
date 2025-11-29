@@ -1,6 +1,6 @@
 package models_rp
 
-import c "github.com/arslab/lwnsimulator/simulator/components/device/classes/models_classes"
+import c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes/models_classes"
 
 type Parameters struct {
 	Code              int                 `json:"code"`

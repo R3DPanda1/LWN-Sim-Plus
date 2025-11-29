@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"strconv"
 
-	cnt "github.com/arslab/lwnsimulator/controllers"
-	"github.com/arslab/lwnsimulator/models"
-	repo "github.com/arslab/lwnsimulator/repositories"
-	"github.com/arslab/lwnsimulator/shared"
-	ws "github.com/arslab/lwnsimulator/webserver"
+	cnt "github.com/R3DPanda1/LWN-Sim-Plus/controllers"
+	"github.com/R3DPanda1/LWN-Sim-Plus/models"
+	repo "github.com/R3DPanda1/LWN-Sim-Plus/repositories"
+	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
+	ws "github.com/R3DPanda1/LWN-Sim-Plus/webserver"
 )
 
 // Entry point of the program.

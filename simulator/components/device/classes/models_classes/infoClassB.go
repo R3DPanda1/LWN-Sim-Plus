@@ -1,8 +1,8 @@
 package models_classes
 
 import (
-	"github.com/arslab/lwnsimulator/simulator/components/device/features"
-	"github.com/arslab/lwnsimulator/simulator/components/device/features/channels"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features/channels"
 )
 
 type InfoClassB struct {

@@ -3,9 +3,9 @@ package uplink
 import (
 	"encoding/json"
 
-	"github.com/arslab/lwnsimulator/simulator/components/device/features/adr"
-	mac "github.com/arslab/lwnsimulator/simulator/components/device/macCommands"
-	"github.com/arslab/lwnsimulator/simulator/util"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features/adr"
+	mac "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/macCommands"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/brocaar/lorawan"
 )
 

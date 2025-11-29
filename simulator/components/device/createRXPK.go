@@ -3,7 +3,7 @@ package device
 import (
 	"encoding/base64"
 
-	pkt "github.com/arslab/lwnsimulator/simulator/resources/communication/packets"
+	pkt "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/packets"
 )
 
 func (d *Device) DataRateToString() string {

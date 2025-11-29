@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	dl "github.com/arslab/lwnsimulator/simulator/components/device/frames/downlink"
-	pkt "github.com/arslab/lwnsimulator/simulator/resources/communication/packets"
-	"github.com/arslab/lwnsimulator/simulator/util"
+	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
+	pkt "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/packets"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/brocaar/lorawan"
 
-	"github.com/arslab/lwnsimulator/simulator/components/device/models"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/models"
 )
 
 type TypeA struct {

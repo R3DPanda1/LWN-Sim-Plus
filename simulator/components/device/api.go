@@ -4,12 +4,12 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/arslab/lwnsimulator/simulator/components/device/classes"
-	mup "github.com/arslab/lwnsimulator/simulator/components/device/frames/uplink/models"
-	f "github.com/arslab/lwnsimulator/simulator/components/forwarder"
-	c "github.com/arslab/lwnsimulator/simulator/console"
-	res "github.com/arslab/lwnsimulator/simulator/resources"
-	"github.com/arslab/lwnsimulator/simulator/util"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
+	mup "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/uplink/models"
+	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
+	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
+	res "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/brocaar/lorawan"
 )
 
