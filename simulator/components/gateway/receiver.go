@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	pkt "github.com/arslab/lwnsimulator/simulator/resources/communication/packets"
-	"github.com/arslab/lwnsimulator/simulator/resources/communication/udp"
-	"github.com/arslab/lwnsimulator/simulator/util"
+	pkt "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/packets"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/udp"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )

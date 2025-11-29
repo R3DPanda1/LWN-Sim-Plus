@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	c "github.com/arslab/lwnsimulator/simulator/components/device/features/channels"
-	models "github.com/arslab/lwnsimulator/simulator/components/device/regional_parameters/models_rp"
+	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features/channels"
+	models "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters/models_rp"
 	"github.com/brocaar/lorawan"
 )
 

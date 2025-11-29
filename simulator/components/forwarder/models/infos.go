@@ -1,8 +1,8 @@
 package models
 
 import (
-	"github.com/arslab/lwnsimulator/simulator/resources/communication/buffer"
-	loc "github.com/arslab/lwnsimulator/simulator/resources/location"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/buffer"
+	loc "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/location"
 	"github.com/brocaar/lorawan"
 )
 

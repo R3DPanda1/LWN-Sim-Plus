@@ -3,7 +3,7 @@ package buffer
 import (
 	"sync"
 
-	"github.com/arslab/lwnsimulator/simulator/resources/communication/packets"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/packets"
 )
 
 type BufferUplink struct {

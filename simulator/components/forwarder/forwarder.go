@@ -4,11 +4,11 @@ import (
 	"sync"
 	"time"
 
-	dl "github.com/arslab/lwnsimulator/simulator/components/device/frames/downlink"
-	m "github.com/arslab/lwnsimulator/simulator/components/forwarder/models"
-	"github.com/arslab/lwnsimulator/simulator/resources/communication/buffer"
-	pkt "github.com/arslab/lwnsimulator/simulator/resources/communication/packets"
-	loc "github.com/arslab/lwnsimulator/simulator/resources/location"
+	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
+	m "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder/models"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/buffer"
+	pkt "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/packets"
+	loc "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/location"
 	"github.com/brocaar/lorawan"
 )
 

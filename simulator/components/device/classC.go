@@ -1,8 +1,8 @@
 package device
 
 import (
-	"github.com/arslab/lwnsimulator/simulator/components/device/classes"
-	"github.com/arslab/lwnsimulator/simulator/util"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 )
 
 func (d *Device) DownlinkReceivedRX2ClassC() {

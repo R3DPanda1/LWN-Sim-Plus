@@ -3,12 +3,12 @@ package gateway
 import (
 	"sync"
 
-	f "github.com/arslab/lwnsimulator/simulator/components/forwarder"
-	c "github.com/arslab/lwnsimulator/simulator/console"
-	res "github.com/arslab/lwnsimulator/simulator/resources"
-	"github.com/arslab/lwnsimulator/simulator/resources/communication/buffer"
-	"github.com/arslab/lwnsimulator/simulator/resources/communication/udp"
-	"github.com/arslab/lwnsimulator/simulator/util"
+	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
+	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
+	res "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/buffer"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/udp"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 )
 
 func (g *Gateway) Setup(BridgeAddress *string,

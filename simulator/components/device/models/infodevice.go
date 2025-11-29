@@ -4,10 +4,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
-	"github.com/arslab/lwnsimulator/simulator/components/device/features"
-	dl "github.com/arslab/lwnsimulator/simulator/components/device/frames/downlink"
-	f "github.com/arslab/lwnsimulator/simulator/components/forwarder"
-	"github.com/arslab/lwnsimulator/simulator/resources/location"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features"
+	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
+	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/location"
 	"github.com/brocaar/lorawan"
 )
 

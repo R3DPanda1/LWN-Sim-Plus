@@ -1,9 +1,9 @@
 package device
 
 import (
-	"github.com/arslab/lwnsimulator/simulator/components/device/classes"
-	up "github.com/arslab/lwnsimulator/simulator/components/device/frames/uplink"
-	"github.com/arslab/lwnsimulator/simulator/util"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
+	up "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/uplink"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/brocaar/lorawan"
 )
 

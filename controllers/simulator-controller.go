@@ -1,12 +1,12 @@
 package controllers
 
 import (
-	"github.com/arslab/lwnsimulator/models"
-	repo "github.com/arslab/lwnsimulator/repositories"
+	"github.com/R3DPanda1/LWN-Sim-Plus/models"
+	repo "github.com/R3DPanda1/LWN-Sim-Plus/repositories"
 
-	dev "github.com/arslab/lwnsimulator/simulator/components/device"
-	gw "github.com/arslab/lwnsimulator/simulator/components/gateway"
-	e "github.com/arslab/lwnsimulator/socket"
+	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
+	gw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway"
+	e "github.com/R3DPanda1/LWN-Sim-Plus/socket"
 	"github.com/brocaar/lorawan"
 	socketio "github.com/googollee/go-socket.io"
 )

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/arslab/lwnsimulator/simulator/components/device/features/channels"
-	rp "github.com/arslab/lwnsimulator/simulator/components/device/regional_parameters"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features/channels"
+	rp "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters"
 )
 
 //Configuration contains conf of device

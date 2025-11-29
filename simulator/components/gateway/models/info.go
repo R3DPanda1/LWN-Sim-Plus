@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	loc "github.com/arslab/lwnsimulator/simulator/resources/location"
+	loc "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/location"
 	"github.com/brocaar/lorawan"
 )
 

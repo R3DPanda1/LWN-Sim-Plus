@@ -3,7 +3,7 @@ package models_classes
 import (
 	"sync"
 
-	dl "github.com/arslab/lwnsimulator/simulator/components/device/frames/downlink"
+	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
 )
 
 type InfoClassC struct {
