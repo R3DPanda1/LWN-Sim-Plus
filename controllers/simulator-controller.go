@@ -37,6 +37,8 @@ type SimulatorController interface {
 	ToggleStateGateway(int)                    // Toggle the state of a gateway
 	GetCodecs() []codec.CodecMetadata          // Get all available codecs
 	GetCodec(string) (*codec.Codec, error)     // Get a specific codec by ID
+	AddCodec(*codec.Codec) error               // Add a custom codec
+	DeleteCodec(string) error                  // Delete a codec by ID
 }
 
 // simulatorController controller struct
@@ -143,4 +145,12 @@ func (c *simulatorController) GetCodecs() []codec.CodecMetadata {
 
 func (c *simulatorController) GetCodec(id string) (*codec.Codec, error) {
 	return c.repo.GetCodec(id)
+}
+
+func (c *simulatorController) AddCodec(codec *codec.Codec) error {
+	return c.repo.AddCodec(codec)
+}
+
+func (c *simulatorController) DeleteCodec(id string) error {
+	return c.repo.DeleteCodec(id)
 }
