@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/R3DPanda1/LWN-Sim-Plus/codec"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	repo "github.com/R3DPanda1/LWN-Sim-Plus/repositories"
 
@@ -34,6 +35,8 @@ type SimulatorController interface {
 	SendUplink(e.NewPayload)                   // Send an uplink
 	ChangeLocation(e.NewLocation) bool         // Change the location
 	ToggleStateGateway(int)                    // Toggle the state of a gateway
+	GetCodecs() []codec.CodecMetadata          // Get all available codecs
+	GetCodec(string) (*codec.Codec, error)     // Get a specific codec by ID
 }
 
 // simulatorController controller struct
@@ -132,4 +135,12 @@ func (c *simulatorController) ChangeLocation(loc e.NewLocation) bool {
 
 func (c *simulatorController) ToggleStateGateway(Id int) {
 	c.repo.ToggleStateGateway(Id)
+}
+
+func (c *simulatorController) GetCodecs() []codec.CodecMetadata {
+	return c.repo.GetCodecs()
+}
+
+func (c *simulatorController) GetCodec(id string) (*codec.Codec, error) {
+	return c.repo.GetCodec(id)
 }
