@@ -1,0 +1,23 @@
+{
+  "name": "Temperature Sensor",
+  "description": "Simple temperature sensor with battery monitoring",
+  "codec": {
+    "script": "function Encode(fPort, obj) {\n    var counter = getCounter('msgCount');\n    setCounter('msgCount', counter + 1);\n    \n    var bytes = [];\n    \n    // Add counter (2 bytes)\n    bytes.push((counter >> 8) & 0xFF);\n    bytes.push(counter & 0xFF);\n    \n    // Temperature (2 bytes, signed, resolution 0.1°C)\n    var temp = Math.round((obj.temperature || 20) * 10);\n    bytes.push((temp >> 8) & 0xFF);\n    bytes.push(temp & 0xFF);\n    \n    // Battery voltage (1 byte, resolution 0.01V, range 2-4V)\n    var battery = Math.round(((obj.battery || 3.6) - 2) * 50);\n    bytes.push(battery & 0xFF);\n    \n    return bytes;\n}\n\nfunction Decode(fPort, bytes) {\n    if (bytes.length < 5) return {};\n    \n    var obj = {};\n    obj.counter = (bytes[0] << 8) | bytes[1];\n    obj.temperature = (((bytes[2] << 8) | bytes[3]) << 16 >> 16) / 10.0;\n    obj.battery = 2 + (bytes[4] / 50.0);\n    \n    return obj;\n}"
+  },
+  "payloadConfig": {
+    "temperature": 22.5,
+    "battery": 3.6
+  },
+  "configuration": {
+    "region": 0,
+    "sendInterval": 300,
+    "ackTimeout": 5,
+    "range": 1000,
+    "dataRate": 5,
+    "supportedOtaa": true,
+    "supportedADR": false,
+    "supportedFragment": false,
+    "supportedClassB": false,
+    "supportedClassC": false
+  }
+}
