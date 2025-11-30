@@ -74,10 +74,22 @@
 
                         <li class="nav-item">
                             <a id="bridge-tab" class="nav-link" data-tab="#bridge-gw" >
-                                <img class="gateway mr-3"/> 
+                                <img class="gateway mr-3"/>
                                 <span>Gateway Bridge</span>
                             </a>
-                        </li>                      
+                        </li>
+
+                        <li class="nav-item dropdown">
+                            <a href="#" class="nav-link has-dropdown">
+                                <img class="device mr-3"/>
+                                <span>Codecs</span>
+                            </a>
+
+                            <ul class="dropdown-menu">
+                                <li><a id="codecs-tab" class="nav-link" data-tab="#codecs">List codecs</a></li>
+                                <li><a id="add-codec-tab" class="nav-link" data-tab="#add-codec">Add new codec</a></li>
+                            </ul>
+                        </li>
                     </ul>
                 </aside>
             </div>
@@ -865,14 +877,52 @@
                                             <div class="form-group row align-items-center">
                                                 <div class="col-xl-2">
                                                 </div>
-                                                
+
                                                 <div class="col-xl-10">
                                                     <input class="form-check-input text-xl-right" type="checkbox" name="checkbox-base64">
                                                     <label class="form-control-label ">
                                                         Base64 encoded
                                                     </label>
                                                 </div>
-                                                
+
+                                            </div>
+
+                                            <!--Use Codec-->
+                                            <div class="form-group row align-items-center">
+                                                <div class="col-xl-2">
+                                                </div>
+
+                                                <div class="col-xl-10">
+                                                    <input class="form-check-input text-xl-right" type="checkbox" id="checkbox-use-codec" name="checkbox-use-codec">
+                                                    <label class="form-control-label ">
+                                                        Use Codec for Dynamic Payload Generation
+                                                    </label>
+                                                </div>
+
+                                            </div>
+
+                                            <!--Codec Selection-->
+                                            <div id="codec-selection-section" class="form-group row align-items-center" style="display: none;">
+                                                <label class="form-control-label col-xl-2 text-xl-right">Codec</label>
+                                                <div class="col-xl-10">
+                                                    <select id="select-codec" name="select-codec" class="form-control">
+                                                        <option value="">Select a codec...</option>
+                                                    </select>
+                                                    <div class="form-text mt-0">
+                                                        Choose a codec to generate dynamic payloads
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!--Payload Config-->
+                                            <div id="payload-config-section" class="form-group row align-items-center" style="display: none;">
+                                                <label class="form-control-label col-xl-2 text-xl-right">Payload Config</label>
+                                                <div class="col-xl-10">
+                                                    <textarea id="textarea-payload-config" class="form-control" name="input-payload-config" rows="5" placeholder='{"temperature": 22.5, "battery": 3.6}'></textarea>
+                                                    <div class="form-text mt-0">
+                                                        JSON configuration for codec payload generation
+                                                    </div>
+                                                </div>
                                             </div>
 
                                         </div>
@@ -1072,10 +1122,122 @@
                     </div>
 
                 </div>
-                
+
+                <!-- list of codecs-->
+                <div id="codecs" class="tab-pane fade" >
+
+                    <div class="card">
+                        <div class="card-body overflow-auto">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                <tr>
+                                    <th class ="w-20" scope="col">Name</th>
+                                    <th class ="w-40" scope="col">Description</th>
+                                    <th class ="w-15" scope="col">Version</th>
+                                    <th class ="w-25" scope="col">Created</th>
+                                </tr>
+                                </thead>
+                                <tbody id="list-codecs">
+
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- add codec-->
+                <div id="add-codec" class="tab-pane fade" >
+                    <div class="card">
+                        <div class="card-header">
+                            <h4>Codec Information</h4>
+                        </div>
+                        <div class="card-body">
+
+                            <!--Name-->
+                            <div class="form-group">
+                                <label>Name</label>
+                                <input type="text" class="form-control" name="input-codec-name" placeholder="e.g., Temperature Sensor" required="">
+                                <div class="invalid-feedback">
+                                    Choose another name for the codec.
+                                </div>
+                            </div>
+
+                            <!--Description-->
+                            <div class="form-group">
+                                <label>Description</label>
+                                <input type="text" class="form-control" name="input-codec-description" placeholder="Describe what this codec does">
+                            </div>
+
+                            <!--Version-->
+                            <div class="form-group">
+                                <label>Version</label>
+                                <input type="text" class="form-control" name="input-codec-version" placeholder="1.0" value="1.0">
+                            </div>
+
+                            <!--Author-->
+                            <div class="form-group">
+                                <label>Author</label>
+                                <input type="text" class="form-control" name="input-codec-author" placeholder="Your name">
+                            </div>
+
+                            <!--JavaScript Code-->
+                            <div class="form-group">
+                                <label>JavaScript Codec Code</label>
+                                <div class="form-text mb-2">
+                                    Write your Encode and/or Decode functions below. Available helper functions: getCounter(), setCounter(), getState(), setState(), getPreviousPayload(), log()
+                                </div>
+                                <textarea id="textarea-codec-script" class="form-control" name="input-codec-script" rows="20" placeholder="function Encode(fPort, obj) {
+    // Generate payload bytes from JSON object
+    var bytes = [];
+
+    // Your encoding logic here
+    // Example: encode temperature
+    var temp = Math.round((obj.temperature || 20) * 10);
+    bytes.push((temp >> 8) & 0xFF);
+    bytes.push(temp & 0xFF);
+
+    return bytes;
+}
+
+function Decode(fPort, bytes) {
+    // Decode bytes to JSON object
+    var obj = {};
+
+    // Your decoding logic here
+    // Example: decode temperature
+    obj.temperature = (((bytes[0] << 8) | bytes[1]) << 16 >> 16) / 10.0;
+
+    return obj;
+}"></textarea>
+                            </div>
+
+                            <!--Default Payload Config-->
+                            <div class="form-group">
+                                <label>Default Payload Configuration (JSON)</label>
+                                <div class="form-text mb-2">
+                                    Optional: Provide default values for payload generation
+                                </div>
+                                <textarea id="textarea-codec-default-config" class="form-control" name="input-codec-default-config" rows="5" placeholder='{
+    "temperature": 22.5,
+    "humidity": 65.0
+}'></textarea>
+                            </div>
+
+                        </div>
+
+                        <!--buttons-->
+                        <div id="div-buttons-codec" data-id="" class="card-footer bg-whitesmoke text-right">
+                            <button name="btn-delete-codec" class="btn btn-del hide" type="button">Delete</button>
+                            <button name="btn-edit-codec" class="btn btn-edit hide" type="button">Edit</button>
+                            <button name="btn-save-codec" class="btn btn-classic" type="button">Save</button>
+                        </div>
+
+                    </div>
+                </div>
+
             </div>
-            
-        </div> 
+
+        </div>
     </div>
 
     <!-- Modals-->
@@ -1293,9 +1455,10 @@
   
   <!-- Template JS File scripts.js must be before custom.js-->
   <script src="js/custom/scripts.js"></script>
-  
+
   <!-- Page Specific JS File -->
   <script src="js/custom/custom.js"></script>
+  <script src="js/custom/codec.js"></script>
 
 </body>
 

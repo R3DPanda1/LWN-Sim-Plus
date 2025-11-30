@@ -48,6 +48,7 @@ var TurnMap = 0;
 
 var Gateways = new Map();
 var Devices = new Map();
+var AvailableCodecs = [];
 
 //socket
 var socket = io({
@@ -1083,7 +1084,21 @@ function Init(){
         }
 
     }).fail((data)=>{
-        Show_ErrorSweetToast("Unable to load status", data.statusText); 
+        Show_ErrorSweetToast("Unable to load status", data.statusText);
+    });
+
+    // Load available codecs
+    $.ajax({
+        url: url+"/api/codecs",
+        type:"GET",
+        headers:{
+            "Access-Control-Allow-Origin":"*"
+        }
+    }).done((data)=>{
+        AvailableCodecs = data.codecs || [];
+        PopulateCodecDropdown();
+    }).fail((data)=>{
+        console.error("Unable to load codecs", data.statusText);
     });
 }
 
@@ -1094,7 +1109,46 @@ function Click_GenerateAddress(selector,bytes){
     var ok = SetData(selector,GenerateAddress(bytes));
     if (ok)
         ValidationInput(selector,true);
-    
+
+}
+
+//********************* Codec Functions *********************
+
+function PopulateCodecDropdown(){
+    var select = $("#select-codec");
+    select.empty();
+    select.append('<option value="">Select a codec...</option>');
+
+    AvailableCodecs.forEach(codec => {
+        select.append('<option value="' + codec.id + '">' + codec.name + '</option>');
+    });
+}
+
+// Handle checkbox toggle for codec section
+$("#checkbox-use-codec").on('change', function(){
+    if($(this).prop("checked")){
+        $("#codec-selection-section").show();
+        $("#payload-config-section").show();
+        $("#textarea-payload").prop("disabled", true);
+        $("[name=checkbox-base64]").prop("disabled", true);
+    } else {
+        $("#codec-selection-section").hide();
+        $("#payload-config-section").hide();
+        $("#textarea-payload").prop("disabled", false);
+        $("[name=checkbox-base64]").prop("disabled", false);
+    }
+});
+
+function ParsePayloadConfig(jsonString){
+    if(!jsonString || jsonString.trim() === ""){
+        return {};
+    }
+    try {
+        return JSON.parse(jsonString);
+    } catch(e) {
+        console.error("Invalid JSON in payload config:", e);
+        return {};
+    }
 }
 
 //********************* Notification *********************
@@ -2173,6 +2227,15 @@ function CleanInputDevice(){
 
     $("#textarea-payload").val("");
 
+    // Clean codec fields
+    $("#checkbox-use-codec").prop("checked", false);
+    $("#select-codec").val("");
+    $("#textarea-payload-config").val("");
+    $("#codec-selection-section").hide();
+    $("#payload-config-section").hide();
+    $("#textarea-payload").prop("disabled", false);
+    $("[name=checkbox-base64]").prop("disabled", false);
+
     //location
     CleanMap();
 
@@ -2318,6 +2381,25 @@ function LoadDevice(dev){
   
     $("#textarea-payload").val(dev.info.status.payload);
     $("[name=checkbox-base64]").prop("checked", dev.info.status.base64);
+
+    // Load codec configuration if present
+    if(dev.info.configuration.useCodec){
+        $("#checkbox-use-codec").prop("checked", true);
+        $("#codec-selection-section").show();
+        $("#payload-config-section").show();
+        $("#select-codec").val(dev.info.configuration.codecID || "");
+        if(dev.info.configuration.payloadConfig){
+            $("#textarea-payload-config").val(JSON.stringify(dev.info.configuration.payloadConfig, null, 2));
+        }
+        $("#textarea-payload").prop("disabled", true);
+        $("[name=checkbox-base64]").prop("disabled", true);
+    } else {
+        $("#checkbox-use-codec").prop("checked", false);
+        $("#codec-selection-section").hide();
+        $("#payload-config-section").hide();
+        $("#textarea-payload").prop("disabled", false);
+        $("[name=checkbox-base64]").prop("disabled", false);
+    }
 
     ChangeStateInputDevice(true,dev.info.devEUI);
 
@@ -2608,7 +2690,10 @@ function Click_SaveDevice(){
                 "dataRate": Number(datarate.val()),
                 "disableFCntDown":disablefcntDown,
                 "sendInterval":Number(upInterval.val()),
-                "nbRetransmission":Number(retransmission.val())
+                "nbRetransmission":Number(retransmission.val()),
+                "useCodec": $("#checkbox-use-codec").prop("checked"),
+                "codecID": $("#select-codec").val() || "",
+                "payloadConfig": ParsePayloadConfig($("#textarea-payload-config").val())
             },
             "rxs":[
                 {
