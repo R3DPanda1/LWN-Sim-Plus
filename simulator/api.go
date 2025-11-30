@@ -10,6 +10,7 @@ import (
 
 	"github.com/brocaar/lorawan"
 
+	"github.com/R3DPanda1/LWN-Sim-Plus/codec"
 	"github.com/R3DPanda1/LWN-Sim-Plus/codes"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 
@@ -37,6 +38,13 @@ func GetInstance() *Simulator {
 	s.Forwarder = *f.Setup()
 	// Attach console
 	s.Console = c.Console{}
+
+	// Initialize codec manager (Phase 1-3 enhancement)
+	if dev.CodecManager == nil {
+		dev.CodecManager = codec.NewManager(codec.DefaultExecutorConfig())
+		shared.DebugPrint("Codec manager initialized with default codecs")
+	}
+
 	return &s
 }
 

@@ -1,0 +1,203 @@
+package codec
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+)
+
+var (
+	// ErrCodecNotFound is returned when a codec is not found
+	ErrCodecNotFound = errors.New("codec not found")
+	// ErrInvalidCodecFormat is returned when codec validation fails
+	ErrInvalidCodecFormat = errors.New("invalid codec format")
+)
+
+// Codec represents a JavaScript codec for encoding/decoding device payloads
+// Compatible with ChirpStack codec format
+type Codec struct {
+	ID          string    `json:"id"`          // Unique identifier (hash of script)
+	Name        string    `json:"name"`        // Human-readable name
+	Description string    `json:"description"` // Description of the codec
+	Script      string    `json:"script"`      // JavaScript code
+	Version     string    `json:"version"`     // Version string
+	Author      string    `json:"author"`      // Author/creator
+	CreatedAt   time.Time `json:"createdAt"`   // Creation timestamp
+	UpdatedAt   time.Time `json:"updatedAt"`   // Last update timestamp
+}
+
+// CodecMetadata holds metadata about a codec without the script
+type CodecMetadata struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Version     string    `json:"version"`
+	Author      string    `json:"author"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// NewCodec creates a new codec with auto-generated ID
+func NewCodec(name, script string) *Codec {
+	now := time.Now()
+	codec := &Codec{
+		Name:      name,
+		Script:    script,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	codec.ID = codec.generateID()
+	return codec
+}
+
+// generateID creates a unique ID based on script hash
+func (c *Codec) generateID() string {
+	hash := sha256.Sum256([]byte(c.Script + c.Name + c.CreatedAt.String()))
+	return hex.EncodeToString(hash[:])[:16] // Use first 16 chars
+}
+
+// Validate checks if the codec is valid
+func (c *Codec) Validate() error {
+	if c.Name == "" {
+		return fmt.Errorf("%w: name is required", ErrInvalidCodecFormat)
+	}
+	if c.Script == "" {
+		return fmt.Errorf("%w: script is required", ErrInvalidCodecFormat)
+	}
+
+	// Check if script contains Encode or Decode function
+	hasEncode := strings.Contains(c.Script, "function Encode")
+	hasDecode := strings.Contains(c.Script, "function Decode")
+
+	if !hasEncode && !hasDecode {
+		return fmt.Errorf("%w: script must contain at least one of Encode or Decode function", ErrInvalidCodecFormat)
+	}
+
+	return nil
+}
+
+// Metadata returns metadata without the script
+func (c *Codec) Metadata() CodecMetadata {
+	return CodecMetadata{
+		ID:          c.ID,
+		Name:        c.Name,
+		Description: c.Description,
+		Version:     c.Version,
+		Author:      c.Author,
+		CreatedAt:   c.CreatedAt,
+		UpdatedAt:   c.UpdatedAt,
+	}
+}
+
+// Clone creates a deep copy of the codec
+func (c *Codec) Clone() *Codec {
+	return &Codec{
+		ID:          c.ID,
+		Name:        c.Name,
+		Description: c.Description,
+		Script:      c.Script,
+		Version:     c.Version,
+		Author:      c.Author,
+		CreatedAt:   c.CreatedAt,
+		UpdatedAt:   c.UpdatedAt,
+	}
+}
+
+// ToJSON serializes the codec to JSON
+func (c *Codec) ToJSON() ([]byte, error) {
+	return json.MarshalIndent(c, "", "  ")
+}
+
+// FromJSON deserializes a codec from JSON
+func FromJSON(data []byte) (*Codec, error) {
+	var codec Codec
+	if err := json.Unmarshal(data, &codec); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal codec: %w", err)
+	}
+	if err := codec.Validate(); err != nil {
+		return nil, err
+	}
+	return &codec, nil
+}
+
+// CodecLibrary manages a collection of codecs
+type CodecLibrary struct {
+	codecs map[string]*Codec // ID -> Codec
+}
+
+// NewCodecLibrary creates a new codec library
+func NewCodecLibrary() *CodecLibrary {
+	return &CodecLibrary{
+		codecs: make(map[string]*Codec),
+	}
+}
+
+// Add adds a codec to the library
+func (cl *CodecLibrary) Add(codec *Codec) error {
+	if err := codec.Validate(); err != nil {
+		return err
+	}
+	cl.codecs[codec.ID] = codec
+	return nil
+}
+
+// Get retrieves a codec by ID
+func (cl *CodecLibrary) Get(id string) (*Codec, error) {
+	codec, exists := cl.codecs[id]
+	if !exists {
+		return nil, ErrCodecNotFound
+	}
+	return codec.Clone(), nil
+}
+
+// GetByName retrieves a codec by name (first match)
+func (cl *CodecLibrary) GetByName(name string) (*Codec, error) {
+	for _, codec := range cl.codecs {
+		if codec.Name == name {
+			return codec.Clone(), nil
+		}
+	}
+	return nil, ErrCodecNotFound
+}
+
+// Remove removes a codec from the library
+func (cl *CodecLibrary) Remove(id string) error {
+	if _, exists := cl.codecs[id]; !exists {
+		return ErrCodecNotFound
+	}
+	delete(cl.codecs, id)
+	return nil
+}
+
+// List returns all codec metadata
+func (cl *CodecLibrary) List() []CodecMetadata {
+	metadata := make([]CodecMetadata, 0, len(cl.codecs))
+	for _, codec := range cl.codecs {
+		metadata = append(metadata, codec.Metadata())
+	}
+	return metadata
+}
+
+// Count returns the number of codecs
+func (cl *CodecLibrary) Count() int {
+	return len(cl.codecs)
+}
+
+// Clear removes all codecs
+func (cl *CodecLibrary) Clear() {
+	cl.codecs = make(map[string]*Codec)
+}
+
+// LoadDefaults loads default example codecs
+func (cl *CodecLibrary) LoadDefaults() {
+	// Basic Temperature/Humidity Codec
+	basicCodec := NewCodec("Basic Sensor", CreateSampleCodec())
+	basicCodec.Description = "Simple temperature and humidity sensor with counter"
+	basicCodec.Version = "1.0"
+	basicCodec.Author = "LWN-Sim-Plus"
+	cl.Add(basicCodec)
+}
