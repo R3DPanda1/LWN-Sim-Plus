@@ -66,8 +66,10 @@ func (g *Gateway) TurnOFF() {
 
 	g.State = util.Stopped
 
-	g.BufferUplink.Signal()   //signal to sender
-	g.Info.Connection.Close() //signal to receiver
+	g.BufferUplink.Signal() //signal to sender
+	if g.Info.Connection != nil {
+		g.Info.Connection.Close() //signal to receiver
+	}
 
 }
 

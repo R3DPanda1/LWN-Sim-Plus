@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/R3DPanda1/LWN-Sim-Plus/codec"
 	cnt "github.com/R3DPanda1/LWN-Sim-Plus/controllers"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
@@ -93,6 +94,8 @@ func NewWebServer(config *models.ServerConfig, controller cnt.SimulatorControlle
 		apiRoutes.POST("/bridge/save", saveInfoBridge) // Save the remote address of the bridge
 		apiRoutes.GET("/codecs", getCodecs)            // Get all available codecs
 		apiRoutes.GET("/codec/:id", getCodec)          // Get a specific codec by ID
+		apiRoutes.POST("/add-codec", addCodec)         // Add a custom codec
+		apiRoutes.POST("/delete-codec", deleteCodec)   // Delete a codec by ID
 	}
 	// Set up the WebSocket routes.
 	router.GET("/socket.io/*any", gin.WrapH(serverSocket))
@@ -297,4 +300,54 @@ func getCodec(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"codec": codec})
+}
+
+// addCodec adds a custom codec
+func addCodec(c *gin.Context) {
+	var codecData struct {
+		Name              string `json:"name"`
+		Description       string `json:"description"`
+		Version           string `json:"version"`
+		Author            string `json:"author"`
+		Script            string `json:"script"`
+		DefaultPayloadConfig string `json:"defaultPayloadConfig"`
+	}
+
+	if err := c.BindJSON(&codecData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "Invalid JSON", "error": err.Error()})
+		return
+	}
+
+	// Create new codec
+	newCodec := codec.NewCodec(codecData.Name, codecData.Script)
+	newCodec.Description = codecData.Description
+	newCodec.Version = codecData.Version
+	newCodec.Author = codecData.Author
+
+	// Add to manager
+	if err := simulatorController.AddCodec(newCodec); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "Failed to add codec", "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "Codec added successfully", "id": newCodec.ID})
+}
+
+// deleteCodec deletes a codec by ID
+func deleteCodec(c *gin.Context) {
+	var reqData struct {
+		ID string `json:"id"`
+	}
+
+	if err := c.BindJSON(&reqData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "Invalid JSON", "error": err.Error()})
+		return
+	}
+
+	if err := simulatorController.DeleteCodec(reqData.ID); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"status": "Failed to delete codec", "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "Codec deleted successfully"})
 }

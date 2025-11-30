@@ -432,3 +432,19 @@ func (s *Simulator) GetCodec(id string) (*codec.Codec, error) {
 	}
 	return dev.CodecManager.GetCodec(id)
 }
+
+// AddCodec adds a custom codec
+func (s *Simulator) AddCodec(c *codec.Codec) error {
+	if dev.CodecManager == nil {
+		return errors.New("codec manager not initialized")
+	}
+	return dev.CodecManager.AddCodec(c)
+}
+
+// DeleteCodec removes a codec by ID
+func (s *Simulator) DeleteCodec(id string) error {
+	if dev.CodecManager == nil {
+		return errors.New("codec manager not initialized")
+	}
+	return dev.CodecManager.RemoveCodec(id)
+}
