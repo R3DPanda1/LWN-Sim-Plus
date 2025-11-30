@@ -416,3 +416,19 @@ func (s *Simulator) ToggleStateGateway(Id int) {
 	}
 
 }
+
+// GetCodecs returns all available codec metadata
+func (s *Simulator) GetCodecs() []codec.CodecMetadata {
+	if dev.CodecManager == nil {
+		return []codec.CodecMetadata{}
+	}
+	return dev.CodecManager.ListCodecs()
+}
+
+// GetCodec returns a specific codec by ID
+func (s *Simulator) GetCodec(id string) (*codec.Codec, error) {
+	if dev.CodecManager == nil {
+		return nil, errors.New("codec manager not initialized")
+	}
+	return dev.CodecManager.GetCodec(id)
+}
