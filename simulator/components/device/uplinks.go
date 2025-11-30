@@ -51,7 +51,15 @@ func (d *Device) CreateUplink() [][]byte {
 
 		} else {
 			mtype = d.Info.Status.MType
-			payload = d.Info.Status.Payload
+
+			// Check if codec is enabled and configured
+			if d.Info.Configuration.UseCodec && d.Info.Configuration.CodecID != "" {
+				// Generate payload using codec
+				payload = d.GenerateCodecPayload()
+			} else {
+				// Use static payload from configuration
+				payload = d.Info.Status.Payload
+			}
 		}
 
 		d.Info.Status.LastMType = mtype
