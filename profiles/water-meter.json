@@ -1,0 +1,23 @@
+{
+  "name": "Water Meter",
+  "description": "Smart water meter with leak detection and consumption tracking",
+  "codec": {
+    "script": "function Encode(fPort, obj) {\n    var bytes = [];\n    \n    // Get cumulative consumption (stored in state)\n    var consumption = getCounter('totalLiters');\n    \n    // Add hourly consumption (simulated)\n    var hourlyFlow = obj.flowRate || 0;\n    consumption += hourly Flow;\n    setCounter('totalLiters', consumption);\n    \n    // Encode cumulative consumption (4 bytes, liters)\n    bytes.push((consumption >> 24) & 0xFF);\n    bytes.push((consumption >> 16) & 0xFF);\n    bytes.push((consumption >> 8) & 0xFF);\n    bytes.push(consumption & 0xFF);\n    \n    // Current flow rate (2 bytes, L/h)\n    var flow = Math.round(hourlyFlow);\n    bytes.push((flow >> 8) & 0xFF);\n    bytes.push(flow & 0xFF);\n    \n    // Leak alarm (1 byte: 0=OK, 1=LEAK)\n    var leak = (obj.leak || false) ? 1 : 0;\n    bytes.push(leak);\n    \n    return bytes;\n}\n\nfunction Decode(fPort, bytes) {\n    if (bytes.length < 7) return {};\n    \n    var obj = {};\n    obj.totalLiters = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];\n    obj.flowRate = (bytes[4] << 8) | bytes[5];\n    obj.leak = bytes[6] === 1;\n    \n    return obj;\n}"
+  },
+  "payloadConfig": {
+    "flowRate": 15,
+    "leak": false
+  },
+  "configuration": {
+    "region": 0,
+    "sendInterval": 3600,
+    "ackTimeout": 5,
+    "range": 2000,
+    "dataRate": 3,
+    "supportedOtaa": true,
+    "supportedADR": true,
+    "supportedFragment": false,
+    "supportedClassB": false,
+    "supportedClassC": false
+  }
+}

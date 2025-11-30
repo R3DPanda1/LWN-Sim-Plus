@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/brocaar/lorawan"
 
+	"github.com/R3DPanda1/LWN-Sim-Plus/codec"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	e "github.com/R3DPanda1/LWN-Sim-Plus/socket"
 
@@ -37,6 +38,8 @@ type SimulatorRepository interface {
 	SendUplink(e.NewPayload)                   // Send an uplink
 	ChangeLocation(e.NewLocation) bool         // Change the location
 	ToggleStateGateway(int)                    // Toggle the state of a gateway
+	GetCodecs() []codec.CodecMetadata          // Get all available codecs
+	GetCodec(string) (*codec.Codec, error)     // Get a specific codec by ID
 }
 
 // simulatorRepository repository struct
@@ -156,4 +159,12 @@ func (s *simulatorRepository) ChangeLocation(loc e.NewLocation) bool {
 
 func (s *simulatorRepository) ToggleStateGateway(Id int) {
 	s.sim.ToggleStateGateway(Id)
+}
+
+func (s *simulatorRepository) GetCodecs() []codec.CodecMetadata {
+	return s.sim.GetCodecs()
+}
+
+func (s *simulatorRepository) GetCodec(id string) (*codec.Codec, error) {
+	return s.sim.GetCodec(id)
 }

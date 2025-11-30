@@ -91,6 +91,8 @@ func NewWebServer(config *models.ServerConfig, controller cnt.SimulatorControlle
 		apiRoutes.POST("/add-gateway", addGateway)     // Add a new gateway
 		apiRoutes.POST("/up-gateway", updateGateway)   // Update a gateway
 		apiRoutes.POST("/bridge/save", saveInfoBridge) // Save the remote address of the bridge
+		apiRoutes.GET("/codecs", getCodecs)            // Get all available codecs
+		apiRoutes.GET("/codec/:id", getCodec)          // Get a specific codec by ID
 	}
 	// Set up the WebSocket routes.
 	router.GET("/socket.io/*any", gin.WrapH(serverSocket))
@@ -278,4 +280,21 @@ func deleteDevice(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": simulatorController.DeleteDevice(Identifier.Id)})
+}
+
+// getCodecs returns all available codecs
+func getCodecs(c *gin.Context) {
+	codecs := simulatorController.GetCodecs()
+	c.JSON(http.StatusOK, gin.H{"codecs": codecs})
+}
+
+// getCodec returns a specific codec by ID
+func getCodec(c *gin.Context) {
+	id := c.Param("id")
+	codec, err := simulatorController.GetCodec(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"status": "Codec not found", "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"codec": codec})
 }
