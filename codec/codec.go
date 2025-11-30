@@ -201,3 +201,31 @@ func (cl *CodecLibrary) LoadDefaults() {
 	basicCodec.Author = "LWN-Sim-Plus"
 	cl.Add(basicCodec)
 }
+
+// ToJSON serializes the codec library to JSON
+func (cl *CodecLibrary) ToJSON() ([]byte, error) {
+	// Convert map to slice for JSON serialization
+	codecs := make([]*Codec, 0, len(cl.codecs))
+	for _, codec := range cl.codecs {
+		codecs = append(codecs, codec)
+	}
+	return json.MarshalIndent(codecs, "", "  ")
+}
+
+// FromJSON deserializes a codec library from JSON
+func (cl *CodecLibrary) FromJSON(data []byte) error {
+	var codecs []*Codec
+	if err := json.Unmarshal(data, &codecs); err != nil {
+		return fmt.Errorf("failed to unmarshal codec library: %w", err)
+	}
+
+	// Clear existing codecs and add new ones
+	cl.Clear()
+	for _, codec := range codecs {
+		if err := cl.Add(codec); err != nil {
+			return fmt.Errorf("failed to add codec %s: %w", codec.Name, err)
+		}
+	}
+
+	return nil
+}
