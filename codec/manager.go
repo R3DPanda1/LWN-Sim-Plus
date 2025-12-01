@@ -2,6 +2,7 @@ package codec
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/brocaar/lorawan"
@@ -136,6 +137,20 @@ func (m *Manager) ListCodecs() []CodecMetadata {
 	return m.library.List()
 }
 
+// GetCodecCount returns the number of codecs in the library
+func (m *Manager) GetCodecCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.library.Count()
+}
+
+// LoadDefaults loads default codecs into the library
+func (m *Manager) LoadDefaults() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.library.LoadDefaults()
+}
+
 // GetMetrics returns executor metrics
 func (m *Manager) GetMetrics() ExecutorMetrics {
 	return m.executor.GetMetrics()
@@ -151,6 +166,49 @@ func (m *Manager) Close() {
 	if m.executor != nil {
 		m.executor.Close()
 	}
+}
+
+// SaveCodecLibrary saves the codec library to a file
+func (m *Manager) SaveCodecLibrary(filepath string) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	data, err := m.library.ToJSON()
+	if err != nil {
+		return fmt.Errorf("failed to serialize codec library: %w", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(filepath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write codec library file: %w", err)
+	}
+
+	return nil
+}
+
+// LoadCodecLibrary loads the codec library from a file
+// If the file doesn't exist or loading fails, it loads defaults instead
+func (m *Manager) LoadCodecLibrary(filepath string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if file exists
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// File doesn't exist, load defaults (library is already empty from NewManager)
+			return nil
+		}
+		return fmt.Errorf("failed to read codec library file: %w", err)
+	}
+
+	// Try to load from file
+	if err := m.library.FromJSON(data); err != nil {
+		// If loading fails, return error (library remains empty from NewManager)
+		return fmt.Errorf("failed to load codec library: %w", err)
+	}
+
+	return nil
 }
 
 // GeneratePayloadFromConfig generates a payload from device configuration

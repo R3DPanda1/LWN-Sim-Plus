@@ -42,7 +42,27 @@ func GetInstance() *Simulator {
 	// Initialize codec manager (Phase 1-3 enhancement)
 	if dev.CodecManager == nil {
 		dev.CodecManager = codec.NewManager(codec.DefaultExecutorConfig())
-		shared.DebugPrint("Codec manager initialized with default codecs")
+
+		// Load codec library from disk
+		pathDir, err := util.GetPath()
+		codecLibLoaded := false
+		if err == nil {
+			codecLibPath := pathDir + "/codecs.json"
+			if err := dev.CodecManager.LoadCodecLibrary(codecLibPath); err != nil {
+				shared.DebugPrint(fmt.Sprintf("Warning: %v", err))
+			} else {
+				shared.DebugPrint("Codec library loaded from disk")
+				codecLibLoaded = true
+			}
+		}
+
+		// If no codecs loaded from disk, load defaults
+		if !codecLibLoaded || dev.CodecManager.GetCodecCount() == 0 {
+			dev.CodecManager.LoadDefaults()
+			shared.DebugPrint("Default codecs loaded")
+		}
+
+		shared.DebugPrint("Codec manager initialized")
 	}
 
 	return &s
@@ -83,6 +103,20 @@ func (s *Simulator) Stop() {
 	}
 	s.Resources.ExitGroup.Wait()
 	s.saveStatus()
+
+	// Save codec library
+	if dev.CodecManager != nil {
+		pathDir, err := util.GetPath()
+		if err == nil {
+			codecLibPath := pathDir + "/codecs.json"
+			if err := dev.CodecManager.SaveCodecLibrary(codecLibPath); err != nil {
+				shared.DebugPrint(fmt.Sprintf("Warning: failed to save codec library: %v", err))
+			} else {
+				shared.DebugPrint("Codec library saved to disk")
+			}
+		}
+	}
+
 	s.Forwarder.Reset()
 	s.Print("STOPPED", nil, util.PrintBoth)
 	s.reset()
@@ -438,7 +472,14 @@ func (s *Simulator) AddCodec(c *codec.Codec) error {
 	if dev.CodecManager == nil {
 		return errors.New("codec manager not initialized")
 	}
-	return dev.CodecManager.AddCodec(c)
+
+	if err := dev.CodecManager.AddCodec(c); err != nil {
+		return err
+	}
+
+	// Save codec library to disk
+	s.saveCodecLibrary()
+	return nil
 }
 
 // DeleteCodec removes a codec by ID
@@ -446,5 +487,25 @@ func (s *Simulator) DeleteCodec(id string) error {
 	if dev.CodecManager == nil {
 		return errors.New("codec manager not initialized")
 	}
-	return dev.CodecManager.RemoveCodec(id)
+
+	if err := dev.CodecManager.RemoveCodec(id); err != nil {
+		return err
+	}
+
+	// Save codec library to disk
+	s.saveCodecLibrary()
+	return nil
+}
+
+// saveCodecLibrary saves the codec library to disk
+func (s *Simulator) saveCodecLibrary() {
+	if dev.CodecManager != nil {
+		pathDir, err := util.GetPath()
+		if err == nil {
+			codecLibPath := pathDir + "/codecs.json"
+			if err := dev.CodecManager.SaveCodecLibrary(codecLibPath); err != nil {
+				shared.DebugPrint(fmt.Sprintf("Warning: failed to save codec library: %v", err))
+			}
+		}
+	}
 }
