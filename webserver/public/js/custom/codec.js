@@ -32,13 +32,8 @@ function LoadCodecList() {
 
 // Add codec item to the list
 function AddItemListCodecs(codec){
-    var createdDate = new Date(codec.createdAt).toLocaleDateString();
-
     var item = "<tr data-id=\""+codec.id+"\">\
                     <td class=\"clickable text-orange font-weight-bold font-italic\" >"+codec.name+"</td>\
-                    <td>"+codec.description+"</td> \
-                    <td>"+codec.version+"</td>\
-                    <td>"+createdDate+"</td>\
                 </tr>";
 
     $("#list-codecs").append(item);
@@ -73,10 +68,11 @@ $(document).on('click', '#list-codecs tr', function(){
 // Load codec data into the form
 function LoadCodec(codec){
     $("[name=input-codec-name]").val(codec.name);
-    $("[name=input-codec-description]").val(codec.description);
-    $("[name=input-codec-version]").val(codec.version);
-    $("[name=input-codec-author]").val(codec.author);
     $("#textarea-codec-script").val(codec.script);
+
+    // Set all fields to disabled (view-only mode)
+    $("[name=input-codec-name]").prop("disabled", true);
+    $("#textarea-codec-script").prop("disabled", true);
 
     $("#div-buttons-codec").data("id", codec.id);
     $("[name=btn-delete-codec]").show();
@@ -91,11 +87,11 @@ function LoadCodec(codec){
 // Clean codec form
 function CleanCodecForm(){
     $("[name=input-codec-name]").val("");
-    $("[name=input-codec-description]").val("");
-    $("[name=input-codec-version]").val("1.0");
-    $("[name=input-codec-author]").val("");
     $("#textarea-codec-script").val("");
-    $("#textarea-codec-default-config").val("");
+
+    // Enable all fields for new codec
+    $("[name=input-codec-name]").prop("disabled", false);
+    $("#textarea-codec-script").prop("disabled", false);
 
     $("#div-buttons-codec").removeData("id");
     $("[name=btn-delete-codec]").hide();
@@ -115,9 +111,6 @@ $("[name=btn-edit-codec]").on('click', function(){
     $("[name=btn-save-codec]").show();
 
     $("[name=input-codec-name]").prop("disabled", false);
-    $("[name=input-codec-description]").prop("disabled", false);
-    $("[name=input-codec-version]").prop("disabled", false);
-    $("[name=input-codec-author]").prop("disabled", false);
     $("#textarea-codec-script").prop("disabled", false);
 });
 
@@ -147,11 +140,7 @@ $("[name=btn-delete-codec]").on('click', function(){
 // Save codec function
 function SaveCodec(isUpdate){
     var name = $("[name=input-codec-name]").val();
-    var description = $("[name=input-codec-description]").val();
-    var version = $("[name=input-codec-version]").val();
-    var author = $("[name=input-codec-author]").val();
     var script = $("#textarea-codec-script").val();
-    var defaultConfig = $("#textarea-codec-default-config]").val();
 
     if(!name || !script){
         Show_ErrorSweetToast("Error", "Name and Script are required");
@@ -160,11 +149,7 @@ function SaveCodec(isUpdate){
 
     var codecData = {
         "name": name,
-        "description": description,
-        "version": version,
-        "author": author,
-        "script": script,
-        "defaultPayloadConfig": defaultConfig
+        "script": script
     };
 
     var jsonData = JSON.stringify(codecData);
