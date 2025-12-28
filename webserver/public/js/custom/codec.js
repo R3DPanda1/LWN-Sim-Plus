@@ -7,6 +7,30 @@
 
 var Codecs = new Map();
 
+// Wrapper functions that call the global functions set up by monaco-init.js
+function GetCodecEditorValue() {
+    if (window.GetMonacoEditorValue) {
+        return window.GetMonacoEditorValue();
+    }
+    return $("#textarea-codec-script").val();
+}
+
+function SetCodecEditorValue(value) {
+    if (window.SetMonacoEditorValue) {
+        window.SetMonacoEditorValue(value);
+    } else {
+        $("#textarea-codec-script").val(value);
+    }
+}
+
+function SetCodecEditorReadOnly(readOnly) {
+    if (window.SetMonacoEditorReadOnly) {
+        window.SetMonacoEditorReadOnly(readOnly);
+    } else {
+        $("#textarea-codec-script").prop("disabled", readOnly);
+    }
+}
+
 // Load codecs from API and populate the list
 function LoadCodecList() {
     $.ajax({
@@ -68,11 +92,11 @@ $(document).on('click', '#list-codecs tr', function(){
 // Load codec data into the form
 function LoadCodec(codec){
     $("[name=input-codec-name]").val(codec.name);
-    $("#textarea-codec-script").val(codec.script);
+    SetCodecEditorValue(codec.script);
 
     // Set all fields to disabled (view-only mode)
     $("[name=input-codec-name]").prop("disabled", true);
-    $("#textarea-codec-script").prop("disabled", true);
+    SetCodecEditorReadOnly(true);
 
     $("#div-buttons-codec").data("id", codec.id);
     $("[name=btn-delete-codec]").show();
@@ -87,11 +111,52 @@ function LoadCodec(codec){
 // Clean codec form
 function CleanCodecForm(){
     $("[name=input-codec-name]").val("");
-    $("#textarea-codec-script").val("");
+
+    // Set skeleton code for new codec
+    var skeletonCode = `// Encode function: Converts JSON object to byte array
+// This function is called when the device sends an uplink
+function Encode(fPort, obj) {
+    var bytes = [];
+
+    // Example: Encode temperature and humidity
+    // Temperature: 2 bytes (signed int16, resolution 0.1°C)
+    var temp = Math.round((obj.temperature || 20) * 10);
+    bytes.push((temp >> 8) & 0xFF);
+    bytes.push(temp & 0xFF);
+
+    // Humidity: 1 byte (unsigned int, 0-100%)
+    var humidity = Math.round(obj.humidity || 50);
+    bytes.push(humidity & 0xFF);
+
+    // Return payload with fPort and bytes
+    return {
+        fPort: fPort || 85,
+        bytes: bytes
+    };
+}
+
+// Decode function: Converts byte array to JSON object
+// This function is used by the network server to decode the payload
+function Decode(fPort, bytes) {
+    var obj = {};
+
+    // Example: Decode temperature and humidity
+    if (bytes.length >= 3) {
+        // Temperature: bytes 0-1 (signed int16, resolution 0.1°C)
+        obj.temperature = (((bytes[0] << 8) | bytes[1]) << 16 >> 16) / 10.0;
+
+        // Humidity: byte 2 (unsigned int, 0-100%)
+        obj.humidity = bytes[2];
+    }
+
+    return obj;
+}`;
+
+    SetCodecEditorValue(skeletonCode);
 
     // Enable all fields for new codec
     $("[name=input-codec-name]").prop("disabled", false);
-    $("#textarea-codec-script").prop("disabled", false);
+    SetCodecEditorReadOnly(false);
 
     $("#div-buttons-codec").removeData("id");
     $("[name=btn-delete-codec]").hide();
@@ -111,7 +176,7 @@ $("[name=btn-edit-codec]").on('click', function(){
     $("[name=btn-save-codec]").show();
 
     $("[name=input-codec-name]").prop("disabled", false);
-    $("#textarea-codec-script").prop("disabled", false);
+    SetCodecEditorReadOnly(false);
 });
 
 // Delete codec button click
@@ -140,7 +205,7 @@ $("[name=btn-delete-codec]").on('click', function(){
 // Save codec function
 function SaveCodec(isUpdate){
     var name = $("[name=input-codec-name]").val();
-    var script = $("#textarea-codec-script").val();
+    var script = GetCodecEditorValue();
     var codecId = $("#div-buttons-codec").data("id");
 
     if(!name || !script){
@@ -233,4 +298,16 @@ $("#codecs-tab").on('click', function(){
 $("#add-codec-tab").on('click', function(){
     CleanCodecForm();
     $(".section-header h1").text("Add New Codec");
+});
+
+// Initialize Monaco Editor when DOM is ready
+$(document).ready(function(){
+    // Initialize editor when the add-codec tab is first shown
+    $("#add-codec-tab, #codecs-tab").one('click', function(){
+        setTimeout(function() {
+            if (window.InitializeMonacoEditor) {
+                window.InitializeMonacoEditor();
+            }
+        }, 100);
+    });
 });
