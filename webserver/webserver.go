@@ -306,12 +306,8 @@ func getCodec(c *gin.Context) {
 // addCodec adds a custom codec
 func addCodec(c *gin.Context) {
 	var codecData struct {
-		Name              string `json:"name"`
-		Description       string `json:"description"`
-		Version           string `json:"version"`
-		Author            string `json:"author"`
-		Script            string `json:"script"`
-		DefaultPayloadConfig string `json:"defaultPayloadConfig"`
+		Name   string `json:"name"`
+		Script string `json:"script"`
 	}
 
 	if err := c.BindJSON(&codecData); err != nil {
@@ -321,9 +317,6 @@ func addCodec(c *gin.Context) {
 
 	// Create new codec
 	newCodec := codec.NewCodec(codecData.Name, codecData.Script)
-	newCodec.Description = codecData.Description
-	newCodec.Version = codecData.Version
-	newCodec.Author = codecData.Author
 
 	// Add to manager
 	if err := simulatorController.AddCodec(newCodec); err != nil {
