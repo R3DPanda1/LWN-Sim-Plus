@@ -865,11 +865,27 @@
                                                 
                                             </div>                               
         
-                                            <!--Payload-->
+                                            <!--Payload Generation-->
                                             <div class="form-group row align-items-center">
-                                                <label class="form-control-label col-xl-2 text-xl-right">Payload</label>
+                                                <label class="form-control-label col-xl-2 text-xl-right">Payload Generation</label>
                                                 <div class="col-xl-10">
-                                                <textarea id="textarea-payload" class="form-control" name="input-payload" rows="3"></textarea>
+                                                    <select id="select-payload-generation" name="select-payload-generation" class="form-control">
+                                                        <option value="">Static Payload</option>
+                                                    </select>
+                                                    <div class="form-text mt-0">
+                                                        Choose how to generate device payloads: use static bytes or select a codec for dynamic generation
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!--Static Payload-->
+                                            <div class="form-group row align-items-center">
+                                                <label class="form-control-label col-xl-2 text-xl-right">Static Payload</label>
+                                                <div class="col-xl-10">
+                                                    <textarea id="textarea-payload" class="form-control" name="input-payload" rows="3" placeholder="01020AF5"></textarea>
+                                                    <div class="form-text mt-0">
+                                                        Hexadecimal payload data (used when "Static Payload" is selected above). Disabled when a codec is selected.
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -885,44 +901,6 @@
                                                     </label>
                                                 </div>
 
-                                            </div>
-
-                                            <!--Use Codec-->
-                                            <div class="form-group row align-items-center">
-                                                <div class="col-xl-2">
-                                                </div>
-
-                                                <div class="col-xl-10">
-                                                    <input class="form-check-input text-xl-right" type="checkbox" id="checkbox-use-codec" name="checkbox-use-codec">
-                                                    <label class="form-control-label ">
-                                                        Use Codec for Dynamic Payload Generation
-                                                    </label>
-                                                </div>
-
-                                            </div>
-
-                                            <!--Codec Selection-->
-                                            <div id="codec-selection-section" class="form-group row align-items-center" style="display: none;">
-                                                <label class="form-control-label col-xl-2 text-xl-right">Codec</label>
-                                                <div class="col-xl-10">
-                                                    <select id="select-codec" name="select-codec" class="form-control">
-                                                        <option value="">Select a codec...</option>
-                                                    </select>
-                                                    <div class="form-text mt-0">
-                                                        Choose a codec to generate dynamic payloads
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <!--Payload Config-->
-                                            <div id="payload-config-section" class="form-group row align-items-center" style="display: none;">
-                                                <label class="form-control-label col-xl-2 text-xl-right">Payload Config</label>
-                                                <div class="col-xl-10">
-                                                    <textarea id="textarea-payload-config" class="form-control" name="input-payload-config" rows="5" placeholder='{"temperature": 22.5, "battery": 3.6}'></textarea>
-                                                    <div class="form-text mt-0">
-                                                        JSON configuration for codec payload generation
-                                                    </div>
-                                                </div>
                                             </div>
 
                                         </div>
