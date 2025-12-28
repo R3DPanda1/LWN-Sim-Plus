@@ -2,8 +2,8 @@
 
 # LWN-Sim-Plus Stop Script
 
-BINARY_NAME="lwn-sim-plus"
-PID_FILE="/tmp/lwn-sim-plus.pid"
+BINARY_NAME="lwnsimulator"
+PID_FILE="/tmp/lwnsimulator.pid"
 
 echo "Stopping LWN-Sim-Plus..."
 
