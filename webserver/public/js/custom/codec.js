@@ -185,19 +185,47 @@ function SaveCodec(isUpdate){
 
 // Delete codec function
 function DeleteCodec(codecId){
-    var jsonData = JSON.stringify({"id": codecId});
-
-    $.post(url + "/api/delete-codec", jsonData, "json")
-    .done((data)=>{
-        Show_SweetToast("Codec deleted successfully", "");
-        CleanCodecForm();
-        LoadCodecList();
-        PopulateCodecDropdown();
-        ShowList($("#codecs"),"List codecs",false);
+    // First check if codec is in use
+    $.get(url + "/api/codec/" + codecId + "/usage")
+    .done((usageData) => {
+        if (usageData.count > 0) {
+            // Show warning with device count
+            swal({
+                title: "Cannot Delete Codec",
+                text: "This codec is currently used by " + usageData.count + " device(s). Please remove the codec from all devices before deleting.",
+                icon: "warning",
+                button: "OK"
+            });
+        } else {
+            // Confirm deletion
+            swal({
+                title: "Are you sure?",
+                text: "Once deleted, this codec cannot be recovered.",
+                icon: "warning",
+                buttons: true,
+                dangerMode: true,
+            })
+            .then((willDelete) => {
+                if (willDelete) {
+                    var jsonData = JSON.stringify({"id": codecId});
+                    $.post(url + "/api/delete-codec", jsonData, "json")
+                    .done((data)=>{
+                        Show_SweetToast("Codec deleted successfully", "");
+                        CleanCodecForm();
+                        LoadCodecList();
+                        PopulateCodecDropdown();
+                        ShowList($("#codecs"),"List codecs",false);
+                    })
+                    .fail((data)=>{
+                        var errorMsg = data.responseJSON ? data.responseJSON.error : data.statusText;
+                        Show_ErrorSweetToast("Failed to delete codec", errorMsg);
+                    });
+                }
+            });
+        }
     })
-    .fail((data)=>{
-        var errorMsg = data.responseJSON ? data.responseJSON.error : data.statusText;
-        Show_ErrorSweetToast("Failed to delete codec", errorMsg);
+    .fail((data) => {
+        Show_ErrorSweetToast("Failed to check codec usage", data.statusText);
     });
 }
 

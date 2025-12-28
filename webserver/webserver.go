@@ -92,10 +92,11 @@ func NewWebServer(config *models.ServerConfig, controller cnt.SimulatorControlle
 		apiRoutes.POST("/add-gateway", addGateway)     // Add a new gateway
 		apiRoutes.POST("/up-gateway", updateGateway)   // Update a gateway
 		apiRoutes.POST("/bridge/save", saveInfoBridge) // Save the remote address of the bridge
-		apiRoutes.GET("/codecs", getCodecs)            // Get all available codecs
-		apiRoutes.GET("/codec/:id", getCodec)          // Get a specific codec by ID
-		apiRoutes.POST("/add-codec", addCodec)         // Add a custom codec
-		apiRoutes.POST("/delete-codec", deleteCodec)   // Delete a codec by ID
+		apiRoutes.GET("/codecs", getCodecs)                  // Get all available codecs
+		apiRoutes.GET("/codec/:id", getCodec)                // Get a specific codec by ID
+		apiRoutes.GET("/codec/:id/usage", getCodecUsage)     // Check which devices use this codec
+		apiRoutes.POST("/add-codec", addCodec)               // Add a custom codec
+		apiRoutes.POST("/delete-codec", deleteCodec)         // Delete a codec by ID
 	}
 	// Set up the WebSocket routes.
 	router.GET("/socket.io/*any", gin.WrapH(serverSocket))
@@ -330,6 +331,9 @@ func addCodec(c *gin.Context) {
 		return
 	}
 
+	// Emit WebSocket event
+	simulatorController.EmitCodecEvent(socket.EventCodecAdded, newCodec.Metadata())
+
 	c.JSON(http.StatusOK, gin.H{"status": "Codec added successfully", "id": newCodec.ID})
 }
 
@@ -345,9 +349,19 @@ func deleteCodec(c *gin.Context) {
 	}
 
 	if err := simulatorController.DeleteCodec(reqData.ID); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"status": "Failed to delete codec", "error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "Failed to delete codec", "error": err.Error()})
 		return
 	}
 
+	// Emit WebSocket event
+	simulatorController.EmitCodecEvent(socket.EventCodecDeleted, gin.H{"id": reqData.ID})
+
 	c.JSON(http.StatusOK, gin.H{"status": "Codec deleted successfully"})
+}
+
+// getCodecUsage returns which devices are using a specific codec
+func getCodecUsage(c *gin.Context) {
+	id := c.Param("id")
+	devices := simulatorController.GetDevicesUsingCodec(id)
+	c.JSON(http.StatusOK, gin.H{"codecId": id, "devices": devices, "count": len(devices)})
 }

@@ -181,6 +181,34 @@ $(document).ready(function(){
         Show_iziToast(data,"");
     });
 
+    // Codec WebSocket events for dynamic UI updates
+    socket.on('codec-added', (data) => {
+        console.log('Codec added:', data);
+        PopulateCodecDropdown();
+        // Reload codec list if on codec tab
+        if ($("#codecs-tab").hasClass("active")) {
+            LoadCodecList();
+        }
+    });
+
+    socket.on('codec-deleted', (data) => {
+        console.log('Codec deleted:', data);
+        PopulateCodecDropdown();
+        // Reload codec list if on codec tab
+        if ($("#codecs-tab").hasClass("active")) {
+            LoadCodecList();
+        }
+    });
+
+    socket.on('codec-updated', (data) => {
+        console.log('Codec updated:', data);
+        PopulateCodecDropdown();
+        // Reload codec list if on codec tab
+        if ($("#codecs-tab").hasClass("active")) {
+            LoadCodecList();
+        }
+    });
+
     // ********************** nav bar *********************
 
     $(".btn-play").parent("button").on("click",function(){
@@ -2615,7 +2643,16 @@ function Click_SaveDevice(){
     upInterval.val(upInterval.val() == "" ? UplinkIntervalDefault : upInterval.val());
     var validInterval = IsValidNumber(upInterval.val(),-1,Infinity);
 
-    validation = validation && validInterval;
+    // Codec validation
+    var useCodec = $("#checkbox-use-codec").prop("checked");
+    var selectedCodec = $("#select-codec").val();
+    var validCodec = true;
+
+    if (useCodec && (!selectedCodec || selectedCodec === "")) {
+        validCodec = false;
+    }
+
+    validation = validation && validInterval && validCodec;
     
     if (!validation){
         Show_ErrorSweetToast("Error","Values are incorrect");
@@ -2623,6 +2660,11 @@ function Click_SaveDevice(){
         ValidationInput(name, validNameDevice);
         ValidationInput(devEUI, validdevEUI);
         ValidationInput(region, validregion);
+
+        // Codec validation feedback
+        if (!validCodec) {
+            ValidationInput($("#select-codec"), false);
+        }
 
         ValidationInput(delayRX1,validDelayRX1);
         ValidationInput(durationRX1,validDurationRX1);

@@ -467,6 +467,17 @@ func (s *Simulator) GetCodec(id string) (*codec.Codec, error) {
 	return dev.CodecManager.GetCodec(id)
 }
 
+// GetDevicesUsingCodec returns a list of device EUIs using the specified codec
+func (s *Simulator) GetDevicesUsingCodec(codecID string) []string {
+	devicesUsingCodec := []string{}
+	for _, device := range s.Devices {
+		if device.Info.Configuration.CodecID == codecID {
+			devicesUsingCodec = append(devicesUsingCodec, device.Info.DevEUI.String())
+		}
+	}
+	return devicesUsingCodec
+}
+
 // AddCodec adds a custom codec
 func (s *Simulator) AddCodec(c *codec.Codec) error {
 	if dev.CodecManager == nil {
@@ -486,6 +497,12 @@ func (s *Simulator) AddCodec(c *codec.Codec) error {
 func (s *Simulator) DeleteCodec(id string) error {
 	if dev.CodecManager == nil {
 		return errors.New("codec manager not initialized")
+	}
+
+	// Check if any devices are using this codec
+	devicesUsingCodec := s.GetDevicesUsingCodec(id)
+	if len(devicesUsingCodec) > 0 {
+		return fmt.Errorf("cannot delete codec: used by %d device(s)", len(devicesUsingCodec))
 	}
 
 	if err := dev.CodecManager.RemoveCodec(id); err != nil {
