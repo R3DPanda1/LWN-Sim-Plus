@@ -96,6 +96,7 @@ func NewWebServer(config *models.ServerConfig, controller cnt.SimulatorControlle
 		apiRoutes.GET("/codec/:id", getCodec)                // Get a specific codec by ID
 		apiRoutes.GET("/codec/:id/usage", getCodecUsage)     // Check which devices use this codec
 		apiRoutes.POST("/add-codec", addCodec)               // Add a custom codec
+		apiRoutes.POST("/update-codec", updateCodec)         // Update an existing codec
 		apiRoutes.POST("/delete-codec", deleteCodec)         // Delete a codec by ID
 	}
 	// Set up the WebSocket routes.
@@ -328,6 +329,45 @@ func addCodec(c *gin.Context) {
 	simulatorController.EmitCodecEvent(socket.EventCodecAdded, newCodec.Metadata())
 
 	c.JSON(http.StatusOK, gin.H{"status": "Codec added successfully", "id": newCodec.ID})
+}
+
+// updateCodec updates an existing codec
+func updateCodec(c *gin.Context) {
+	var codecData struct {
+		ID     string `json:"id"`
+		Name   string `json:"name"`
+		Script string `json:"script"`
+	}
+
+	if err := c.BindJSON(&codecData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "Invalid JSON", "error": err.Error()})
+		return
+	}
+
+	// Validate required fields
+	if codecData.ID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "Invalid request", "error": "ID is required"})
+		return
+	}
+
+	// Update codec
+	if err := simulatorController.UpdateCodec(codecData.ID, codecData.Name, codecData.Script); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "Failed to update codec", "error": err.Error()})
+		return
+	}
+
+	// Get updated codec for metadata
+	updatedCodec, err := simulatorController.GetCodec(codecData.ID)
+	if err != nil {
+		// Still return success but without metadata
+		c.JSON(http.StatusOK, gin.H{"status": "Codec updated successfully", "id": codecData.ID})
+		return
+	}
+
+	// Emit WebSocket event
+	simulatorController.EmitCodecEvent(socket.EventCodecUpdated, updatedCodec.Metadata())
+
+	c.JSON(http.StatusOK, gin.H{"status": "Codec updated successfully", "id": codecData.ID})
 }
 
 // deleteCodec deletes a codec by ID

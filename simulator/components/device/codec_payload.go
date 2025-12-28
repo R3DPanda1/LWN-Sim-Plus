@@ -28,18 +28,12 @@ func (d *Device) GenerateCodecPayload() lorawan.Payload {
 	// Default fPort (can be overridden by codec)
 	defaultFPort := uint8(1)
 
-	// Use PayloadConfig if available, otherwise use empty object
-	payloadConfig := d.Info.Configuration.PayloadConfig
-	if payloadConfig == nil {
-		payloadConfig = make(map[string]interface{})
-	}
-
-	// Generate payload using codec
+	// Generate payload using codec with empty config
 	payload, fPort, err := CodecManager.GeneratePayloadFromConfig(
 		d.Info.Configuration.CodecID,
 		devEUI,
 		defaultFPort,
-		payloadConfig,
+		make(map[string]interface{}),
 	)
 
 	if err != nil {
