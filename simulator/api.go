@@ -493,6 +493,21 @@ func (s *Simulator) AddCodec(c *codec.Codec) error {
 	return nil
 }
 
+// UpdateCodec updates an existing codec
+func (s *Simulator) UpdateCodec(id string, name string, script string) error {
+	if dev.CodecManager == nil {
+		return errors.New("codec manager not initialized")
+	}
+
+	if err := dev.CodecManager.UpdateCodec(id, name, script); err != nil {
+		return err
+	}
+
+	// Save codec library to disk
+	s.saveCodecLibrary()
+	return nil
+}
+
 // DeleteCodec removes a codec by ID
 func (s *Simulator) DeleteCodec(id string) error {
 	if dev.CodecManager == nil {

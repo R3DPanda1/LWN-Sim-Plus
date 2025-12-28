@@ -38,6 +38,7 @@ type SimulatorController interface {
 	GetCodecs() []codec.CodecMetadata          // Get all available codecs
 	GetCodec(string) (*codec.Codec, error)     // Get a specific codec by ID
 	AddCodec(*codec.Codec) error               // Add a custom codec
+	UpdateCodec(string, string, string) error  // Update an existing codec by ID
 	DeleteCodec(string) error                  // Delete a codec by ID
 	GetDevicesUsingCodec(string) []string      // Get devices using a specific codec
 	EmitCodecEvent(string, interface{})        // Emit a WebSocket event for codec operations
@@ -151,6 +152,10 @@ func (c *simulatorController) GetCodec(id string) (*codec.Codec, error) {
 
 func (c *simulatorController) AddCodec(codec *codec.Codec) error {
 	return c.repo.AddCodec(codec)
+}
+
+func (c *simulatorController) UpdateCodec(id string, name string, script string) error {
+	return c.repo.UpdateCodec(id, name, script)
 }
 
 func (c *simulatorController) DeleteCodec(id string) error {
