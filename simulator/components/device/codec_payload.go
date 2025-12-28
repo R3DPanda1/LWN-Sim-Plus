@@ -43,7 +43,7 @@ func (d *Device) GenerateCodecPayload() lorawan.Payload {
 	)
 
 	if err != nil {
-		d.Print("Codec execution failed, using static payload", err, 1)
+		d.Print("Codec execution failed: "+err.Error()+", using static payload", err, 1)
 		return d.Info.Status.Payload
 	}
 

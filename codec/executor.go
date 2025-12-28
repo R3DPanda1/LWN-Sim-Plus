@@ -137,7 +137,7 @@ func (e *Executor) executeEncodeInVM(vm *goja.Runtime, script string, fPort uint
 	// Execute the script to define the Encode function
 	_, err := vm.RunString(script)
 	if err != nil {
-		return nil, fPort, fmt.Errorf("%w: %v", ErrInvalidScript, err)
+		return nil, fPort, fmt.Errorf("%w: script compilation error: %v", ErrInvalidScript, err)
 	}
 
 	// Get the Encode function
@@ -149,7 +149,7 @@ func (e *Executor) executeEncodeInVM(vm *goja.Runtime, script string, fPort uint
 	// Call Encode(fPort, obj)
 	result, err := encodeFunc(goja.Undefined(), vm.ToValue(fPort), vm.ToValue(obj))
 	if err != nil {
-		return nil, fPort, fmt.Errorf("encode execution error: %w", err)
+		return nil, fPort, fmt.Errorf("encode execution error (check JavaScript): %w", err)
 	}
 
 	// Convert result to byte array and extract fPort if provided
