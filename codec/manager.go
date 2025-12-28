@@ -62,27 +62,27 @@ func (m *Manager) RemoveState(devEUI string) {
 // Parameters:
 //   - codecID: ID of the codec to use
 //   - devEUI: Device EUI for state management
-//   - fPort: LoRaWAN fPort
+//   - fPort: LoRaWAN fPort (default, can be overridden by codec)
 //   - obj: Object to encode
 //
-// Returns the encoded bytes and any error
-func (m *Manager) EncodePayload(codecID string, devEUI string, fPort uint8, obj map[string]interface{}) ([]byte, error) {
+// Returns the encoded bytes, actual fPort, and any error
+func (m *Manager) EncodePayload(codecID string, devEUI string, fPort uint8, obj map[string]interface{}) ([]byte, uint8, error) {
 	// Get codec
 	codec, err := m.library.Get(codecID)
 	if err != nil {
-		return nil, fmt.Errorf("codec not found: %w", err)
+		return nil, fPort, fmt.Errorf("codec not found: %w", err)
 	}
 
 	// Get or create state
 	state := m.GetOrCreateState(devEUI)
 
 	// Execute encoding
-	bytes, err := m.executor.ExecuteEncode(codec.Script, fPort, obj, state)
+	bytes, returnedFPort, err := m.executor.ExecuteEncode(codec.Script, fPort, obj, state)
 	if err != nil {
-		return nil, fmt.Errorf("encoding failed: %w", err)
+		return nil, fPort, fmt.Errorf("encoding failed: %w", err)
 	}
 
-	return bytes, nil
+	return bytes, returnedFPort, nil
 }
 
 // DecodePayload decodes a payload using a codec
@@ -213,11 +213,12 @@ func (m *Manager) LoadCodecLibrary(filepath string) error {
 
 // GeneratePayloadFromConfig generates a payload from device configuration
 // This is a helper function that converts PayloadConfig to a lorawan.Payload
-func (m *Manager) GeneratePayloadFromConfig(codecID string, devEUI string, fPort uint8, payloadConfig map[string]interface{}) (lorawan.Payload, error) {
+// Returns the payload and the actual fPort used (which may differ from input)
+func (m *Manager) GeneratePayloadFromConfig(codecID string, devEUI string, fPort uint8, payloadConfig map[string]interface{}) (lorawan.Payload, uint8, error) {
 	// Encode using codec
-	bytes, err := m.EncodePayload(codecID, devEUI, fPort, payloadConfig)
+	bytes, returnedFPort, err := m.EncodePayload(codecID, devEUI, fPort, payloadConfig)
 	if err != nil {
-		return nil, err
+		return nil, fPort, err
 	}
 
 	// Convert to lorawan.DataPayload
@@ -225,5 +226,5 @@ func (m *Manager) GeneratePayloadFromConfig(codecID string, devEUI string, fPort
 		Bytes: bytes,
 	}
 
-	return &dataPayload, nil
+	return &dataPayload, returnedFPort, nil
 }

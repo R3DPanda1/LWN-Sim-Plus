@@ -25,8 +25,8 @@ func (d *Device) GenerateCodecPayload() lorawan.Payload {
 	// Get DevEUI as string
 	devEUI := d.Info.DevEUI.String()
 
-	// Default fPort (could be configurable later)
-	fPort := uint8(1)
+	// Default fPort (can be overridden by codec)
+	defaultFPort := uint8(1)
 
 	// Use PayloadConfig if available, otherwise use empty object
 	payloadConfig := d.Info.Configuration.PayloadConfig
@@ -35,10 +35,10 @@ func (d *Device) GenerateCodecPayload() lorawan.Payload {
 	}
 
 	// Generate payload using codec
-	payload, err := CodecManager.GeneratePayloadFromConfig(
+	payload, fPort, err := CodecManager.GeneratePayloadFromConfig(
 		d.Info.Configuration.CodecID,
 		devEUI,
-		fPort,
+		defaultFPort,
 		payloadConfig,
 	)
 
@@ -46,6 +46,9 @@ func (d *Device) GenerateCodecPayload() lorawan.Payload {
 		d.Print("Codec execution failed, using static payload", err, 1)
 		return d.Info.Status.Payload
 	}
+
+	// Update device's fPort with the one returned from codec
+	d.Info.Status.DataUplink.FPort = &fPort
 
 	// Update state with the generated payload (for message history)
 	if state := CodecManager.GetState(devEUI); state != nil {
