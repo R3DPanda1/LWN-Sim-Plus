@@ -1131,10 +1131,7 @@
                             <table class="table table-sm table-hover">
                                 <thead>
                                 <tr>
-                                    <th class ="w-20" scope="col">Name</th>
-                                    <th class ="w-40" scope="col">Description</th>
-                                    <th class ="w-15" scope="col">Version</th>
-                                    <th class ="w-25" scope="col">Created</th>
+                                    <th scope="col">Name</th>
                                 </tr>
                                 </thead>
                                 <tbody id="list-codecs">
@@ -1156,28 +1153,10 @@
                             <!--Name-->
                             <div class="form-group">
                                 <label>Name</label>
-                                <input type="text" class="form-control" name="input-codec-name" placeholder="e.g., Temperature Sensor" required="">
+                                <input type="text" class="form-control" name="input-codec-name" placeholder="e.g., Milesight AM319" required="">
                                 <div class="invalid-feedback">
                                     Choose another name for the codec.
                                 </div>
-                            </div>
-
-                            <!--Description-->
-                            <div class="form-group">
-                                <label>Description</label>
-                                <input type="text" class="form-control" name="input-codec-description" placeholder="Describe what this codec does">
-                            </div>
-
-                            <!--Version-->
-                            <div class="form-group">
-                                <label>Version</label>
-                                <input type="text" class="form-control" name="input-codec-version" placeholder="1.0" value="1.0">
-                            </div>
-
-                            <!--Author-->
-                            <div class="form-group">
-                                <label>Author</label>
-                                <input type="text" class="form-control" name="input-codec-author" placeholder="Your name">
                             </div>
 
                             <!--JavaScript Code-->
@@ -1196,7 +1175,10 @@
     bytes.push((temp >> 8) & 0xFF);
     bytes.push(temp & 0xFF);
 
-    return bytes;
+    return {
+        fPort: 85,
+        bytes: bytes
+    };
 }
 
 function Decode(fPort, bytes) {
@@ -1209,18 +1191,6 @@ function Decode(fPort, bytes) {
 
     return obj;
 }"></textarea>
-                            </div>
-
-                            <!--Default Payload Config-->
-                            <div class="form-group">
-                                <label>Default Payload Configuration (JSON)</label>
-                                <div class="form-text mb-2">
-                                    Optional: Provide default values for payload generation
-                                </div>
-                                <textarea id="textarea-codec-default-config" class="form-control" name="input-codec-default-config" rows="5" placeholder='{
-    "temperature": 22.5,
-    "humidity": 65.0
-}'></textarea>
                             </div>
 
                         </div>

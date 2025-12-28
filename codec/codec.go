@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 )
 
 var (
@@ -20,35 +19,22 @@ var (
 // Codec represents a JavaScript codec for encoding/decoding device payloads
 // Compatible with ChirpStack codec format
 type Codec struct {
-	ID          string    `json:"id"`          // Unique identifier (hash of script)
-	Name        string    `json:"name"`        // Human-readable name
-	Description string    `json:"description"` // Description of the codec
-	Script      string    `json:"script"`      // JavaScript code
-	Version     string    `json:"version"`     // Version string
-	Author      string    `json:"author"`      // Author/creator
-	CreatedAt   time.Time `json:"createdAt"`   // Creation timestamp
-	UpdatedAt   time.Time `json:"updatedAt"`   // Last update timestamp
+	ID     string `json:"id"`     // Unique identifier (hash of script)
+	Name   string `json:"name"`   // Human-readable name
+	Script string `json:"script"` // JavaScript code
 }
 
 // CodecMetadata holds metadata about a codec without the script
 type CodecMetadata struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Version     string    `json:"version"`
-	Author      string    `json:"author"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // NewCodec creates a new codec with auto-generated ID
 func NewCodec(name, script string) *Codec {
-	now := time.Now()
 	codec := &Codec{
-		Name:      name,
-		Script:    script,
-		CreatedAt: now,
-		UpdatedAt: now,
+		Name:   name,
+		Script: script,
 	}
 	codec.ID = codec.generateID()
 	return codec
@@ -56,7 +42,7 @@ func NewCodec(name, script string) *Codec {
 
 // generateID creates a unique ID based on script hash
 func (c *Codec) generateID() string {
-	hash := sha256.Sum256([]byte(c.Script + c.Name + c.CreatedAt.String()))
+	hash := sha256.Sum256([]byte(c.Script + c.Name))
 	return hex.EncodeToString(hash[:])[:16] // Use first 16 chars
 }
 
@@ -83,27 +69,17 @@ func (c *Codec) Validate() error {
 // Metadata returns metadata without the script
 func (c *Codec) Metadata() CodecMetadata {
 	return CodecMetadata{
-		ID:          c.ID,
-		Name:        c.Name,
-		Description: c.Description,
-		Version:     c.Version,
-		Author:      c.Author,
-		CreatedAt:   c.CreatedAt,
-		UpdatedAt:   c.UpdatedAt,
+		ID:   c.ID,
+		Name: c.Name,
 	}
 }
 
 // Clone creates a deep copy of the codec
 func (c *Codec) Clone() *Codec {
 	return &Codec{
-		ID:          c.ID,
-		Name:        c.Name,
-		Description: c.Description,
-		Script:      c.Script,
-		Version:     c.Version,
-		Author:      c.Author,
-		CreatedAt:   c.CreatedAt,
-		UpdatedAt:   c.UpdatedAt,
+		ID:     c.ID,
+		Name:   c.Name,
+		Script: c.Script,
 	}
 }
 
@@ -196,9 +172,6 @@ func (cl *CodecLibrary) Clear() {
 func (cl *CodecLibrary) LoadDefaults() {
 	// Milesight AM319 Environmental Sensor Codec
 	am319Codec := NewCodec("Milesight AM319", CreateAM319Codec())
-	am319Codec.Description = "Milesight AM319 environmental sensor - Temperature, Humidity, PIR, Light, CO2, TVOC, Pressure, HCHO, PM2.5, PM10"
-	am319Codec.Version = "1.0"
-	am319Codec.Author = "LWN-Sim-Plus"
 	cl.Add(am319Codec)
 }
 
