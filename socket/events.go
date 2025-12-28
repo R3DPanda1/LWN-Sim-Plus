@@ -28,4 +28,10 @@ const (
 	EventChangeLocation = "change-location"
 	// EventGetParameters is the event name used for requesting regional parameters in the simulation environment.
 	EventGetParameters = "get-regional-parameters"
+	// EventCodecAdded represents the event emitted when a new codec is added to the library.
+	EventCodecAdded = "codec-added"
+	// EventCodecDeleted represents the event emitted when a codec is deleted from the library.
+	EventCodecDeleted = "codec-deleted"
+	// EventCodecUpdated represents the event emitted when a codec is updated.
+	EventCodecUpdated = "codec-updated"
 )

@@ -42,6 +42,8 @@ type SimulatorRepository interface {
 	GetCodec(string) (*codec.Codec, error)     // Get a specific codec by ID
 	AddCodec(*codec.Codec) error               // Add a custom codec
 	DeleteCodec(string) error                  // Delete a codec by ID
+	GetDevicesUsingCodec(string) []string      // Get devices using a specific codec
+	EmitCodecEvent(string, interface{})        // Emit a WebSocket event for codec operations
 }
 
 // simulatorRepository repository struct
@@ -177,4 +179,12 @@ func (s *simulatorRepository) AddCodec(codec *codec.Codec) error {
 
 func (s *simulatorRepository) DeleteCodec(id string) error {
 	return s.sim.DeleteCodec(id)
+}
+
+func (s *simulatorRepository) GetDevicesUsingCodec(codecID string) []string {
+	return s.sim.GetDevicesUsingCodec(codecID)
+}
+
+func (s *simulatorRepository) EmitCodecEvent(eventName string, data interface{}) {
+	s.sim.Console.PrintSocket(eventName, data)
 }
