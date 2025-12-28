@@ -71,12 +71,12 @@ func NewExecutor(config *ExecutorConfig) *Executor {
 // ExecuteEncode executes the Encode function from a JavaScript codec
 // Parameters:
 //   - script: The JavaScript code containing the Encode function
-//   - fPort: The LoRaWAN fPort
+//   - fPort: The LoRaWAN fPort (default value, can be overridden by JS)
 //   - obj: The input object to encode (as a map)
 //   - state: Device state for stateful encoding (optional, can be nil)
 //
-// Returns the encoded byte array and any error
-func (e *Executor) ExecuteEncode(script string, fPort uint8, obj map[string]interface{}, state *State) ([]byte, error) {
+// Returns the encoded byte array, the fPort (from JS or default), and any error
+func (e *Executor) ExecuteEncode(script string, fPort uint8, obj map[string]interface{}, state *State) ([]byte, uint8, error) {
 	// Record metrics
 	if e.metrics != nil {
 		e.metrics.mu.Lock()
@@ -94,15 +94,16 @@ func (e *Executor) ExecuteEncode(script string, fPort uint8, obj map[string]inte
 
 	// Channel to receive result
 	type result struct {
-		data []byte
-		err  error
+		data  []byte
+		fPort uint8
+		err   error
 	}
 	resultChan := make(chan result, 1)
 
 	// Execute in goroutine to support timeout
 	go func() {
-		data, err := e.executeEncodeInVM(vm, script, fPort, obj, state)
-		resultChan <- result{data: data, err: err}
+		data, returnedFPort, err := e.executeEncodeInVM(vm, script, fPort, obj, state)
+		resultChan <- result{data: data, fPort: returnedFPort, err: err}
 	}()
 
 	// Wait for result or timeout
@@ -113,51 +114,51 @@ func (e *Executor) ExecuteEncode(script string, fPort uint8, obj map[string]inte
 			e.metrics.TotalErrors++
 			e.metrics.mu.Unlock()
 		}
-		return res.data, res.err
+		return res.data, res.fPort, res.err
 	case <-ctx.Done():
 		if e.metrics != nil {
 			e.metrics.mu.Lock()
 			e.metrics.TotalTimeouts++
 			e.metrics.mu.Unlock()
 		}
-		return nil, ErrTimeout
+		return nil, fPort, ErrTimeout
 	}
 }
 
 // executeEncodeInVM performs the actual encoding in the VM
-func (e *Executor) executeEncodeInVM(vm *goja.Runtime, script string, fPort uint8, obj map[string]interface{}, state *State) ([]byte, error) {
+func (e *Executor) executeEncodeInVM(vm *goja.Runtime, script string, fPort uint8, obj map[string]interface{}, state *State) ([]byte, uint8, error) {
 	// Inject state helper functions if state is provided
 	if state != nil {
 		if err := InjectStateHelpers(vm, state); err != nil {
-			return nil, fmt.Errorf("failed to inject state helpers: %w", err)
+			return nil, fPort, fmt.Errorf("failed to inject state helpers: %w", err)
 		}
 	}
 
 	// Execute the script to define the Encode function
 	_, err := vm.RunString(script)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidScript, err)
+		return nil, fPort, fmt.Errorf("%w: %v", ErrInvalidScript, err)
 	}
 
 	// Get the Encode function
 	encodeFunc, ok := goja.AssertFunction(vm.Get("Encode"))
 	if !ok {
-		return nil, ErrEncodeFunctionNotFound
+		return nil, fPort, ErrEncodeFunctionNotFound
 	}
 
 	// Call Encode(fPort, obj)
 	result, err := encodeFunc(goja.Undefined(), vm.ToValue(fPort), vm.ToValue(obj))
 	if err != nil {
-		return nil, fmt.Errorf("encode execution error: %w", err)
+		return nil, fPort, fmt.Errorf("encode execution error: %w", err)
 	}
 
-	// Convert result to byte array
-	bytes, err := e.convertToBytes(vm, result)
+	// Convert result to byte array and extract fPort if provided
+	bytes, returnedFPort, err := e.convertToBytesWithFPort(vm, result, fPort)
 	if err != nil {
-		return nil, err
+		return nil, fPort, err
 	}
 
-	return bytes, nil
+	return bytes, returnedFPort, nil
 }
 
 // ExecuteDecode executes the Decode function from a JavaScript codec
@@ -263,41 +264,100 @@ func (e *Executor) executeDecodeInVM(vm *goja.Runtime, script string, fPort uint
 	return objMap, nil
 }
 
-// convertToBytes converts a goja.Value to a byte slice
-func (e *Executor) convertToBytes(vm *goja.Runtime, value goja.Value) ([]byte, error) {
+// convertToBytesWithFPort converts a goja.Value to a byte slice and extracts fPort if present
+// Supports two formats:
+//   1. Legacy: [byte1, byte2, ...] - returns bytes with default fPort
+//   2. New: {fPort: 3, bytes: [byte1, byte2, ...]} - returns bytes with extracted fPort
+func (e *Executor) convertToBytesWithFPort(vm *goja.Runtime, value goja.Value, defaultFPort uint8) ([]byte, uint8, error) {
 	exported := value.Export()
 	if exported == nil {
-		return []byte{}, nil
+		return []byte{}, defaultFPort, nil
 	}
 
-	// Handle array of numbers
-	if arr, ok := exported.([]interface{}); ok {
-		bytes := make([]byte, len(arr))
-		for i, v := range arr {
-			switch num := v.(type) {
+	// Check if it's an object with fPort and bytes fields (new format)
+	if obj, ok := exported.(map[string]interface{}); ok {
+		// Extract fPort if present
+		fPort := defaultFPort
+		if fPortVal, hasFPort := obj["fPort"]; hasFPort {
+			switch fp := fPortVal.(type) {
 			case int64:
-				if num < 0 || num > 255 {
-					return nil, fmt.Errorf("%w: byte value out of range: %d", ErrInvalidReturnType, num)
+				if fp < 0 || fp > 255 {
+					return nil, defaultFPort, fmt.Errorf("%w: fPort value out of range: %d", ErrInvalidReturnType, fp)
 				}
-				bytes[i] = byte(num)
+				fPort = uint8(fp)
 			case float64:
-				if num < 0 || num > 255 {
-					return nil, fmt.Errorf("%w: byte value out of range: %f", ErrInvalidReturnType, num)
+				if fp < 0 || fp > 255 {
+					return nil, defaultFPort, fmt.Errorf("%w: fPort value out of range: %f", ErrInvalidReturnType, fp)
 				}
-				bytes[i] = byte(num)
+				fPort = uint8(fp)
 			case int:
-				if num < 0 || num > 255 {
-					return nil, fmt.Errorf("%w: byte value out of range: %d", ErrInvalidReturnType, num)
+				if fp < 0 || fp > 255 {
+					return nil, defaultFPort, fmt.Errorf("%w: fPort value out of range: %d", ErrInvalidReturnType, fp)
 				}
-				bytes[i] = byte(num)
+				fPort = uint8(fp)
 			default:
-				return nil, fmt.Errorf("%w: invalid array element type: %T", ErrInvalidReturnType, v)
+				return nil, defaultFPort, fmt.Errorf("%w: invalid fPort type: %T", ErrInvalidReturnType, fPortVal)
 			}
 		}
-		return bytes, nil
+
+		// Extract bytes array
+		if bytesVal, hasBytes := obj["bytes"]; hasBytes {
+			if arr, ok := bytesVal.([]interface{}); ok {
+				bytes, err := e.arrayToBytes(arr)
+				if err != nil {
+					return nil, defaultFPort, err
+				}
+				return bytes, fPort, nil
+			}
+			return nil, defaultFPort, fmt.Errorf("%w: bytes field must be an array", ErrInvalidReturnType)
+		}
+
+		return nil, defaultFPort, fmt.Errorf("%w: object must have 'bytes' field", ErrInvalidReturnType)
 	}
 
-	return nil, fmt.Errorf("%w: expected array, got %T", ErrInvalidReturnType, exported)
+	// Legacy format: plain array
+	if arr, ok := exported.([]interface{}); ok {
+		bytes, err := e.arrayToBytes(arr)
+		if err != nil {
+			return nil, defaultFPort, err
+		}
+		return bytes, defaultFPort, nil
+	}
+
+	return nil, defaultFPort, fmt.Errorf("%w: expected array or object with {fPort, bytes}, got %T", ErrInvalidReturnType, exported)
+}
+
+// arrayToBytes converts an array of interfaces to bytes
+func (e *Executor) arrayToBytes(arr []interface{}) ([]byte, error) {
+	bytes := make([]byte, len(arr))
+	for i, v := range arr {
+		switch num := v.(type) {
+		case int64:
+			if num < 0 || num > 255 {
+				return nil, fmt.Errorf("%w: byte value out of range: %d", ErrInvalidReturnType, num)
+			}
+			bytes[i] = byte(num)
+		case float64:
+			if num < 0 || num > 255 {
+				return nil, fmt.Errorf("%w: byte value out of range: %f", ErrInvalidReturnType, num)
+			}
+			bytes[i] = byte(num)
+		case int:
+			if num < 0 || num > 255 {
+				return nil, fmt.Errorf("%w: byte value out of range: %d", ErrInvalidReturnType, num)
+			}
+			bytes[i] = byte(num)
+		default:
+			return nil, fmt.Errorf("%w: invalid array element type: %T", ErrInvalidReturnType, v)
+		}
+	}
+	return bytes, nil
+}
+
+// convertToBytes converts a goja.Value to a byte slice (legacy method for backward compatibility)
+func (e *Executor) convertToBytes(vm *goja.Runtime, value goja.Value) ([]byte, error) {
+	bytes, _, err := e.convertToBytesWithFPort(vm, value, 1)
+	return bytes, err
 }
 
 // GetMetrics returns current executor metrics
