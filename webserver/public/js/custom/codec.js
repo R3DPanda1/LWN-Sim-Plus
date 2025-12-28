@@ -141,30 +141,40 @@ $("[name=btn-delete-codec]").on('click', function(){
 function SaveCodec(isUpdate){
     var name = $("[name=input-codec-name]").val();
     var script = $("#textarea-codec-script").val();
+    var codecId = $("#div-buttons-codec").data("id");
 
     if(!name || !script){
         Show_ErrorSweetToast("Error", "Name and Script are required");
         return;
     }
 
+    // Determine if we're editing (codecId exists) or adding (no codecId)
+    var isEdit = codecId && codecId !== "";
+    var apiEndpoint = isEdit ? "/api/update-codec" : "/api/add-codec";
+
     var codecData = {
         "name": name,
         "script": script
     };
 
+    // Add ID if editing
+    if(isEdit){
+        codecData.id = codecId;
+    }
+
     var jsonData = JSON.stringify(codecData);
 
-    $.post(url + "/api/add-codec", jsonData, "json")
+    $.post(url + apiEndpoint, jsonData, "json")
     .done((data)=>{
-        Show_SweetToast("Codec saved successfully", "");
+        Show_SweetToast(isEdit ? "Codec updated successfully" : "Codec saved successfully", "");
         CleanCodecForm();
         LoadCodecList();
-        PopulateCodecDropdown();
+        PopulatePayloadGenerationDropdown();
         ShowList($("#codecs"),"List codecs",false);
     })
     .fail((data)=>{
         var errorMsg = data.responseJSON ? data.responseJSON.error : data.statusText;
-        Show_ErrorSweetToast("Failed to save codec", errorMsg);
+        Show_ErrorSweetToast(isEdit ? "Failed to update codec" : "Failed to save codec", errorMsg);
     });
 }
 
@@ -198,7 +208,7 @@ function DeleteCodec(codecId){
                         Show_SweetToast("Codec deleted successfully", "");
                         CleanCodecForm();
                         LoadCodecList();
-                        PopulateCodecDropdown();
+                        PopulatePayloadGenerationDropdown();
                         ShowList($("#codecs"),"List codecs",false);
                     })
                     .fail((data)=>{

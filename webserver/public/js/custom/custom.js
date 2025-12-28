@@ -184,7 +184,7 @@ $(document).ready(function(){
     // Codec WebSocket events for dynamic UI updates
     socket.on('codec-added', (data) => {
         console.log('Codec added:', data);
-        PopulateCodecDropdown();
+        PopulatePayloadGenerationDropdown();
         // Reload codec list if on codec tab
         if ($("#codecs-tab").hasClass("active")) {
             LoadCodecList();
@@ -193,7 +193,7 @@ $(document).ready(function(){
 
     socket.on('codec-deleted', (data) => {
         console.log('Codec deleted:', data);
-        PopulateCodecDropdown();
+        PopulatePayloadGenerationDropdown();
         // Reload codec list if on codec tab
         if ($("#codecs-tab").hasClass("active")) {
             LoadCodecList();
@@ -202,7 +202,7 @@ $(document).ready(function(){
 
     socket.on('codec-updated', (data) => {
         console.log('Codec updated:', data);
-        PopulateCodecDropdown();
+        PopulatePayloadGenerationDropdown();
         // Reload codec list if on codec tab
         if ($("#codecs-tab").hasClass("active")) {
             LoadCodecList();
@@ -1124,7 +1124,7 @@ function Init(){
         }
     }).done((data)=>{
         AvailableCodecs = data.codecs || [];
-        PopulateCodecDropdown();
+        PopulatePayloadGenerationDropdown();
     }).fail((data)=>{
         console.error("Unable to load codecs", data.statusText);
     });
@@ -1142,42 +1142,41 @@ function Click_GenerateAddress(selector,bytes){
 
 //********************* Codec Functions *********************
 
-function PopulateCodecDropdown(){
-    var select = $("#select-codec");
-    select.empty();
-    select.append('<option value="">Select a codec...</option>');
+function PopulatePayloadGenerationDropdown(){
+    $.get(url + "/api/codecs")
+    .done((data)=>{
+        var select = $("#select-payload-generation");
+        select.empty();
 
-    AvailableCodecs.forEach(codec => {
-        select.append('<option value="' + codec.id + '">' + codec.name + '</option>');
+        // Add "Static Payload" as default option
+        select.append('<option value="">Static Payload</option>');
+
+        // Add all codecs
+        if(data.codecs && data.codecs.length > 0){
+            data.codecs.forEach(function(codec){
+                select.append('<option value="' + codec.id + '">' + codec.name + '</option>');
+            });
+        }
+    })
+    .fail((data)=>{
+        console.error("Failed to load codecs for dropdown", data.statusText);
     });
 }
 
-// Handle checkbox toggle for codec section
-$("#checkbox-use-codec").on('change', function(){
-    if($(this).prop("checked")){
-        $("#codec-selection-section").show();
-        $("#payload-config-section").show();
-        $("#textarea-payload").prop("disabled", true);
-        $("[name=checkbox-base64]").prop("disabled", true);
-    } else {
-        $("#codec-selection-section").hide();
-        $("#payload-config-section").hide();
+// Handle payload generation dropdown change
+$("#select-payload-generation").on('change', function(){
+    var selectedCodecID = $(this).val();
+
+    if(selectedCodecID === "" || !selectedCodecID){
+        // Static Payload mode
         $("#textarea-payload").prop("disabled", false);
         $("[name=checkbox-base64]").prop("disabled", false);
+    } else {
+        // Codec mode
+        $("#textarea-payload").prop("disabled", true);
+        $("[name=checkbox-base64]").prop("disabled", true);
     }
 });
-
-function ParsePayloadConfig(jsonString){
-    if(!jsonString || jsonString.trim() === ""){
-        return {};
-    }
-    try {
-        return JSON.parse(jsonString);
-    } catch(e) {
-        console.error("Invalid JSON in payload config:", e);
-        return {};
-    }
-}
 
 //********************* Notification *********************
 function Show_iziToast(title, message){
@@ -2255,12 +2254,8 @@ function CleanInputDevice(){
 
     $("#textarea-payload").val("");
 
-    // Clean codec fields
-    $("#checkbox-use-codec").prop("checked", false);
-    $("#select-codec").val("");
-    $("#textarea-payload-config").val("");
-    $("#codec-selection-section").hide();
-    $("#payload-config-section").hide();
+    // Clean payload generation fields
+    $("#select-payload-generation").val("");  // Select "Static Payload"
     $("#textarea-payload").prop("disabled", false);
     $("[name=checkbox-base64]").prop("disabled", false);
 
@@ -2411,20 +2406,14 @@ function LoadDevice(dev){
     $("[name=checkbox-base64]").prop("checked", dev.info.status.base64);
 
     // Load codec configuration if present
-    if(dev.info.configuration.useCodec){
-        $("#checkbox-use-codec").prop("checked", true);
-        $("#codec-selection-section").show();
-        $("#payload-config-section").show();
-        $("#select-codec").val(dev.info.configuration.codecID || "");
-        if(dev.info.configuration.payloadConfig){
-            $("#textarea-payload-config").val(JSON.stringify(dev.info.configuration.payloadConfig, null, 2));
-        }
+    if(dev.info.configuration.codecID && dev.info.configuration.codecID !== ""){
+        // Codec mode
+        $("#select-payload-generation").val(dev.info.configuration.codecID);
         $("#textarea-payload").prop("disabled", true);
         $("[name=checkbox-base64]").prop("disabled", true);
     } else {
-        $("#checkbox-use-codec").prop("checked", false);
-        $("#codec-selection-section").hide();
-        $("#payload-config-section").hide();
+        // Static payload mode
+        $("#select-payload-generation").val("");
         $("#textarea-payload").prop("disabled", false);
         $("[name=checkbox-base64]").prop("disabled", false);
     }
@@ -2643,28 +2632,14 @@ function Click_SaveDevice(){
     upInterval.val(upInterval.val() == "" ? UplinkIntervalDefault : upInterval.val());
     var validInterval = IsValidNumber(upInterval.val(),-1,Infinity);
 
-    // Codec validation
-    var useCodec = $("#checkbox-use-codec").prop("checked");
-    var selectedCodec = $("#select-codec").val();
-    var validCodec = true;
+    validation = validation && validInterval;
 
-    if (useCodec && (!selectedCodec || selectedCodec === "")) {
-        validCodec = false;
-    }
-
-    validation = validation && validInterval && validCodec;
-    
     if (!validation){
         Show_ErrorSweetToast("Error","Values are incorrect");
 
         ValidationInput(name, validNameDevice);
         ValidationInput(devEUI, validdevEUI);
         ValidationInput(region, validregion);
-
-        // Codec validation feedback
-        if (!validCodec) {
-            ValidationInput($("#select-codec"), false);
-        }
 
         ValidationInput(delayRX1,validDelayRX1);
         ValidationInput(durationRX1,validDurationRX1);
@@ -2733,9 +2708,11 @@ function Click_SaveDevice(){
                 "disableFCntDown":disablefcntDown,
                 "sendInterval":Number(upInterval.val()),
                 "nbRetransmission":Number(retransmission.val()),
-                "useCodec": $("#checkbox-use-codec").prop("checked"),
-                "codecID": $("#select-codec").val() || "",
-                "payloadConfig": ParsePayloadConfig($("#textarea-payload-config").val())
+                "useCodec": (function() {
+                    var codecID = $("#select-payload-generation").val() || "";
+                    return codecID !== "";
+                })(),
+                "codecID": $("#select-payload-generation").val() || ""
             },
             "rxs":[
                 {
@@ -2858,12 +2835,23 @@ function Click_Edit(element, FlagGw){
     if(FlagGw)
         addr = $("#div-buttons-gw").data("addr");   
 
-    $(element).hide();   
-    
-    if (FlagGw) //Edit gateway
-        ChangeStateInputGateway(false,null);        
-    else
+    $(element).hide();
+
+    if (FlagGw) { //Edit gateway
+        ChangeStateInputGateway(false,null);
+    } else { //Edit device
         ChangeStateInputDevice(false,null);
+
+        // Ensure payload field state matches dropdown selection
+        var codecID = $("#select-payload-generation").val();
+        if(codecID === "" || !codecID){
+            $("#textarea-payload").prop("disabled", false);
+            $("[name=checkbox-base64]").prop("disabled", false);
+        } else {
+            $("#textarea-payload").prop("disabled", true);
+            $("[name=checkbox-base64]").prop("disabled", true);
+        }
+    }
 
     $(element).siblings("button").show();
    

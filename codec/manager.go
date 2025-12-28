@@ -117,6 +117,11 @@ func (m *Manager) AddCodec(codec *Codec) error {
 	return m.library.Add(codec)
 }
 
+// UpdateCodec updates an existing codec by ID
+func (m *Manager) UpdateCodec(id string, name string, script string) error {
+	return m.library.Update(id, name, script)
+}
+
 // GetCodec retrieves a codec by ID
 func (m *Manager) GetCodec(id string) (*Codec, error) {
 	return m.library.Get(id)

@@ -121,6 +121,30 @@ func (cl *CodecLibrary) Add(codec *Codec) error {
 	return nil
 }
 
+// Update updates an existing codec by ID, preserving the original ID
+func (cl *CodecLibrary) Update(id string, name string, script string) error {
+	// Check if codec exists
+	if _, exists := cl.codecs[id]; !exists {
+		return ErrCodecNotFound
+	}
+
+	// Create codec with new data but preserve the original ID
+	updatedCodec := &Codec{
+		ID:     id, // Preserve original ID
+		Name:   name,
+		Script: script,
+	}
+
+	// Validate the updated codec
+	if err := updatedCodec.Validate(); err != nil {
+		return err
+	}
+
+	// Update in the library
+	cl.codecs[id] = updatedCodec
+	return nil
+}
+
 // Get retrieves a codec by ID
 func (cl *CodecLibrary) Get(id string) (*Codec, error) {
 	codec, exists := cl.codecs[id]

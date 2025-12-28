@@ -37,11 +37,10 @@ type Configuration struct {
 	NbRepUnconfirmedDataUp uint8 `json:"-"`                // Nb retrasmission of UnconfirmedDataUp
 
 	// Codec configuration
-	CodecID        string                 `json:"codecID"`        // ID of codec to use (empty = use raw payload)
-	PayloadConfig  map[string]interface{} `json:"payloadConfig"`  // JSON object for payload generation
-	UseCodec       bool                   `json:"useCodec"`       // Enable/disable codec
-	RawPayload     []byte                 `json:"rawPayload"`     // Fallback raw payload if codec disabled
-	RawPayloadB64  string                 `json:"rawPayloadB64"`  // Base64 raw payload (for JSON compatibility)
+	CodecID       string `json:"codecID"`       // ID of codec to use (empty = use raw payload)
+	UseCodec      bool   `json:"useCodec"`      // Enable/disable codec
+	RawPayload    []byte `json:"rawPayload"`    // Fallback raw payload if codec disabled
+	RawPayloadB64 string `json:"rawPayloadB64"` // Base64 raw payload (for JSON compatibility)
 }
 
 func (c *Configuration) MarshalJSON() ([]byte, error) {
