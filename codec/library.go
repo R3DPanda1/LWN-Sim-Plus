@@ -166,49 +166,181 @@ func InjectMathHelpers(vm *goja.Runtime) error {
 	return nil
 }
 
-// CreateSampleCodec returns a sample codec script for testing
-func CreateSampleCodec() string {
+// CreateAM319Codec returns the Milesight AM319 codec script
+func CreateAM319Codec() string {
 	return `
-function Encode(fPort, obj) {
-    var counter = getCounter("messageCount");
-    setCounter("messageCount", counter + 1);
+// Milesight AM319 Environmental Sensor Codec
+// Supports: Temperature, Humidity, PIR, Light, CO2, TVOC, Pressure, HCHO, PM2.5, PM10
 
+function Encode(fPort, obj) {
     var bytes = [];
 
-    // Add counter (2 bytes)
-    bytes.push((counter >> 8) & 0xFF);
-    bytes.push(counter & 0xFF);
-
-    // Add temperature if provided
-    if (obj.temperature !== undefined) {
-        var temp = Math.round((obj.temperature + 50) * 2);
-        bytes.push(temp & 0xFF);
+    // Helper function for random variations
+    function randomVariation(base, variance) {
+        return base + (Math.random() - 0.5) * 2 * variance;
     }
 
-    // Add humidity if provided
-    if (obj.humidity !== undefined) {
-        bytes.push(obj.humidity & 0xFF);
-    }
+    // Sensor values with realistic random variations (based on real AM319 data)
+    var temperature = obj.temperature !== undefined ? obj.temperature : randomVariation(19.2, 0.5);
+    var humidity = obj.humidity !== undefined ? obj.humidity : randomVariation(31, 2);
+    var pir = obj.pir !== undefined ? obj.pir : (Math.random() < 0.1 ? "trigger" : "idle");
+    var light_level = obj.light_level !== undefined ? obj.light_level : Math.floor(randomVariation(1, 0.5));
+    var co2 = obj.co2 !== undefined ? obj.co2 : Math.floor(randomVariation(465, 10));
+    var tvoc = obj.tvoc !== undefined ? obj.tvoc : randomVariation(0.69, 0.05);
+    var pressure = obj.pressure !== undefined ? obj.pressure : randomVariation(989.8, 0.5);
+    var hcho = obj.hcho !== undefined ? obj.hcho : randomVariation(0.02, 0.005);
+    var pm2_5 = obj.pm2_5 !== undefined ? obj.pm2_5 : Math.floor(randomVariation(12, 2));
+    var pm10 = obj.pm10 !== undefined ? obj.pm10 : Math.floor(randomVariation(12, 2));
 
-    return bytes;
+    // Temperature (Channel 0x03, Type 0x67)
+    bytes.push(0x03);
+    bytes.push(0x67);
+    var tempInt = Math.round(temperature * 10);
+    bytes.push(tempInt & 0xFF);
+    bytes.push((tempInt >> 8) & 0xFF);
+
+    // Humidity (Channel 0x04, Type 0x68)
+    bytes.push(0x04);
+    bytes.push(0x68);
+    bytes.push(Math.round(humidity * 2));
+
+    // PIR (Channel 0x05, Type 0x00)
+    bytes.push(0x05);
+    bytes.push(0x00);
+    bytes.push(pir === "trigger" ? 1 : 0);
+
+    // Light Level (Channel 0x06, Type 0xCB)
+    bytes.push(0x06);
+    bytes.push(0xCB);
+    bytes.push(light_level & 0xFF);
+
+    // CO2 (Channel 0x07, Type 0x7D)
+    bytes.push(0x07);
+    bytes.push(0x7D);
+    var co2Int = Math.round(co2);
+    bytes.push(co2Int & 0xFF);
+    bytes.push((co2Int >> 8) & 0xFF);
+
+    // TVOC (Channel 0x08, Type 0x7D) - IAQ format
+    bytes.push(0x08);
+    bytes.push(0x7D);
+    var tvocInt = Math.round(tvoc * 100);
+    bytes.push(tvocInt & 0xFF);
+    bytes.push((tvocInt >> 8) & 0xFF);
+
+    // Pressure (Channel 0x09, Type 0x73)
+    bytes.push(0x09);
+    bytes.push(0x73);
+    var pressureInt = Math.round(pressure * 10);
+    bytes.push(pressureInt & 0xFF);
+    bytes.push((pressureInt >> 8) & 0xFF);
+
+    // HCHO (Channel 0x0A, Type 0x7D)
+    bytes.push(0x0A);
+    bytes.push(0x7D);
+    var hchoInt = Math.round(hcho * 100);
+    bytes.push(hchoInt & 0xFF);
+    bytes.push((hchoInt >> 8) & 0xFF);
+
+    // PM2.5 (Channel 0x0B, Type 0x7D)
+    bytes.push(0x0B);
+    bytes.push(0x7D);
+    var pm25Int = Math.round(pm2_5);
+    bytes.push(pm25Int & 0xFF);
+    bytes.push((pm25Int >> 8) & 0xFF);
+
+    // PM10 (Channel 0x0C, Type 0x7D)
+    bytes.push(0x0C);
+    bytes.push(0x7D);
+    var pm10Int = Math.round(pm10);
+    bytes.push(pm10Int & 0xFF);
+    bytes.push((pm10Int >> 8) & 0xFF);
+
+    // Return with fPort 85 (AM319 standard port)
+    return {
+        fPort: 85,
+        bytes: bytes
+    };
 }
 
 function Decode(fPort, bytes) {
-    var obj = {};
+    var decoded = {};
 
-    if (bytes.length >= 2) {
-        obj.counter = (bytes[0] << 8) | bytes[1];
+    for (var i = 0; i < bytes.length; ) {
+        var channel_id = bytes[i++];
+        var channel_type = bytes[i++];
+
+        // TEMPERATURE
+        if (channel_id === 0x03 && channel_type === 0x67) {
+            decoded.temperature = readInt16LE(bytes.slice(i, i + 2)) / 10;
+            i += 2;
+        }
+        // HUMIDITY
+        else if (channel_id === 0x04 && channel_type === 0x68) {
+            decoded.humidity = bytes[i] / 2;
+            i += 1;
+        }
+        // PIR
+        else if (channel_id === 0x05 && channel_type === 0x00) {
+            decoded.pir = bytes[i] === 1 ? "trigger" : "idle";
+            i += 1;
+        }
+        // LIGHT
+        else if (channel_id === 0x06 && channel_type === 0xcb) {
+            decoded.light_level = bytes[i];
+            i += 1;
+        }
+        // CO2
+        else if (channel_id === 0x07 && channel_type === 0x7d) {
+            decoded.co2 = readUInt16LE(bytes.slice(i, i + 2));
+            i += 2;
+        }
+        // TVOC (iaq)
+        else if (channel_id === 0x08 && channel_type === 0x7d) {
+            decoded.tvoc = readUInt16LE(bytes.slice(i, i + 2)) / 100;
+            i += 2;
+        }
+        // PRESSURE
+        else if (channel_id === 0x09 && channel_type === 0x73) {
+            decoded.pressure = readUInt16LE(bytes.slice(i, i + 2)) / 10;
+            i += 2;
+        }
+        // HCHO
+        else if (channel_id === 0x0a && channel_type === 0x7d) {
+            decoded.hcho = readUInt16LE(bytes.slice(i, i + 2)) / 100;
+            i += 2;
+        }
+        // PM2.5
+        else if (channel_id === 0x0b && channel_type === 0x7d) {
+            decoded.pm2_5 = readUInt16LE(bytes.slice(i, i + 2));
+            i += 2;
+        }
+        // PM10
+        else if (channel_id === 0x0c && channel_type === 0x7d) {
+            decoded.pm10 = readUInt16LE(bytes.slice(i, i + 2));
+            i += 2;
+        }
+        // O3
+        else if (channel_id === 0x0d && channel_type === 0x7d) {
+            decoded.o3 = readUInt16LE(bytes.slice(i, i + 2)) / 100;
+            i += 2;
+        }
+        else {
+            break;
+        }
     }
 
-    if (bytes.length >= 3) {
-        obj.temperature = (bytes[2] / 2) - 50;
-    }
+    return decoded;
+}
 
-    if (bytes.length >= 4) {
-        obj.humidity = bytes[3];
-    }
+function readUInt16LE(bytes) {
+    var value = (bytes[1] << 8) + bytes[0];
+    return value & 0xffff;
+}
 
-    return obj;
+function readInt16LE(bytes) {
+    var ref = readUInt16LE(bytes);
+    return ref > 0x7fff ? ref - 0x10000 : ref;
 }
 `
 }

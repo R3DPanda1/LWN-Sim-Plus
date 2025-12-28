@@ -7,8 +7,8 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-BINARY_NAME="lwn-sim-plus"
-PID_FILE="/tmp/lwn-sim-plus.pid"
+BINARY_NAME="lwnsimulator"
+PID_FILE="/tmp/lwnsimulator.pid"
 LOG_FILE="simulator.log"
 
 echo "Starting LWN-Sim-Plus..."
@@ -30,9 +30,6 @@ if [ ! -f "bin/$BINARY_NAME" ]; then
     echo "Binary not found. Building..."
     export PATH=$PATH:~/go/bin
     make build
-    if [ -f "bin/lwnsimulator" ]; then
-        mv "bin/lwnsimulator" "bin/$BINARY_NAME"
-    fi
 fi
 
 # Start the simulator

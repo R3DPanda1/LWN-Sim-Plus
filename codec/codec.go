@@ -194,12 +194,12 @@ func (cl *CodecLibrary) Clear() {
 
 // LoadDefaults loads default example codecs
 func (cl *CodecLibrary) LoadDefaults() {
-	// Basic Temperature/Humidity Codec
-	basicCodec := NewCodec("Basic Sensor", CreateSampleCodec())
-	basicCodec.Description = "Simple temperature and humidity sensor with counter"
-	basicCodec.Version = "1.0"
-	basicCodec.Author = "LWN-Sim-Plus"
-	cl.Add(basicCodec)
+	// Milesight AM319 Environmental Sensor Codec
+	am319Codec := NewCodec("Milesight AM319", CreateAM319Codec())
+	am319Codec.Description = "Milesight AM319 environmental sensor - Temperature, Humidity, PIR, Light, CO2, TVOC, Pressure, HCHO, PM2.5, PM10"
+	am319Codec.Version = "1.0"
+	am319Codec.Author = "LWN-Sim-Plus"
+	cl.Add(am319Codec)
 }
 
 // ToJSON serializes the codec library to JSON
