@@ -1,23 +1,43 @@
-# LWN Simulator
+# LWN-Sim-Plus
 
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/UniCT-ARSLab/LWN-Simulator/go_build.yml)
-[![GitHub license](https://img.shields.io/github/license/UniCT-ARSLab/LWN-Simulator)](https://github.com/UniCT-ARSLab/LWN-Simulator/blob/main/LICENSE.txt)
+[![GitHub license](https://img.shields.io/github/license/R3DPanda1/LWN-Sim-Plus)](https://github.com/R3DPanda1/LWN-Sim-Plus/blob/main/LICENSE.txt)
 [![made-with-Go](https://img.shields.io/badge/Made%20with-Go-1f425f.svg)](https://golang.org)
-[![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/UniCT-ARSLab/LWN-Simulator.svg)](https://github.com/UniCT-ARSLab/LWN-Simulator)
-[![GitHub release](https://img.shields.io/github/release/UniCT-ARSLab/LWN-Simulator.svg)](https://github.com/UniCT-ARSLab/LWN-Simulator/releases/)
 
-A LoRaWAN nodes' simulator to simulate a LoRaWAN Network.
+A LoRaWAN device simulator with JavaScript codec support and stateful device simulation.
+
+Forked from [LWN-Simulator](https://github.com/UniCT-ARSLab/LWN-Simulator) with enhancements for dynamic payload generation and production deployment.
 
 ## Table of Contents
 
 * [General Info](#general-info)
+* [What's New](#whats-new)
 * [Requirements](#requirements)
 * [Installation](#installation)
 
 ## General Info
 
-LWN Simulator is a LoRaWAN nodes' simulator equipped with web interface. It allows to comunicate with a real
-infrastructure LoRaWAN or ad-hoc infrastructure, such as [Chirpstack](https://www.chirpstack.io/).
+LWN-Sim-Plus is a LoRaWAN device simulator with web interface. It allows communication with real
+LoRaWAN infrastructure or ad-hoc infrastructure such as [ChirpStack](https://www.chirpstack.io/).
+
+## What's New
+
+This fork adds the following features to the original LWN-Simulator:
+
+**JavaScript Codec System**
+- Execute ChirpStack-compatible JavaScript codecs for dynamic payload generation
+- Built-in helper functions: `getCounter()`, `setState()`, `getPreviousPayload()`, `log()`
+- Per-device persistent state management across simulator restarts
+- Monaco Editor integration for codec editing with IntelliSense
+
+**Device Profile System**
+- Pre-configured templates for real LoRaWAN devices
+- REST API endpoints for device and codec management
+- WebSocket events for real-time UI updates
+
+**Production Deployment**
+- Daemon scripts for background execution (`start.sh`, `stop.sh`)
+- JSON-based persistence for devices, gateways, and codecs
+- Codec lifecycle validation and usage tracking
 
 ![dashboard](./.github/dashboard.png)
 
@@ -46,11 +66,40 @@ There are two types of gateway:
 * A virtual gateway that communicates with a real gateway bridge (if it exists);
 * A real gateway to which datagrams UDP are forwarded.
 
+### JavaScript Codec Example
+
+```javascript
+function Encode(fPort, obj) {
+    var bytes = [];
+
+    // Access persistent state
+    var counter = getCounter("messageCount") || 0;
+    setCounter("messageCount", counter + 1);
+
+    // Encode temperature (2 bytes, signed, 0.1°C resolution)
+    var temp = Math.round((obj.temperature || 20) * 10);
+    bytes.push((temp >> 8) & 0xFF);
+    bytes.push(temp & 0xFF);
+
+    return {
+        fPort: fPort || 85,
+        bytes: bytes
+    };
+}
+
+function Decode(fPort, bytes) {
+    return {
+        temperature: (((bytes[0] << 8) | bytes[1]) << 16 >> 16) / 10.0
+    };
+}
+```
+
 ## Requirements
 
+* **Go** >= 1.21
 * If you don't have a real infrastructure, you can
   download [ChirpStack open-source LoRaWAN® Network Server](https://www.chirpstack.io/project/), or a similar software,
-  to prove it;
+  to test it
 
 > [!TIP]
 > A ChirpStack instance can be easily started using Docker. You can find the
@@ -58,73 +107,49 @@ There are two types of gateway:
 
 ## Installation
 
-### From binary file
+### From Binary
 
-You can download from releases section the pre-compiled binary file.
+Download pre-compiled binaries from the [Releases Page](https://github.com/R3DPanda1/LWN-Sim-Plus/releases).
 
-[Releases Page](https://github.com/UniCT-ARSLab/LWN-Simulator/releases)
+### From Source
 
-### From source code
-
-#### Requirements
-
-The simulator is written in Go, so you must have installed Go on your machine.
-
-* You must install [Go](https://golang.org/). Version >= 1.21
-
-> [!NOTE]
-> Windows users should install [GnuMake for Windows](https://www.gnu.org/software/make/) to use the makefile.
-> If you use winget, you can install it with the following command:
-> ```bash
-> winget install GnuWin32.Make
-> ```
-
-#### Build Steps
-
-Firstly, you must clone this repository:
+Clone the repository:
 
 ```bash
-git clone https://github.com/UniCT-ARSLab/LWN-Simulator.git
+git clone https://github.com/R3DPanda1/LWN-Sim-Plus.git
+cd LWN-Sim-Plus
 ```
 
-After the download, you must enter in main directory:
-
-```bash
-cd LWN-Simulator
-```
-
-You must install all dependencies to build the simulator:
+Install dependencies:
 
 ```bash
 make install-dep
 ```
 
-Now you can launch the build of the simulator:
+Build the simulator:
 
 ```bash
 make build
 ```
 
-The binary file will be created in the `bin` directory.
+The binary will be created in `bin/lwnsimulator`.
 
-#### Run the simulator
-
-To run the simulator, you can:
-
-- Run from the built binary file:
+Run the simulator:
 
 ```bash
-./bin/lwnsimulator // for Linux
-./bin/lwnsimulator.exe // for Windows
-
-make run-release // if you use makefile
+./bin/lwnsimulator          # Linux/Mac
+./bin/lwnsimulator.exe      # Windows
 ```
 
-- Run from the source code:
+Or run directly with:
 
 ```bash
 make run
 ```
+
+> [!NOTE]
+> Windows users should install [GnuMake for Windows](https://www.gnu.org/software/make/) to use the makefile.
+> With winget: `winget install GnuWin32.Make`
 
 ### Configuration file
 
@@ -160,7 +185,15 @@ More coming soon...
 
 [How to use LWN Simulator with ChirpStack](https://www.youtube.com/watch?v=OpQkb00gfjs)
 
-## Publications and Citations
+## Acknowledgments
+
+This project is a fork of [LWN-Simulator](https://github.com/UniCT-ARSLab/LWN-Simulator) by UniCT-ARSLab.
+
+**Key Dependencies:**
+- [goja](https://github.com/dop251/goja) - ECMAScript engine for Go
+- [ChirpStack](https://www.chirpstack.io/) - LoRaWAN Network Server
+
+## Publications Citing Original LWN-Simulator
 
 - [LWN Simulator-A LoRaWAN Network Simulator](https://ieeexplore.ieee.org/document/10477816)
 - [Lightweight Root Key Management Scheme in Smart Grid IoT Network based on Blockchain Technology](https://www.researchsquare.com/article/rs-3330383/v1)
