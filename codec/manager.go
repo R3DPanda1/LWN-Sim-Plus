@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-
-	"github.com/brocaar/lorawan"
 )
 
 // Manager manages codecs and device states for the entire simulator
@@ -62,24 +60,23 @@ func (m *Manager) RemoveState(devEUI string) {
 // Parameters:
 //   - codecID: ID of the codec to use
 //   - devEUI: Device EUI for state management
-//   - fPort: LoRaWAN fPort (default, can be overridden by codec)
-//   - obj: Object to encode
+//   - device: Device interface for accessing configuration (send interval, etc.)
 //
-// Returns the encoded bytes, actual fPort, and any error
-func (m *Manager) EncodePayload(codecID string, devEUI string, fPort uint8, obj map[string]interface{}) ([]byte, uint8, error) {
+// Returns the encoded bytes, actual fPort (from codec or device), and any error
+func (m *Manager) EncodePayload(codecID string, devEUI string, device DeviceInterface) ([]byte, uint8, error) {
 	// Get codec
 	codec, err := m.library.Get(codecID)
 	if err != nil {
-		return nil, fPort, fmt.Errorf("codec not found: %w", err)
+		return nil, 1, fmt.Errorf("codec not found: %w", err)
 	}
 
 	// Get or create state
 	state := m.GetOrCreateState(devEUI)
 
 	// Execute encoding
-	bytes, returnedFPort, err := m.executor.ExecuteEncode(codec.Script, fPort, obj, state)
+	bytes, returnedFPort, err := m.executor.ExecuteEncode(codec.Script, state, device)
 	if err != nil {
-		return nil, fPort, fmt.Errorf("encoding failed: %w", err)
+		return nil, 1, fmt.Errorf("encoding failed: %w", err)
 	}
 
 	return bytes, returnedFPort, nil
@@ -89,11 +86,12 @@ func (m *Manager) EncodePayload(codecID string, devEUI string, fPort uint8, obj 
 // Parameters:
 //   - codecID: ID of the codec to use
 //   - devEUI: Device EUI for state management
-//   - fPort: LoRaWAN fPort
 //   - bytes: Bytes to decode
+//   - fPort: LoRaWAN fPort
+//   - device: Device interface for accessing configuration
 //
 // Returns the decoded object and any error
-func (m *Manager) DecodePayload(codecID string, devEUI string, fPort uint8, bytes []byte) (map[string]interface{}, error) {
+func (m *Manager) DecodePayload(codecID string, devEUI string, bytes []byte, fPort uint8, device DeviceInterface) (map[string]interface{}, error) {
 	// Get codec
 	codec, err := m.library.Get(codecID)
 	if err != nil {
@@ -104,7 +102,7 @@ func (m *Manager) DecodePayload(codecID string, devEUI string, fPort uint8, byte
 	state := m.GetOrCreateState(devEUI)
 
 	// Execute decoding
-	obj, err := m.executor.ExecuteDecode(codec.Script, fPort, bytes, state)
+	obj, err := m.executor.ExecuteDecode(codec.Script, bytes, fPort, state, device)
 	if err != nil {
 		return nil, fmt.Errorf("decoding failed: %w", err)
 	}
@@ -214,22 +212,4 @@ func (m *Manager) LoadCodecLibrary(filepath string) error {
 	}
 
 	return nil
-}
-
-// GeneratePayloadFromConfig generates a payload from device configuration
-// This is a helper function that converts PayloadConfig to a lorawan.Payload
-// Returns the payload and the actual fPort used (which may differ from input)
-func (m *Manager) GeneratePayloadFromConfig(codecID string, devEUI string, fPort uint8, payloadConfig map[string]interface{}) (lorawan.Payload, uint8, error) {
-	// Encode using codec
-	bytes, returnedFPort, err := m.EncodePayload(codecID, devEUI, fPort, payloadConfig)
-	if err != nil {
-		return nil, fPort, err
-	}
-
-	// Convert to lorawan.DataPayload
-	dataPayload := lorawan.DataPayload{
-		Bytes: bytes,
-	}
-
-	return &dataPayload, returnedFPort, nil
 }
