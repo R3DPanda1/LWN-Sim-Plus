@@ -55,12 +55,12 @@ func (c *Codec) Validate() error {
 		return fmt.Errorf("%w: script is required", ErrInvalidCodecFormat)
 	}
 
-	// Check if script contains Encode or Decode function
-	hasEncode := strings.Contains(c.Script, "function Encode")
-	hasDecode := strings.Contains(c.Script, "function Decode")
+	// Check if script contains OnUplink function (required)
+	// OnDownlink is optional
+	hasOnUplink := strings.Contains(c.Script, "function OnUplink")
 
-	if !hasEncode && !hasDecode {
-		return fmt.Errorf("%w: script must contain at least one of Encode or Decode function", ErrInvalidCodecFormat)
+	if !hasOnUplink {
+		return fmt.Errorf("%w: script must contain OnUplink function (OnDownlink is optional)", ErrInvalidCodecFormat)
 	}
 
 	return nil

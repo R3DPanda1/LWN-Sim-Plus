@@ -1,6 +1,8 @@
 package device
 
 import (
+	"fmt"
+
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 
 	act "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/activation"
@@ -35,6 +37,9 @@ func (d *Device) ProcessDownlink(phy lorawan.PHYPayload) (*dl.InformationDownlin
 			return nil, err
 		}
 
+		// Decode downlink using codec if configured
+		d.decodeDownlinkWithCodec(payload, &phy)
+
 	case lorawan.ConfirmedDataDown: //ack
 
 		payload, err = dl.GetDownlink(phy, d.Info.Configuration.DisableFCntDown, d.Info.Status.FCntDown,
@@ -44,6 +49,9 @@ func (d *Device) ProcessDownlink(phy lorawan.PHYPayload) (*dl.InformationDownlin
 		}
 
 		d.SendAck()
+
+		// Decode downlink using codec if configured
+		d.decodeDownlinkWithCodec(payload, &phy)
 
 	}
 
@@ -69,4 +77,42 @@ func (d *Device) ProcessDownlink(phy lorawan.PHYPayload) (*dl.InformationDownlin
 	d.Info.Status.DataUplink.AckMacCommand.CleanFOptsDLChannelAns()
 
 	return payload, err
+}
+
+// decodeDownlinkWithCodec decodes the downlink payload using the device's configured codec
+func (d *Device) decodeDownlinkWithCodec(payload *dl.InformationDownlink, phy *lorawan.PHYPayload) {
+	// Check if codec is configured and payload has data
+	if CodecManager == nil || d.Info.Configuration.CodecID == "" || payload == nil {
+		return
+	}
+
+	// Check if there's actual payload data
+	if payload.DataPayload == nil || len(payload.DataPayload) == 0 {
+		return
+	}
+
+	devEUI := d.Info.DevEUI.String()
+
+	// Extract FPort from PHYPayload (default to 1 if not set)
+	fPort := uint8(1)
+	if macPL, ok := phy.MACPayload.(*lorawan.MACPayload); ok {
+		if macPL.FPort != nil {
+			fPort = *macPL.FPort
+		}
+	}
+
+	// Decode using codec
+	decodedObj, err := CodecManager.DecodePayload(
+		d.Info.Configuration.CodecID,
+		devEUI,
+		payload.DataPayload,
+		fPort,
+		d,
+	)
+
+	if err != nil {
+		d.Print("Codec decode failed: "+err.Error(), err, util.PrintBoth)
+	} else {
+		d.Print(fmt.Sprintf("Downlink decoded (fPort=%d): %+v", fPort, decodedObj), nil, util.PrintBoth)
+	}
 }

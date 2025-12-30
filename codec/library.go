@@ -1,13 +1,17 @@
 package codec
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/dop251/goja"
 )
 
 // InjectStateHelpers injects state management helper functions into the JavaScript VM
-// These functions allow JavaScript codecs to access and modify device state
+// Simplified to only include getState and setState (all-purpose state management)
 func InjectStateHelpers(vm *goja.Runtime, state *State) error {
 	if vm == nil {
 		return fmt.Errorf("VM cannot be nil")
@@ -16,30 +20,7 @@ func InjectStateHelpers(vm *goja.Runtime, state *State) error {
 		return fmt.Errorf("state cannot be nil")
 	}
 
-	// getCounter(name) - Get a counter value
-	vm.Set("getCounter", func(call goja.FunctionCall) goja.Value {
-		if len(call.Arguments) < 1 {
-			panic(vm.NewTypeError("getCounter requires a name argument"))
-		}
-
-		name := call.Argument(0).String()
-		value := state.GetCounter(name)
-		return vm.ToValue(value)
-	})
-
-	// setCounter(name, value) - Set a counter value
-	vm.Set("setCounter", func(call goja.FunctionCall) goja.Value {
-		if len(call.Arguments) < 2 {
-			panic(vm.NewTypeError("setCounter requires name and value arguments"))
-		}
-
-		name := call.Argument(0).String()
-		value := call.Argument(1).ToInteger()
-		state.SetCounter(name, value)
-		return goja.Undefined()
-	})
-
-	// getState(name) - Get a state variable
+	// getState(name) - Get a state variable (any type)
 	vm.Set("getState", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 1 {
 			panic(vm.NewTypeError("getState requires a name argument"))
@@ -53,7 +34,7 @@ func InjectStateHelpers(vm *goja.Runtime, state *State) error {
 		return vm.ToValue(value)
 	})
 
-	// setState(name, value) - Set a state variable
+	// setState(name, value) - Set a state variable (any type)
 	vm.Set("setState", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 2 {
 			panic(vm.NewTypeError("setState requires name and value arguments"))
@@ -65,102 +46,102 @@ func InjectStateHelpers(vm *goja.Runtime, state *State) error {
 		return goja.Undefined()
 	})
 
-	// getPreviousPayload() - Get the last payload sent
-	vm.Set("getPreviousPayload", func(call goja.FunctionCall) goja.Value {
-		payload := state.GetPreviousPayload()
-		if payload == nil {
-			return goja.Null()
+	return nil
+}
+
+// InjectConversionHelpers injects payload conversion helper functions into the JavaScript VM
+// These allow explicit conversion from hex/base64 strings to byte arrays
+func InjectConversionHelpers(vm *goja.Runtime) error {
+	if vm == nil {
+		return fmt.Errorf("VM cannot be nil")
+	}
+
+	// hexToBytes(hexString) - Convert hex string to byte array
+	vm.Set("hexToBytes", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			panic(vm.NewTypeError("hexToBytes requires hex string argument"))
 		}
 
-		// Convert []byte to JavaScript array
-		jsArray := make([]interface{}, len(payload))
-		for i, b := range payload {
-			jsArray[i] = int(b)
+		hexStr := call.Argument(0).String()
+		bytes, err := hex.DecodeString(hexStr)
+		if err != nil {
+			panic(vm.NewTypeError("Invalid hex string: " + err.Error()))
 		}
-		return vm.ToValue(jsArray)
+
+		// Convert to JavaScript array
+		arr := vm.NewArray()
+		for i, b := range bytes {
+			arr.Set(strconv.Itoa(i), vm.ToValue(int(b)))
+		}
+		return arr
 	})
 
-	// getPreviousPayloads(n) - Get the last n payloads
-	vm.Set("getPreviousPayloads", func(call goja.FunctionCall) goja.Value {
-		n := 1
-		if len(call.Arguments) > 0 {
-			n = int(call.Argument(0).ToInteger())
+	// base64ToBytes(base64String) - Convert base64 string to byte array
+	vm.Set("base64ToBytes", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			panic(vm.NewTypeError("base64ToBytes requires base64 string argument"))
 		}
 
-		payloads := state.GetPreviousPayloads(n)
-		if len(payloads) == 0 {
-			return vm.ToValue([]interface{}{})
+		b64Str := call.Argument(0).String()
+		bytes, err := base64.StdEncoding.DecodeString(b64Str)
+		if err != nil {
+			panic(vm.NewTypeError("Invalid base64 string: " + err.Error()))
 		}
 
-		// Convert [][]byte to JavaScript array of arrays
-		jsArrays := make([]interface{}, len(payloads))
-		for i, payload := range payloads {
-			jsArray := make([]interface{}, len(payload))
-			for j, b := range payload {
-				jsArray[j] = int(b)
-			}
-			jsArrays[i] = jsArray
+		// Convert to JavaScript array
+		arr := vm.NewArray()
+		for i, b := range bytes {
+			arr.Set(strconv.Itoa(i), vm.ToValue(int(b)))
 		}
-		return vm.ToValue(jsArrays)
-	})
-
-	// log(message) - Debug logging (console.log alternative)
-	vm.Set("log", func(call goja.FunctionCall) goja.Value {
-		if len(call.Arguments) > 0 {
-			message := call.Argument(0).String()
-			// In the future, we can integrate this with the device logger
-			// For now, we'll just create a marker for future implementation
-			_ = message
-			// fmt.Printf("[Codec Log]: %s\n", message)
-		}
-		return goja.Undefined()
+		return arr
 	})
 
 	return nil
 }
 
-// InjectMathHelpers injects additional math utilities for codecs
-// This is optional but can be useful for complex payload generation
-func InjectMathHelpers(vm *goja.Runtime) error {
+// DeviceInterface defines the interface for accessing device configuration from JavaScript
+type DeviceInterface interface {
+	GetSendInterval() time.Duration
+	SetSendInterval(time.Duration)
+	Print(content string, err error, printType int)
+}
+
+// InjectDeviceHelpers injects device configuration helper functions into the JavaScript VM
+// These allow JavaScript codecs to read and modify device settings
+func InjectDeviceHelpers(vm *goja.Runtime, device DeviceInterface) error {
 	if vm == nil {
 		return fmt.Errorf("VM cannot be nil")
 	}
+	if device == nil {
+		return fmt.Errorf("device cannot be nil")
+	}
 
-	// random(min, max) - Generate random number (useful for simulation)
-	vm.Set("random", func(call goja.FunctionCall) goja.Value {
-		min := 0.0
-		max := 1.0
-
-		if len(call.Arguments) >= 1 {
-			min = call.Argument(0).ToFloat()
-		}
-		if len(call.Arguments) >= 2 {
-			max = call.Argument(1).ToFloat()
-		}
-
-		// Simple random implementation
-		// In production, you'd use crypto/rand for better randomness
-		value := min + (max-min)*0.5 // Placeholder
-		return vm.ToValue(value)
+	// getSendInterval() - Returns send interval in seconds
+	vm.Set("getSendInterval", func() goja.Value {
+		seconds := int(device.GetSendInterval().Seconds())
+		return vm.ToValue(seconds)
 	})
 
-	// clamp(value, min, max) - Clamp value between min and max
-	vm.Set("clamp", func(call goja.FunctionCall) goja.Value {
-		if len(call.Arguments) < 3 {
-			panic(vm.NewTypeError("clamp requires value, min, and max arguments"))
+	// setSendInterval(seconds) - Changes send interval
+	vm.Set("setSendInterval", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			panic(vm.NewTypeError("setSendInterval requires seconds argument"))
 		}
 
-		value := call.Argument(0).ToFloat()
-		min := call.Argument(1).ToFloat()
-		max := call.Argument(2).ToFloat()
+		seconds := call.Argument(0).ToInteger()
+		device.SetSendInterval(time.Duration(seconds) * time.Second)
+		return goja.Undefined()
+	})
 
-		if value < min {
-			value = min
-		} else if value > max {
-			value = max
+	// log(message) - Logs message to device console
+	vm.Set("log", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			return goja.Undefined()
 		}
 
-		return vm.ToValue(value)
+		message := call.Argument(0).String()
+		device.Print("[CODEC] "+message, nil, 1) // printType 1 = PrintBoth (console and websocket)
+		return goja.Undefined()
 	})
 
 	return nil
@@ -169,178 +150,189 @@ func InjectMathHelpers(vm *goja.Runtime) error {
 // CreateAM319Codec returns the Milesight AM319 codec script
 func CreateAM319Codec() string {
 	return `
-// Milesight AM319 Environmental Sensor Codec
-// Supports: Temperature, Humidity, PIR, Light, CO2, TVOC, Pressure, HCHO, PM2.5, PM10
+// Milesight AM319 Indoor Ambiance Monitoring Sensor Codec
 
-function Encode(fPort, obj) {
+function initState() {
+    if (getState('battery') === null) setState('battery', 100);
+    if (getState('tvocMode') === null) setState('tvocMode', 0);
+}
+
+function uint16LE(value) {
+    return [value & 0xFF, (value >> 8) & 0xFF];
+}
+
+function int16LE(value) {
+    if (value < 0) value = 0x10000 + value;
+    return [value & 0xFF, (value >> 8) & 0xFF];
+}
+
+function decodeUint16LE(bytes, offset) {
+    return bytes[offset] | (bytes[offset + 1] << 8);
+}
+
+function generateSensorValues() {
+    var values = {};
+    var baseTemp = getState('baseTemperature') || 22.5;
+    var baseHumidity = getState('baseHumidity') || 45;
+    var baseCO2 = getState('baseCO2') || 550;
+    var tvocMode = getState('tvocMode') || 0;
+
+    values.temperature = baseTemp + (Math.random() - 0.5) * 2;
+    values.humidity = baseHumidity + (Math.random() - 0.5) * 10;
+    values.pir = Math.random() > 0.7 ? 1 : 0;
+    values.lightLevel = Math.floor(Math.random() * 6);
+    values.co2 = Math.max(400, Math.floor(baseCO2 + (Math.random() - 0.5) * 100));
+    values.pressure = 1013.25 + (Math.random() - 0.5) * 10;
+    values.hcho = Math.max(0.01, 0.03 + (Math.random() - 0.5) * 0.02);
+    values.pm25 = Math.max(0, Math.floor(25 + (Math.random() - 0.5) * 20));
+    values.pm10 = Math.max(0, Math.floor(35 + (Math.random() - 0.5) * 30));
+
+    if (tvocMode === 0) {
+        values.tvocLevel = 1.5 + (Math.random() - 0.5) * 0.5;
+    } else {
+        values.tvocConcentration = Math.floor(200 + (Math.random() - 0.5) * 100);
+    }
+
+    return values;
+}
+
+function OnUplink() {
+    initState();
+    var values = generateSensorValues();
     var bytes = [];
+    var battery = getState('battery') || 100;
+    var tvocMode = getState('tvocMode') || 0;
 
-    // Helper function for random variations
-    function randomVariation(base, variance) {
-        return base + (Math.random() - 0.5) * 2 * variance;
+    // Battery Level: Channel 0x01, Type 0x75
+    bytes.push(0x01, 0x75, battery & 0xFF);
+
+    // Temperature: Channel 0x03, Type 0x67 (INT16/10, °C)
+    bytes.push(0x03, 0x67);
+    bytes = bytes.concat(int16LE(Math.round(values.temperature * 10)));
+
+    // Humidity: Channel 0x04, Type 0x68 (UINT8/2, %RH)
+    bytes.push(0x04, 0x68, Math.round(values.humidity * 2) & 0xFF);
+
+    // PIR Status: Channel 0x05, Type 0x00
+    bytes.push(0x05, 0x00, values.pir ? 0x01 : 0x00);
+
+    // Light Level: Channel 0x06, Type 0xCB
+    bytes.push(0x06, 0xCB, values.lightLevel & 0xFF);
+
+    // CO2: Channel 0x07, Type 0x7D (UINT16, ppm)
+    bytes.push(0x07, 0x7D);
+    bytes = bytes.concat(uint16LE(values.co2));
+
+    // TVOC: Channel 0x08
+    if (tvocMode === 0) {
+        bytes.push(0x08, 0x7D);
+        bytes = bytes.concat(uint16LE(Math.round(values.tvocLevel * 100)));
+    } else {
+        bytes.push(0x08, 0xE6);
+        bytes = bytes.concat(uint16LE(values.tvocConcentration));
     }
 
-    // Sensor values with realistic random variations (based on real AM319 data)
-    var temperature = obj.temperature !== undefined ? obj.temperature : randomVariation(19.2, 0.5);
-    var humidity = obj.humidity !== undefined ? obj.humidity : randomVariation(31, 2);
-    var pir = obj.pir !== undefined ? obj.pir : (Math.random() < 0.1 ? "trigger" : "idle");
-    var light_level = obj.light_level !== undefined ? obj.light_level : Math.floor(randomVariation(1, 0.5));
-    var co2 = obj.co2 !== undefined ? obj.co2 : Math.floor(randomVariation(465, 10));
-    var tvoc = obj.tvoc !== undefined ? obj.tvoc : randomVariation(0.69, 0.05);
-    var pressure = obj.pressure !== undefined ? obj.pressure : randomVariation(989.8, 0.5);
-    var hcho = obj.hcho !== undefined ? obj.hcho : randomVariation(0.02, 0.005);
-    var pm2_5 = obj.pm2_5 !== undefined ? obj.pm2_5 : Math.floor(randomVariation(12, 2));
-    var pm10 = obj.pm10 !== undefined ? obj.pm10 : Math.floor(randomVariation(12, 2));
+    // Barometric Pressure: Channel 0x09, Type 0x73
+    bytes.push(0x09, 0x73);
+    bytes = bytes.concat(uint16LE(Math.round(values.pressure * 10)));
 
-    // Temperature (Channel 0x03, Type 0x67)
-    bytes.push(0x03);
-    bytes.push(0x67);
-    var tempInt = Math.round(temperature * 10);
-    bytes.push(tempInt & 0xFF);
-    bytes.push((tempInt >> 8) & 0xFF);
+    // HCHO: Channel 0x0A, Type 0x7D
+    bytes.push(0x0A, 0x7D);
+    bytes = bytes.concat(uint16LE(Math.round(values.hcho * 100)));
 
-    // Humidity (Channel 0x04, Type 0x68)
-    bytes.push(0x04);
-    bytes.push(0x68);
-    bytes.push(Math.round(humidity * 2));
+    // PM2.5: Channel 0x0B, Type 0x7D
+    bytes.push(0x0B, 0x7D);
+    bytes = bytes.concat(uint16LE(values.pm25));
 
-    // PIR (Channel 0x05, Type 0x00)
-    bytes.push(0x05);
-    bytes.push(0x00);
-    bytes.push(pir === "trigger" ? 1 : 0);
+    // PM10: Channel 0x0C, Type 0x7D
+    bytes.push(0x0C, 0x7D);
+    bytes = bytes.concat(uint16LE(values.pm10));
 
-    // Light Level (Channel 0x06, Type 0xCB)
-    bytes.push(0x06);
-    bytes.push(0xCB);
-    bytes.push(light_level & 0xFF);
+    log('AM319 Uplink: Temp=' + values.temperature.toFixed(1) + '°C, Hum=' +
+        values.humidity.toFixed(1) + '%, CO2=' + values.co2 + 'ppm');
 
-    // CO2 (Channel 0x07, Type 0x7D)
-    bytes.push(0x07);
-    bytes.push(0x7D);
-    var co2Int = Math.round(co2);
-    bytes.push(co2Int & 0xFF);
-    bytes.push((co2Int >> 8) & 0xFF);
-
-    // TVOC (Channel 0x08, Type 0x7D) - IAQ format
-    bytes.push(0x08);
-    bytes.push(0x7D);
-    var tvocInt = Math.round(tvoc * 100);
-    bytes.push(tvocInt & 0xFF);
-    bytes.push((tvocInt >> 8) & 0xFF);
-
-    // Pressure (Channel 0x09, Type 0x73)
-    bytes.push(0x09);
-    bytes.push(0x73);
-    var pressureInt = Math.round(pressure * 10);
-    bytes.push(pressureInt & 0xFF);
-    bytes.push((pressureInt >> 8) & 0xFF);
-
-    // HCHO (Channel 0x0A, Type 0x7D)
-    bytes.push(0x0A);
-    bytes.push(0x7D);
-    var hchoInt = Math.round(hcho * 100);
-    bytes.push(hchoInt & 0xFF);
-    bytes.push((hchoInt >> 8) & 0xFF);
-
-    // PM2.5 (Channel 0x0B, Type 0x7D)
-    bytes.push(0x0B);
-    bytes.push(0x7D);
-    var pm25Int = Math.round(pm2_5);
-    bytes.push(pm25Int & 0xFF);
-    bytes.push((pm25Int >> 8) & 0xFF);
-
-    // PM10 (Channel 0x0C, Type 0x7D)
-    bytes.push(0x0C);
-    bytes.push(0x7D);
-    var pm10Int = Math.round(pm10);
-    bytes.push(pm10Int & 0xFF);
-    bytes.push((pm10Int >> 8) & 0xFF);
-
-    // Return with fPort 85 (AM319 standard port)
-    return {
-        fPort: 85,
-        bytes: bytes
-    };
+    return { fPort: 85, bytes: bytes };
 }
 
-function Decode(fPort, bytes) {
-    var decoded = {};
+function OnDownlink(bytes, fPort) {
+    initState();
 
-    for (var i = 0; i < bytes.length; ) {
-        var channel_id = bytes[i++];
-        var channel_type = bytes[i++];
+    // Always log entry
+    log('=== AM319 DOWNLINK RECEIVED ===');
+    log('fPort=' + fPort + ', length=' + bytes.length);
+    log('Hex: ' + bytesToHex(bytes));
 
-        // TEMPERATURE
-        if (channel_id === 0x03 && channel_type === 0x67) {
-            decoded.temperature = readInt16LE(bytes.slice(i, i + 2)) / 10;
-            i += 2;
+    var results = {};
+    var i = 0;
+
+    while (i < bytes.length) {
+        if (bytes[i] !== 0xFF) {
+            log('Invalid channel 0x' + bytes[i].toString(16) + ' at position ' + i);
+            i++;
+            continue;
         }
-        // HUMIDITY
-        else if (channel_id === 0x04 && channel_type === 0x68) {
-            decoded.humidity = bytes[i] / 2;
-            i += 1;
-        }
-        // PIR
-        else if (channel_id === 0x05 && channel_type === 0x00) {
-            decoded.pir = bytes[i] === 1 ? "trigger" : "idle";
-            i += 1;
-        }
-        // LIGHT
-        else if (channel_id === 0x06 && channel_type === 0xcb) {
-            decoded.light_level = bytes[i];
-            i += 1;
-        }
-        // CO2
-        else if (channel_id === 0x07 && channel_type === 0x7d) {
-            decoded.co2 = readUInt16LE(bytes.slice(i, i + 2));
-            i += 2;
-        }
-        // TVOC (iaq)
-        else if (channel_id === 0x08 && channel_type === 0x7d) {
-            decoded.tvoc = readUInt16LE(bytes.slice(i, i + 2)) / 100;
-            i += 2;
-        }
-        // PRESSURE
-        else if (channel_id === 0x09 && channel_type === 0x73) {
-            decoded.pressure = readUInt16LE(bytes.slice(i, i + 2)) / 10;
-            i += 2;
-        }
-        // HCHO
-        else if (channel_id === 0x0a && channel_type === 0x7d) {
-            decoded.hcho = readUInt16LE(bytes.slice(i, i + 2)) / 100;
-            i += 2;
-        }
-        // PM2.5
-        else if (channel_id === 0x0b && channel_type === 0x7d) {
-            decoded.pm2_5 = readUInt16LE(bytes.slice(i, i + 2));
-            i += 2;
-        }
-        // PM10
-        else if (channel_id === 0x0c && channel_type === 0x7d) {
-            decoded.pm10 = readUInt16LE(bytes.slice(i, i + 2));
-            i += 2;
-        }
-        // O3
-        else if (channel_id === 0x0d && channel_type === 0x7d) {
-            decoded.o3 = readUInt16LE(bytes.slice(i, i + 2)) / 100;
-            i += 2;
-        }
-        else {
-            break;
+
+        var cmd = bytes[i + 1];
+        log('Processing command 0x' + cmd.toString(16));
+
+        switch (cmd) {
+            case 0x03: // Report interval
+                var intervalSec = decodeUint16LE(bytes, i + 2);
+                log('>>> Set interval: ' + intervalSec + 's (' + Math.round(intervalSec/60) + 'min)');
+                setSendInterval(intervalSec);
+                results.interval = intervalSec;
+                i += 4;
+                break;
+
+            case 0x10: // Reboot
+                log('>>> Reboot command');
+                results.reboot = true;
+                i += 3;
+                break;
+
+            case 0xEB: // TVOC mode
+                var tvocMode = bytes[i + 2];
+                setState('tvocMode', tvocMode);
+                log('>>> TVOC mode: ' + (tvocMode === 0 ? 'Level' : 'Concentration'));
+                results.tvocMode = tvocMode;
+                i += 3;
+                break;
+
+            case 0x1A: // CO2 calibration
+                var calMode = bytes[i + 2];
+                if (calMode === 0x03) {
+                    setState('baseCO2', 400);
+                    log('>>> CO2 manual calibration to 400ppm');
+                } else if (calMode === 0x00) {
+                    log('>>> CO2 factory calibration restore');
+                }
+                results.co2Cal = calMode;
+                i += 3;
+                break;
+
+            case 0x39: // CO2 auto calibration
+                log('>>> CO2 auto cal: ' + (bytes[i + 2] ? 'ON' : 'OFF'));
+                i += 3;
+                break;
+
+            default:
+                log('>>> Command 0x' + cmd.toString(16) + ' (logged only)');
+                // Try to skip - most commands are 3 bytes
+                i += 3;
+                break;
         }
     }
 
-    return decoded;
+    log('=== END DOWNLINK PROCESSING ===');
+    return results;
 }
 
-function readUInt16LE(bytes) {
-    var value = (bytes[1] << 8) + bytes[0];
-    return value & 0xffff;
-}
-
-function readInt16LE(bytes) {
-    var ref = readUInt16LE(bytes);
-    return ref > 0x7fff ? ref - 0x10000 : ref;
+function bytesToHex(bytes) {
+    var hex = '';
+    for (var i = 0; i < bytes.length; i++) {
+        hex += ('0' + bytes[i].toString(16)).slice(-2);
+    }
+    return hex;
 }
 `
 }
