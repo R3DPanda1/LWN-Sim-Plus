@@ -113,31 +113,51 @@ function CleanCodecForm(){
     $("[name=input-codec-name]").val("");
 
     // Set skeleton code for new codec
-    var skeletonCode = `// Encode function: Converts JSON object to byte array
-// This function is called when the device sends an uplink
-function Encode(fPort, obj) {
+    var skeletonCode = `// OnUplink function: Called when device sends an uplink
+// Returns byte array or {fPort: number, bytes: array}
+// Available helpers: getState, setState, getSendInterval, setSendInterval, hexToBytes, base64ToBytes, log
+function OnUplink() {
     var bytes = [];
+
+    // Example: Stateful counter
+    var counter = getState('counter') || 0;
+    setState('counter', counter + 1);
 
     // Example: Encode temperature and humidity
     // Temperature: 2 bytes (signed int16, resolution 0.1°C)
-    var temp = Math.round((obj.temperature || 20) * 10);
+    var temp = Math.round(20 * 10);  // 20°C
     bytes.push((temp >> 8) & 0xFF);
     bytes.push(temp & 0xFF);
 
     // Humidity: 1 byte (unsigned int, 0-100%)
-    var humidity = Math.round(obj.humidity || 50);
+    var humidity = 50;  // 50%
     bytes.push(humidity & 0xFF);
 
-    // Return payload with fPort and bytes
+    // Counter: 2 bytes
+    bytes.push((counter >> 8) & 0xFF);
+    bytes.push(counter & 0xFF);
+
+    // Option 1: Return bytes with custom fPort
     return {
-        fPort: fPort || 85,
+        fPort: 85,
         bytes: bytes
     };
+
+    // Option 2: Return bytes only (uses device's configured fPort)
+    // return bytes;
+
+    // Option 3: Use hexToBytes for readable hex strings
+    // return hexToBytes("0367e50468420500");
+
+    // Option 4: Use base64ToBytes for base64 strings
+    // return base64ToBytes("A2fEAARoQgUA");
 }
 
-// Decode function: Converts byte array to JSON object
-// This function is used by the network server to decode the payload
-function Decode(fPort, bytes) {
+// OnDownlink function (OPTIONAL): Called when device receives a downlink
+// Use fPort for routing different message types
+function OnDownlink(bytes, fPort) {
+    log('Downlink received: fPort=' + fPort + ', length=' + bytes.length);
+
     var obj = {};
 
     // Example: Decode temperature and humidity
@@ -147,6 +167,16 @@ function Decode(fPort, bytes) {
 
         // Humidity: byte 2 (unsigned int, 0-100%)
         obj.humidity = bytes[2];
+    }
+
+    // Example: Handle downlink commands
+    if (fPort === 1 && bytes[0] === 0x01 && bytes.length >= 3) {
+        // Command 0x01: Set send interval
+        var interval = (bytes[1] << 8) | bytes[2];
+        log('Setting send interval to ' + interval + ' seconds');
+        setSendInterval(interval);
+        obj.command = 'set_interval';
+        obj.interval = interval;
     }
 
     return obj;

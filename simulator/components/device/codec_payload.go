@@ -1,6 +1,8 @@
 package device
 
 import (
+	"time"
+
 	"github.com/R3DPanda1/LWN-Sim-Plus/codec"
 	"github.com/brocaar/lorawan"
 )
@@ -8,6 +10,16 @@ import (
 // CodecManager is a global codec manager instance
 // It will be initialized by the simulator
 var CodecManager *codec.Manager
+
+// GetSendInterval returns the device's send interval (implements codec.DeviceInterface)
+func (d *Device) GetSendInterval() time.Duration {
+	return d.Info.Configuration.SendInterval
+}
+
+// SetSendInterval sets the device's send interval (implements codec.DeviceInterface)
+func (d *Device) SetSendInterval(interval time.Duration) {
+	d.Info.Configuration.SendInterval = interval
+}
 
 // GenerateCodecPayload generates a payload using the configured codec
 func (d *Device) GenerateCodecPayload() lorawan.Payload {
@@ -25,15 +37,11 @@ func (d *Device) GenerateCodecPayload() lorawan.Payload {
 	// Get DevEUI as string
 	devEUI := d.Info.DevEUI.String()
 
-	// Default fPort (can be overridden by codec)
-	defaultFPort := uint8(1)
-
-	// Generate payload using codec with empty config
-	payload, fPort, err := CodecManager.GeneratePayloadFromConfig(
+	// Encode using codec (returns bytes and fPort)
+	bytes, fPort, err := CodecManager.EncodePayload(
 		d.Info.Configuration.CodecID,
 		devEUI,
-		defaultFPort,
-		make(map[string]interface{}),
+		d, // Pass device for getSendInterval/setSendInterval
 	)
 
 	if err != nil {
@@ -41,21 +49,9 @@ func (d *Device) GenerateCodecPayload() lorawan.Payload {
 		return d.Info.Status.Payload
 	}
 
-	// Update device's fPort with the one returned from codec
+	// Update device's fPort
 	d.Info.Status.DataUplink.FPort = &fPort
 
-	// Update state with the generated payload (for message history)
-	if state := CodecManager.GetState(devEUI); state != nil {
-		dataPayload, ok := payload.(*lorawan.DataPayload)
-		if ok && dataPayload != nil {
-			state.AddMessage(codec.MessageRecord{
-				FCnt:      d.Info.Status.DataUplink.FCnt,
-				Timestamp: state.UpdatedAt,
-				Payload:   dataPayload.Bytes,
-				FPort:     fPort,
-			})
-		}
-	}
-
-	return payload
+	// Create and return payload
+	return &lorawan.DataPayload{Bytes: bytes}
 }
