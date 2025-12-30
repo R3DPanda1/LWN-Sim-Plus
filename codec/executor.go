@@ -15,10 +15,10 @@ var (
 	ErrTimeout = errors.New("codec execution timeout")
 	// ErrInvalidScript is returned when the JavaScript code is invalid
 	ErrInvalidScript = errors.New("invalid JavaScript code")
-	// ErrEncodeFunctionNotFound is returned when Encode function is not defined
-	ErrEncodeFunctionNotFound = errors.New("Encode function not found")
-	// ErrDecodeFunctionNotFound is returned when Decode function is not defined
-	ErrDecodeFunctionNotFound = errors.New("Decode function not found")
+	// ErrOnUplinkNotFound is returned when OnUplink function is not defined
+	ErrOnUplinkNotFound = errors.New("OnUplink function not found")
+	// ErrOnDownlinkNotFound is returned when OnDownlink function is not defined
+	ErrOnDownlinkNotFound = errors.New("OnDownlink function not found")
 	// ErrInvalidReturnType is returned when the codec returns an invalid type
 	ErrInvalidReturnType = errors.New("invalid return type from codec")
 )
@@ -68,15 +68,14 @@ func NewExecutor(config *ExecutorConfig) *Executor {
 	}
 }
 
-// ExecuteEncode executes the Encode function from a JavaScript codec
+// ExecuteEncode executes the OnUplink function from a JavaScript codec
 // Parameters:
-//   - script: The JavaScript code containing the Encode function
-//   - fPort: The LoRaWAN fPort (default value, can be overridden by JS)
-//   - obj: The input object to encode (as a map)
-//   - state: Device state for stateful encoding (optional, can be nil)
+//   - script: The JavaScript code containing the OnUplink function
+//   - state: Device state for stateful encoding
+//   - device: Device interface for accessing configuration (send interval, etc.)
 //
-// Returns the encoded byte array, the fPort (from JS or default), and any error
-func (e *Executor) ExecuteEncode(script string, fPort uint8, obj map[string]interface{}, state *State) ([]byte, uint8, error) {
+// Returns the encoded byte array, the fPort (from device or codec), and any error
+func (e *Executor) ExecuteEncode(script string, state *State, device DeviceInterface) ([]byte, uint8, error) {
 	// Record metrics
 	if e.metrics != nil {
 		e.metrics.mu.Lock()
@@ -102,7 +101,7 @@ func (e *Executor) ExecuteEncode(script string, fPort uint8, obj map[string]inte
 
 	// Execute in goroutine to support timeout
 	go func() {
-		data, returnedFPort, err := e.executeEncodeInVM(vm, script, fPort, obj, state)
+		data, returnedFPort, err := e.executeEncodeInVM(vm, script, state, device)
 		resultChan <- result{data: data, fPort: returnedFPort, err: err}
 	}()
 
@@ -121,55 +120,68 @@ func (e *Executor) ExecuteEncode(script string, fPort uint8, obj map[string]inte
 			e.metrics.TotalTimeouts++
 			e.metrics.mu.Unlock()
 		}
-		return nil, fPort, ErrTimeout
+		// We don't have a default fPort anymore, return 1 as fallback
+		return nil, 1, ErrTimeout
 	}
 }
 
 // executeEncodeInVM performs the actual encoding in the VM
-func (e *Executor) executeEncodeInVM(vm *goja.Runtime, script string, fPort uint8, obj map[string]interface{}, state *State) ([]byte, uint8, error) {
-	// Inject state helper functions if state is provided
-	if state != nil {
-		if err := InjectStateHelpers(vm, state); err != nil {
-			return nil, fPort, fmt.Errorf("failed to inject state helpers: %w", err)
+func (e *Executor) executeEncodeInVM(vm *goja.Runtime, script string, state *State, device DeviceInterface) ([]byte, uint8, error) {
+	// Inject conversion helpers (hexToBytes, base64ToBytes)
+	if err := InjectConversionHelpers(vm); err != nil {
+		return nil, 1, fmt.Errorf("failed to inject conversion helpers: %w", err)
+	}
+
+	// Inject state helper functions
+	if err := InjectStateHelpers(vm, state); err != nil {
+		return nil, 1, fmt.Errorf("failed to inject state helpers: %w", err)
+	}
+
+	// Inject device helpers (getSendInterval, setSendInterval)
+	if device != nil {
+		if err := InjectDeviceHelpers(vm, device); err != nil {
+			return nil, 1, fmt.Errorf("failed to inject device helpers: %w", err)
 		}
 	}
 
-	// Execute the script to define the Encode function
+	// Execute the script to define the OnUplink function
 	_, err := vm.RunString(script)
 	if err != nil {
-		return nil, fPort, fmt.Errorf("%w: script compilation error: %v", ErrInvalidScript, err)
+		return nil, 1, fmt.Errorf("%w: script compilation error: %v", ErrInvalidScript, err)
 	}
 
-	// Get the Encode function
-	encodeFunc, ok := goja.AssertFunction(vm.Get("Encode"))
+	// Get the OnUplink function
+	onUplinkFunc, ok := goja.AssertFunction(vm.Get("OnUplink"))
 	if !ok {
-		return nil, fPort, ErrEncodeFunctionNotFound
+		return nil, 1, ErrOnUplinkNotFound
 	}
 
-	// Call Encode(fPort, obj)
-	result, err := encodeFunc(goja.Undefined(), vm.ToValue(fPort), vm.ToValue(obj))
+	// Call OnUplink() with no arguments
+	result, err := onUplinkFunc(goja.Undefined())
 	if err != nil {
-		return nil, fPort, fmt.Errorf("encode execution error (check JavaScript): %w", err)
+		return nil, 1, fmt.Errorf("OnUplink execution error (check JavaScript): %w", err)
 	}
 
 	// Convert result to byte array and extract fPort if provided
-	bytes, returnedFPort, err := e.convertToBytesWithFPort(vm, result, fPort)
+	// Default fPort is 1 if not specified by codec
+	bytes, returnedFPort, err := e.convertToBytesWithFPort(vm, result, 1)
 	if err != nil {
-		return nil, fPort, err
+		return nil, 1, err
 	}
 
 	return bytes, returnedFPort, nil
 }
 
-// ExecuteDecode executes the Decode function from a JavaScript codec
+// ExecuteDecode executes the OnDownlink function from a JavaScript codec
 // Parameters:
-//   - script: The JavaScript code containing the Decode function
-//   - fPort: The LoRaWAN fPort
+//   - script: The JavaScript code containing the OnDownlink function
 //   - bytes: The byte array to decode
-//   - state: Device state for stateful decoding (optional, can be nil)
+//   - fPort: The LoRaWAN fPort
+//   - state: Device state for stateful decoding
+//   - device: Device interface for accessing configuration
 //
 // Returns the decoded object as a map and any error
-func (e *Executor) ExecuteDecode(script string, fPort uint8, bytes []byte, state *State) (map[string]interface{}, error) {
+func (e *Executor) ExecuteDecode(script string, bytes []byte, fPort uint8, state *State, device DeviceInterface) (map[string]interface{}, error) {
 	// Record metrics
 	if e.metrics != nil {
 		e.metrics.mu.Lock()
@@ -194,7 +206,7 @@ func (e *Executor) ExecuteDecode(script string, fPort uint8, bytes []byte, state
 
 	// Execute in goroutine
 	go func() {
-		data, err := e.executeDecodeInVM(vm, script, fPort, bytes, state)
+		data, err := e.executeDecodeInVM(vm, script, bytes, fPort, state, device)
 		resultChan <- result{data: data, err: err}
 	}()
 
@@ -218,24 +230,35 @@ func (e *Executor) ExecuteDecode(script string, fPort uint8, bytes []byte, state
 }
 
 // executeDecodeInVM performs the actual decoding in the VM
-func (e *Executor) executeDecodeInVM(vm *goja.Runtime, script string, fPort uint8, bytes []byte, state *State) (map[string]interface{}, error) {
-	// Inject state helper functions if state is provided
-	if state != nil {
-		if err := InjectStateHelpers(vm, state); err != nil {
-			return nil, fmt.Errorf("failed to inject state helpers: %w", err)
+func (e *Executor) executeDecodeInVM(vm *goja.Runtime, script string, bytes []byte, fPort uint8, state *State, device DeviceInterface) (map[string]interface{}, error) {
+	// Inject conversion helpers (hexToBytes, base64ToBytes)
+	if err := InjectConversionHelpers(vm); err != nil {
+		return nil, fmt.Errorf("failed to inject conversion helpers: %w", err)
+	}
+
+	// Inject state helper functions
+	if err := InjectStateHelpers(vm, state); err != nil {
+		return nil, fmt.Errorf("failed to inject state helpers: %w", err)
+	}
+
+	// Inject device helpers (getSendInterval, setSendInterval)
+	if device != nil {
+		if err := InjectDeviceHelpers(vm, device); err != nil {
+			return nil, fmt.Errorf("failed to inject device helpers: %w", err)
 		}
 	}
 
-	// Execute the script to define the Decode function
+	// Execute the script to define the OnDownlink function
 	_, err := vm.RunString(script)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidScript, err)
 	}
 
-	// Get the Decode function
-	decodeFunc, ok := goja.AssertFunction(vm.Get("Decode"))
+	// Get the OnDownlink function (optional)
+	onDownlinkFunc, ok := goja.AssertFunction(vm.Get("OnDownlink"))
 	if !ok {
-		return nil, ErrDecodeFunctionNotFound
+		// OnDownlink is optional, return empty map
+		return make(map[string]interface{}), nil
 	}
 
 	// Convert bytes to JS array
@@ -244,10 +267,10 @@ func (e *Executor) executeDecodeInVM(vm *goja.Runtime, script string, fPort uint
 		jsBytes[i] = b
 	}
 
-	// Call Decode(fPort, bytes)
-	result, err := decodeFunc(goja.Undefined(), vm.ToValue(fPort), vm.ToValue(jsBytes))
+	// Call OnDownlink(bytes, fPort) - reordered parameters
+	result, err := onDownlinkFunc(goja.Undefined(), vm.ToValue(jsBytes), vm.ToValue(fPort))
 	if err != nil {
-		return nil, fmt.Errorf("decode execution error: %w", err)
+		return nil, fmt.Errorf("OnDownlink execution error: %w", err)
 	}
 
 	// Convert result to map
