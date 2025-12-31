@@ -19,6 +19,15 @@ func (d *Device) GetSendInterval() time.Duration {
 // SetSendInterval sets the device's send interval (implements codec.DeviceInterface)
 func (d *Device) SetSendInterval(interval time.Duration) {
 	d.Info.Configuration.SendInterval = interval
+
+	// Signal the device loop to reset its ticker (non-blocking)
+	if d.IntervalChanged != nil {
+		select {
+		case d.IntervalChanged <- struct{}{}:
+		default:
+			// Channel already has a pending signal, skip
+		}
+	}
 }
 
 // GenerateCodecPayload generates a payload using the configured codec
