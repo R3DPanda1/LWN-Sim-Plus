@@ -15,14 +15,15 @@ import (
 )
 
 type Device struct {
-	State     int                      `json:"-"`
-	Exit      chan struct{}            `json:"-"`
-	Id        int                      `json:"id"`
-	Info      models.InformationDevice `json:"info"`
-	Class     classes.Class            `json:"-"`
-	Resources *res.Resources           `json:"-"`
-	Mutex     sync.Mutex               `json:"-"`
-	Console   c.Console                `json:"-"`
+	State           int                      `json:"-"`
+	Exit            chan struct{}            `json:"-"`
+	IntervalChanged chan struct{}            `json:"-"` // Signal to reset ticker when interval changes
+	Id              int                      `json:"id"`
+	Info            models.InformationDevice `json:"info"`
+	Class           classes.Class            `json:"-"`
+	Resources       *res.Resources           `json:"-"`
+	Mutex           sync.Mutex               `json:"-"`
+	Console         c.Console                `json:"-"`
 }
 
 // *******************Intern func*******************/
@@ -32,7 +33,13 @@ func (d *Device) Run() {
 
 	d.OtaaActivation()
 
+	// Initialize the interval change channel if not already done
+	if d.IntervalChanged == nil {
+		d.IntervalChanged = make(chan struct{}, 1)
+	}
+
 	ticker := time.NewTicker(d.Info.Configuration.SendInterval)
+	defer ticker.Stop()
 
 	for {
 
@@ -40,6 +47,13 @@ func (d *Device) Run() {
 
 		case <-ticker.C:
 			break
+
+		case <-d.IntervalChanged:
+			// Interval was changed via downlink, reset the ticker
+			ticker.Stop()
+			ticker = time.NewTicker(d.Info.Configuration.SendInterval)
+			d.Print(fmt.Sprintf("Send interval updated to %v", d.Info.Configuration.SendInterval), nil, util.PrintBoth)
+			continue
 
 		case <-d.Exit:
 			d.Print("Turn OFF", nil, util.PrintBoth)

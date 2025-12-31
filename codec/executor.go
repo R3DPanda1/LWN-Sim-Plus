@@ -180,8 +180,9 @@ func (e *Executor) executeEncodeInVM(vm *goja.Runtime, script string, state *Sta
 //   - state: Device state for stateful decoding
 //   - device: Device interface for accessing configuration
 //
-// Returns the decoded object as a map and any error
-func (e *Executor) ExecuteDecode(script string, bytes []byte, fPort uint8, state *State, device DeviceInterface) (map[string]interface{}, error) {
+// OnDownlink is executed for its side effects (log, setState, setSendInterval).
+// Any return value from the JavaScript function is ignored.
+func (e *Executor) ExecuteDecode(script string, bytes []byte, fPort uint8, state *State, device DeviceInterface) error {
 	// Record metrics
 	if e.metrics != nil {
 		e.metrics.mu.Lock()
@@ -198,67 +199,63 @@ func (e *Executor) ExecuteDecode(script string, bytes []byte, fPort uint8, state
 	defer cancel()
 
 	// Channel to receive result
-	type result struct {
-		data map[string]interface{}
-		err  error
-	}
-	resultChan := make(chan result, 1)
+	errChan := make(chan error, 1)
 
 	// Execute in goroutine
 	go func() {
-		data, err := e.executeDecodeInVM(vm, script, bytes, fPort, state, device)
-		resultChan <- result{data: data, err: err}
+		err := e.executeDecodeInVM(vm, script, bytes, fPort, state, device)
+		errChan <- err
 	}()
 
 	// Wait for result or timeout
 	select {
-	case res := <-resultChan:
-		if res.err != nil && e.metrics != nil {
+	case err := <-errChan:
+		if err != nil && e.metrics != nil {
 			e.metrics.mu.Lock()
 			e.metrics.TotalErrors++
 			e.metrics.mu.Unlock()
 		}
-		return res.data, res.err
+		return err
 	case <-ctx.Done():
 		if e.metrics != nil {
 			e.metrics.mu.Lock()
 			e.metrics.TotalTimeouts++
 			e.metrics.mu.Unlock()
 		}
-		return nil, ErrTimeout
+		return ErrTimeout
 	}
 }
 
 // executeDecodeInVM performs the actual decoding in the VM
-func (e *Executor) executeDecodeInVM(vm *goja.Runtime, script string, bytes []byte, fPort uint8, state *State, device DeviceInterface) (map[string]interface{}, error) {
+func (e *Executor) executeDecodeInVM(vm *goja.Runtime, script string, bytes []byte, fPort uint8, state *State, device DeviceInterface) error {
 	// Inject conversion helpers (hexToBytes, base64ToBytes)
 	if err := InjectConversionHelpers(vm); err != nil {
-		return nil, fmt.Errorf("failed to inject conversion helpers: %w", err)
+		return fmt.Errorf("failed to inject conversion helpers: %w", err)
 	}
 
 	// Inject state helper functions
 	if err := InjectStateHelpers(vm, state); err != nil {
-		return nil, fmt.Errorf("failed to inject state helpers: %w", err)
+		return fmt.Errorf("failed to inject state helpers: %w", err)
 	}
 
-	// Inject device helpers (getSendInterval, setSendInterval)
+	// Inject device helpers (getSendInterval, setSendInterval, log)
 	if device != nil {
 		if err := InjectDeviceHelpers(vm, device); err != nil {
-			return nil, fmt.Errorf("failed to inject device helpers: %w", err)
+			return fmt.Errorf("failed to inject device helpers: %w", err)
 		}
 	}
 
 	// Execute the script to define the OnDownlink function
 	_, err := vm.RunString(script)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidScript, err)
+		return fmt.Errorf("%w: %v", ErrInvalidScript, err)
 	}
 
 	// Get the OnDownlink function (optional)
 	onDownlinkFunc, ok := goja.AssertFunction(vm.Get("OnDownlink"))
 	if !ok {
-		// OnDownlink is optional, return empty map
-		return make(map[string]interface{}), nil
+		// OnDownlink is optional, nothing to do
+		return nil
 	}
 
 	// Convert bytes to JS array
@@ -267,24 +264,13 @@ func (e *Executor) executeDecodeInVM(vm *goja.Runtime, script string, bytes []by
 		jsBytes[i] = b
 	}
 
-	// Call OnDownlink(bytes, fPort) - reordered parameters
-	result, err := onDownlinkFunc(goja.Undefined(), vm.ToValue(jsBytes), vm.ToValue(fPort))
+	// Call OnDownlink(bytes, fPort) - executed for side effects only
+	_, err = onDownlinkFunc(goja.Undefined(), vm.ToValue(jsBytes), vm.ToValue(fPort))
 	if err != nil {
-		return nil, fmt.Errorf("OnDownlink execution error: %w", err)
+		return fmt.Errorf("OnDownlink execution error: %w", err)
 	}
 
-	// Convert result to map
-	resultMap := result.Export()
-	if resultMap == nil {
-		return make(map[string]interface{}), nil
-	}
-
-	objMap, ok := resultMap.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("%w: expected object, got %T", ErrInvalidReturnType, resultMap)
-	}
-
-	return objMap, nil
+	return nil
 }
 
 // convertToBytesWithFPort converts a goja.Value to a byte slice and extracts fPort if present
