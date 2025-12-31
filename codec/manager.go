@@ -42,20 +42,6 @@ func (m *Manager) GetOrCreateState(devEUI string) *State {
 	return state
 }
 
-// GetState gets a device state (returns nil if not found)
-func (m *Manager) GetState(devEUI string) *State {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.states[devEUI]
-}
-
-// RemoveState removes a device state
-func (m *Manager) RemoveState(devEUI string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.states, devEUI)
-}
-
 // EncodePayload encodes a payload using a codec
 // Parameters:
 //   - codecID: ID of the codec to use
@@ -124,11 +110,6 @@ func (m *Manager) GetCodec(id string) (*Codec, error) {
 	return m.library.Get(id)
 }
 
-// GetCodecByName retrieves a codec by name
-func (m *Manager) GetCodecByName(name string) (*Codec, error) {
-	return m.library.GetByName(name)
-}
-
 // RemoveCodec removes a codec from the library
 func (m *Manager) RemoveCodec(id string) error {
 	return m.library.Remove(id)
@@ -151,16 +132,6 @@ func (m *Manager) LoadDefaults() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.library.LoadDefaults()
-}
-
-// GetMetrics returns executor metrics
-func (m *Manager) GetMetrics() ExecutorMetrics {
-	return m.executor.GetMetrics()
-}
-
-// ResetMetrics resets executor metrics
-func (m *Manager) ResetMetrics() {
-	m.executor.ResetMetrics()
 }
 
 // Close closes the manager and releases resources
