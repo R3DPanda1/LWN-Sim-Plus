@@ -154,32 +154,23 @@ function OnUplink() {
 }
 
 // OnDownlink function (OPTIONAL): Called when device receives a downlink
-// Use fPort for routing different message types
+// Executed for side effects only (log, setState, setSendInterval)
+// No return value needed
 function OnDownlink(bytes, fPort) {
-    log('Downlink received: fPort=' + fPort + ', length=' + bytes.length);
-
-    var obj = {};
-
-    // Example: Decode temperature and humidity
-    if (bytes.length >= 3) {
-        // Temperature: bytes 0-1 (signed int16, resolution 0.1°C)
-        obj.temperature = (((bytes[0] << 8) | bytes[1]) << 16 >> 16) / 10.0;
-
-        // Humidity: byte 2 (unsigned int, 0-100%)
-        obj.humidity = bytes[2];
-    }
+    log('Downlink: fPort=' + fPort + ', bytes=' + bytes.length);
 
     // Example: Handle downlink commands
-    if (fPort === 1 && bytes[0] === 0x01 && bytes.length >= 3) {
-        // Command 0x01: Set send interval
+    if (bytes.length >= 3 && bytes[0] === 0x01) {
+        // Command 0x01: Set send interval (bytes 1-2 = interval in seconds)
         var interval = (bytes[1] << 8) | bytes[2];
-        log('Setting send interval to ' + interval + ' seconds');
+        log('Setting interval to ' + interval + 's');
         setSendInterval(interval);
-        obj.command = 'set_interval';
-        obj.interval = interval;
     }
 
-    return obj;
+    // Example: Store received data in state
+    if (bytes.length >= 2) {
+        setState('lastDownlink', bytes);
+    }
 }`;
 
     SetCodecEditorValue(skeletonCode);
