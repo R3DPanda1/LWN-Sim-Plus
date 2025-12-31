@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
 	"log"
 	"strings"
 
@@ -12,7 +11,10 @@ import (
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/codec"
 	"github.com/R3DPanda1/LWN-Sim-Plus/codes"
+	"github.com/R3DPanda1/LWN-Sim-Plus/integration"
+	"github.com/R3DPanda1/LWN-Sim-Plus/integration/chirpstack"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
+	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
 
 	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
 	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
@@ -65,6 +67,18 @@ func GetInstance() *Simulator {
 		shared.DebugPrint("Codec manager initialized")
 	}
 
+	// Initialize integration manager
+	s.IntegrationManager = integration.NewManager()
+	pathDir, err := util.GetPath()
+	if err == nil {
+		integrationPath := pathDir + "/integrations.json"
+		if err := s.IntegrationManager.Load(integrationPath); err != nil {
+			shared.DebugPrint(fmt.Sprintf("Warning: failed to load integrations: %v", err))
+		} else {
+			shared.DebugPrint("Integrations loaded from disk")
+		}
+	}
+
 	return &s
 }
 
@@ -113,6 +127,19 @@ func (s *Simulator) Stop() {
 				shared.DebugPrint(fmt.Sprintf("Warning: failed to save codec library: %v", err))
 			} else {
 				shared.DebugPrint("Codec library saved to disk")
+			}
+		}
+	}
+
+	// Save integrations
+	if s.IntegrationManager != nil {
+		pathDir, err := util.GetPath()
+		if err == nil {
+			integrationPath := pathDir + "/integrations.json"
+			if err := s.IntegrationManager.Save(integrationPath); err != nil {
+				shared.DebugPrint(fmt.Sprintf("Warning: failed to save integrations: %v", err))
+			} else {
+				shared.DebugPrint("Integrations saved to disk")
 			}
 		}
 	}
@@ -314,6 +341,25 @@ func (s *Simulator) SetDevice(device *dev.Device, update bool) (int, int, error)
 
 	s.Print("Device Saved", nil, util.PrintOnlyConsole)
 
+	// Provision device to ChirpStack if integration is enabled (only for new devices)
+	if !update && device.Info.Configuration.IntegrationEnabled && device.Info.Configuration.IntegrationID != "" {
+		devEUI := hex.EncodeToString(device.Info.DevEUI[:])
+		appKey := hex.EncodeToString(device.Info.AppKey[:])
+
+		err := s.IntegrationManager.ProvisionDevice(
+			device.Info.Configuration.IntegrationID,
+			devEUI,
+			device.Info.Name,
+			device.Info.Configuration.DeviceProfileID,
+			appKey,
+		)
+		if err != nil {
+			s.Print("ChirpStack provisioning failed: "+err.Error(), nil, util.PrintOnlyConsole)
+		} else {
+			s.Print("Device provisioned to ChirpStack", nil, util.PrintOnlyConsole)
+		}
+	}
+
 	if device.Info.Status.Active {
 
 		s.ActiveDevices[device.Id] = device.Id
@@ -336,6 +382,17 @@ func (s *Simulator) DeleteDevice(Id int) bool {
 
 	if s.Devices[Id].IsOn() {
 		return false
+	}
+
+	// Delete device from ChirpStack if integration was enabled
+	device := s.Devices[Id]
+	if device.Info.Configuration.IntegrationEnabled && device.Info.Configuration.IntegrationID != "" {
+		devEUI := hex.EncodeToString(device.Info.DevEUI[:])
+		if err := s.IntegrationManager.DeleteDevice(device.Info.Configuration.IntegrationID, devEUI); err != nil {
+			s.Print("ChirpStack deletion failed: "+err.Error(), nil, util.PrintOnlyConsole)
+		} else {
+			s.Print("Device deleted from ChirpStack", nil, util.PrintOnlyConsole)
+		}
 	}
 
 	delete(s.Devices, Id)
@@ -531,13 +588,128 @@ func (s *Simulator) DeleteCodec(id string) error {
 
 // saveCodecLibrary saves the codec library to disk
 func (s *Simulator) saveCodecLibrary() {
-	if dev.CodecManager != nil {
-		pathDir, err := util.GetPath()
-		if err == nil {
-			codecLibPath := pathDir + "/codecs.json"
-			if err := dev.CodecManager.SaveCodecLibrary(codecLibPath); err != nil {
-				shared.DebugPrint(fmt.Sprintf("Warning: failed to save codec library: %v", err))
-			}
+	s.saveToFile("codecs.json", func(path string) error {
+		if dev.CodecManager != nil {
+			return dev.CodecManager.SaveCodecLibrary(path)
+		}
+		return nil
+	})
+}
+
+// ==================== Integration Management ====================
+
+// GetIntegrations returns all integrations (without API keys)
+func (s *Simulator) GetIntegrations() []*integration.Integration {
+	if s.IntegrationManager == nil {
+		return []*integration.Integration{}
+	}
+	return s.IntegrationManager.List()
+}
+
+// GetIntegration returns a specific integration by ID
+func (s *Simulator) GetIntegration(id string) (*integration.Integration, error) {
+	if s.IntegrationManager == nil {
+		return nil, errors.New("integration manager not initialized")
+	}
+	return s.IntegrationManager.Get(id)
+}
+
+// AddIntegration adds a new integration
+func (s *Simulator) AddIntegration(name string, intType integration.IntegrationType, url, apiKey, tenantID, appID string) (string, error) {
+	if s.IntegrationManager == nil {
+		return "", errors.New("integration manager not initialized")
+	}
+
+	integ := integration.NewIntegration(name, intType, url, apiKey, tenantID, appID)
+	if err := s.IntegrationManager.Add(integ); err != nil {
+		return "", err
+	}
+
+	// Save to disk
+	s.saveIntegrationLibrary()
+	return integ.ID, nil
+}
+
+// UpdateIntegration updates an existing integration
+func (s *Simulator) UpdateIntegration(id, name, url, apiKey, tenantID, appID string, enabled bool) error {
+	if s.IntegrationManager == nil {
+		return errors.New("integration manager not initialized")
+	}
+
+	if err := s.IntegrationManager.Update(id, name, url, apiKey, tenantID, appID, enabled); err != nil {
+		return err
+	}
+
+	// Save to disk
+	s.saveIntegrationLibrary()
+	return nil
+}
+
+// DeleteIntegration removes an integration by ID
+func (s *Simulator) DeleteIntegration(id string) error {
+	if s.IntegrationManager == nil {
+		return errors.New("integration manager not initialized")
+	}
+
+	// Check if any devices are using this integration
+	devicesUsingIntegration := s.GetDevicesUsingIntegration(id)
+	if len(devicesUsingIntegration) > 0 {
+		return fmt.Errorf("cannot delete integration: used by %d device(s)", len(devicesUsingIntegration))
+	}
+
+	if err := s.IntegrationManager.Remove(id); err != nil {
+		return err
+	}
+
+	// Save to disk
+	s.saveIntegrationLibrary()
+	return nil
+}
+
+// TestIntegrationConnection tests connection to an integration
+func (s *Simulator) TestIntegrationConnection(id string) error {
+	if s.IntegrationManager == nil {
+		return errors.New("integration manager not initialized")
+	}
+	return s.IntegrationManager.TestConnection(id)
+}
+
+// GetDeviceProfiles returns device profiles for an integration
+func (s *Simulator) GetDeviceProfiles(id string) ([]chirpstack.DeviceProfile, error) {
+	if s.IntegrationManager == nil {
+		return nil, errors.New("integration manager not initialized")
+	}
+	return s.IntegrationManager.GetDeviceProfiles(id)
+}
+
+// GetDevicesUsingIntegration returns a list of device EUIs using the specified integration
+func (s *Simulator) GetDevicesUsingIntegration(integrationID string) []string {
+	devicesUsingIntegration := []string{}
+	for _, device := range s.Devices {
+		if device.Info.Configuration.IntegrationID == integrationID {
+			devicesUsingIntegration = append(devicesUsingIntegration, device.Info.DevEUI.String())
+		}
+	}
+	return devicesUsingIntegration
+}
+
+// saveIntegrationLibrary saves integrations to disk
+func (s *Simulator) saveIntegrationLibrary() {
+	s.saveToFile("integrations.json", func(path string) error {
+		if s.IntegrationManager != nil {
+			return s.IntegrationManager.Save(path)
+		}
+		return nil
+	})
+}
+
+// saveToFile is a generic helper for saving data to JSON files
+func (s *Simulator) saveToFile(filename string, saveFn func(string) error) {
+	pathDir, err := util.GetPath()
+	if err == nil {
+		fullPath := pathDir + "/" + filename
+		if err := saveFn(fullPath); err != nil {
+			shared.DebugPrint(fmt.Sprintf("Warning: failed to save %s: %v", filename, err))
 		}
 	}
 }

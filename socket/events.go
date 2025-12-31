@@ -34,4 +34,10 @@ const (
 	EventCodecDeleted = "codec-deleted"
 	// EventCodecUpdated represents the event emitted when a codec is updated.
 	EventCodecUpdated = "codec-updated"
+	// EventIntegrationAdded represents the event emitted when a new integration is added.
+	EventIntegrationAdded = "integration-added"
+	// EventIntegrationDeleted represents the event emitted when an integration is deleted.
+	EventIntegrationDeleted = "integration-deleted"
+	// EventIntegrationUpdated represents the event emitted when an integration is updated.
+	EventIntegrationUpdated = "integration-updated"
 )
