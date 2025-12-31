@@ -83,23 +83,6 @@ func (c *Codec) Clone() *Codec {
 	}
 }
 
-// ToJSON serializes the codec to JSON
-func (c *Codec) ToJSON() ([]byte, error) {
-	return json.MarshalIndent(c, "", "  ")
-}
-
-// FromJSON deserializes a codec from JSON
-func FromJSON(data []byte) (*Codec, error) {
-	var codec Codec
-	if err := json.Unmarshal(data, &codec); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal codec: %w", err)
-	}
-	if err := codec.Validate(); err != nil {
-		return nil, err
-	}
-	return &codec, nil
-}
-
 // CodecLibrary manages a collection of codecs
 type CodecLibrary struct {
 	codecs map[string]*Codec // ID -> Codec
@@ -152,16 +135,6 @@ func (cl *CodecLibrary) Get(id string) (*Codec, error) {
 		return nil, ErrCodecNotFound
 	}
 	return codec.Clone(), nil
-}
-
-// GetByName retrieves a codec by name (first match)
-func (cl *CodecLibrary) GetByName(name string) (*Codec, error) {
-	for _, codec := range cl.codecs {
-		if codec.Name == name {
-			return codec.Clone(), nil
-		}
-	}
-	return nil, ErrCodecNotFound
 }
 
 // Remove removes a codec from the library

@@ -1141,34 +1141,9 @@
                             <div class="form-group">
                                 <label>JavaScript Codec Code</label>
                                 <div class="form-text mb-2">
-                                    Write your Encode and/or Decode functions below. Available helper functions: getCounter(), setCounter(), getState(), setState(), getPreviousPayload(), log()
+                                    Write your OnUplink and/or OnDownlink functions below. Available helpers: getState(), setState(), getSendInterval(), setSendInterval(), hexToBytes(), base64ToBytes(), log()
                                 </div>
-                                <textarea id="textarea-codec-script" class="form-control" name="input-codec-script" rows="20" placeholder="function Encode(fPort, obj) {
-    // Generate payload bytes from JSON object
-    var bytes = [];
-
-    // Your encoding logic here
-    // Example: encode temperature
-    var temp = Math.round((obj.temperature || 20) * 10);
-    bytes.push((temp >> 8) & 0xFF);
-    bytes.push(temp & 0xFF);
-
-    return {
-        fPort: 85,
-        bytes: bytes
-    };
-}
-
-function Decode(fPort, bytes) {
-    // Decode bytes to JSON object
-    var obj = {};
-
-    // Your decoding logic here
-    // Example: decode temperature
-    obj.temperature = (((bytes[0] << 8) | bytes[1]) << 16 >> 16) / 10.0;
-
-    return obj;
-}"></textarea>
+                                <textarea id="textarea-codec-script" class="form-control" name="input-codec-script" rows="20"></textarea>
                             </div>
 
                         </div>

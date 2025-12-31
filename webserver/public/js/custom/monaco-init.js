@@ -52,51 +52,51 @@ window.InitializeMonacoEditor = function() {
             provideCompletionItems: function(model, position) {
                 var suggestions = [
                     {
-                        label: 'getCounter',
-                        kind: monaco.languages.CompletionItemKind.Function,
-                        insertText: 'getCounter(${1:name})',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Get a persistent counter value by name. The counter persists across device uplinks.',
-                        detail: '(name: string) => number'
-                    },
-                    {
-                        label: 'setCounter',
-                        kind: monaco.languages.CompletionItemKind.Function,
-                        insertText: 'setCounter(${1:name}, ${2:value})',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Set a persistent counter value. Useful for tracking sequences or incrementing values.',
-                        detail: '(name: string, value: number) => void'
-                    },
-                    {
                         label: 'getState',
                         kind: monaco.languages.CompletionItemKind.Function,
-                        insertText: 'getState(${1:name})',
+                        insertText: 'getState(${1:key})',
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Get a persistent state variable by name. Can store any JSON-serializable value.',
-                        detail: '(name: string) => any'
+                        documentation: 'Get a persistent state variable by key. Can store any JSON-serializable value.',
+                        detail: '(key: string) => any'
                     },
                     {
                         label: 'setState',
                         kind: monaco.languages.CompletionItemKind.Function,
-                        insertText: 'setState(${1:name}, ${2:value})',
+                        insertText: 'setState(${1:key}, ${2:value})',
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                         documentation: 'Set a persistent state variable. Value can be string, number, object, or array.',
-                        detail: '(name: string, value: any) => void'
+                        detail: '(key: string, value: any) => void'
                     },
                     {
-                        label: 'getPreviousPayload',
+                        label: 'getSendInterval',
                         kind: monaco.languages.CompletionItemKind.Function,
-                        insertText: 'getPreviousPayload()',
-                        documentation: 'Get the previous payload bytes sent by this device. Returns null if no previous payload exists.',
-                        detail: '() => byte[] | null'
+                        insertText: 'getSendInterval()',
+                        documentation: 'Get the current device send interval in seconds.',
+                        detail: '() => number'
                     },
                     {
-                        label: 'getPreviousPayloads',
+                        label: 'setSendInterval',
                         kind: monaco.languages.CompletionItemKind.Function,
-                        insertText: 'getPreviousPayloads(${1:n})',
+                        insertText: 'setSendInterval(${1:seconds})',
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Get the last n payload bytes sent by this device. Returns an array of byte arrays.',
-                        detail: '(n: number) => byte[][]'
+                        documentation: 'Set the device send interval in seconds. Use to dynamically adjust uplink frequency.',
+                        detail: '(seconds: number) => void'
+                    },
+                    {
+                        label: 'hexToBytes',
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertText: 'hexToBytes(${1:hexString})',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Convert a hex string to byte array. Example: hexToBytes("48656C6C6F") returns [72, 101, 108, 108, 111]',
+                        detail: '(hexString: string) => byte[]'
+                    },
+                    {
+                        label: 'base64ToBytes',
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertText: 'base64ToBytes(${1:b64String})',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Convert a base64 string to byte array. Example: base64ToBytes("SGVsbG8=") returns [72, 101, 108, 108, 111]',
+                        detail: '(b64String: string) => byte[]'
                     },
                     {
                         label: 'log',
@@ -108,16 +108,16 @@ window.InitializeMonacoEditor = function() {
                     },
                     // Add template suggestions for common codec patterns
                     {
-                        label: 'Encode Template',
+                        label: 'OnUplink Template',
                         kind: monaco.languages.CompletionItemKind.Snippet,
                         insertText: [
-                            'function Encode(fPort, obj) {',
-                            '    // Generate payload bytes from JSON object',
+                            'function OnUplink() {',
+                            '    // Generate payload bytes for uplink',
                             '    var bytes = [];',
                             '',
                             '    // Your encoding logic here',
                             '    ${1:// Example: encode temperature}',
-                            '    ${2:var temp = Math.round((obj.temperature || 20) * 10);}',
+                            '    ${2:var temp = Math.round(22.5 * 10);}',
                             '    ${3:bytes.push((temp >> 8) & 0xFF);}',
                             '    ${4:bytes.push(temp & 0xFF);}',
                             '',
@@ -128,27 +128,25 @@ window.InitializeMonacoEditor = function() {
                             '}'
                         ].join('\n'),
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Template for Encode function',
-                        detail: 'Encode function template'
+                        documentation: 'Template for OnUplink function',
+                        detail: 'OnUplink function template'
                     },
                     {
-                        label: 'Decode Template',
+                        label: 'OnDownlink Template',
                         kind: monaco.languages.CompletionItemKind.Snippet,
                         insertText: [
-                            'function Decode(fPort, bytes) {',
-                            '    // Decode bytes to JSON object',
-                            '    var obj = {};',
+                            'function OnDownlink(bytes, fPort) {',
+                            '    // Process downlink bytes (optional)',
+                            '    // Use log() to output decoded values',
                             '',
-                            '    // Your decoding logic here',
                             '    ${1:// Example: decode temperature}',
-                            '    ${2:obj.temperature = (((bytes[0] << 8) | bytes[1]) << 16 >> 16) / 10.0;}',
-                            '',
-                            '    return obj;',
+                            '    ${2:var temp = (((bytes[0] << 8) | bytes[1]) << 16 >> 16) / 10.0;}',
+                            '    ${3:log("Received temperature: " + temp);}',
                             '}'
                         ].join('\n'),
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Template for Decode function',
-                        detail: 'Decode function template'
+                        documentation: 'Template for OnDownlink function',
+                        detail: 'OnDownlink function template'
                     }
                 ];
                 return { suggestions: suggestions };
