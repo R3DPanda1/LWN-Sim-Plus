@@ -134,13 +134,14 @@ func InjectDeviceHelpers(vm *goja.Runtime, device DeviceInterface) error {
 	})
 
 	// log(message) - Logs message to device console
+	// Note: PrintBoth = 2 in util/const.go (iota starts after MAXFCNTGAP)
 	vm.Set("log", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 1 {
 			return goja.Undefined()
 		}
 
 		message := call.Argument(0).String()
-		device.Print("[CODEC] "+message, nil, 1) // printType 1 = PrintBoth (console and websocket)
+		device.Print("[CODEC] "+message, nil, 2) // printType 2 = PrintBoth
 		return goja.Undefined()
 	})
 
@@ -257,74 +258,33 @@ function OnUplink() {
 function OnDownlink(bytes, fPort) {
     initState();
 
-    // Always log entry
-    log('=== AM319 DOWNLINK RECEIVED ===');
-    log('fPort=' + fPort + ', length=' + bytes.length);
-    log('Hex: ' + bytesToHex(bytes));
+    log('fPort=' + fPort + ', bytes=' + bytesToHex(bytes));
 
-    var results = {};
     var i = 0;
-
     while (i < bytes.length) {
-        if (bytes[i] !== 0xFF) {
-            log('Invalid channel 0x' + bytes[i].toString(16) + ' at position ' + i);
-            i++;
-            continue;
-        }
-
+        if (bytes[i] !== 0xFF) { i++; continue; }
         var cmd = bytes[i + 1];
-        log('Processing command 0x' + cmd.toString(16));
-
         switch (cmd) {
             case 0x03: // Report interval
                 var intervalSec = decodeUint16LE(bytes, i + 2);
-                log('>>> Set interval: ' + intervalSec + 's (' + Math.round(intervalSec/60) + 'min)');
                 setSendInterval(intervalSec);
-                results.interval = intervalSec;
+                log('Interval set to ' + intervalSec + 's');
                 i += 4;
                 break;
-
-            case 0x10: // Reboot
-                log('>>> Reboot command');
-                results.reboot = true;
-                i += 3;
-                break;
-
             case 0xEB: // TVOC mode
                 var tvocMode = bytes[i + 2];
                 setState('tvocMode', tvocMode);
-                log('>>> TVOC mode: ' + (tvocMode === 0 ? 'Level' : 'Concentration'));
-                results.tvocMode = tvocMode;
                 i += 3;
                 break;
-
             case 0x1A: // CO2 calibration
-                var calMode = bytes[i + 2];
-                if (calMode === 0x03) {
-                    setState('baseCO2', 400);
-                    log('>>> CO2 manual calibration to 400ppm');
-                } else if (calMode === 0x00) {
-                    log('>>> CO2 factory calibration restore');
-                }
-                results.co2Cal = calMode;
+                if (bytes[i + 2] === 0x03) setState('baseCO2', 400);
                 i += 3;
                 break;
-
-            case 0x39: // CO2 auto calibration
-                log('>>> CO2 auto cal: ' + (bytes[i + 2] ? 'ON' : 'OFF'));
-                i += 3;
-                break;
-
             default:
-                log('>>> Command 0x' + cmd.toString(16) + ' (logged only)');
-                // Try to skip - most commands are 3 bytes
                 i += 3;
                 break;
         }
     }
-
-    log('=== END DOWNLINK PROCESSING ===');
-    return results;
 }
 
 function bytesToHex(bytes) {

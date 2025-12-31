@@ -1,8 +1,6 @@
 package device
 
 import (
-	"fmt"
-
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 
 	act "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/activation"
@@ -79,7 +77,7 @@ func (d *Device) ProcessDownlink(phy lorawan.PHYPayload) (*dl.InformationDownlin
 	return payload, err
 }
 
-// decodeDownlinkWithCodec decodes the downlink payload using the device's configured codec
+// decodeDownlinkWithCodec executes the OnDownlink codec function for its side effects
 func (d *Device) decodeDownlinkWithCodec(payload *dl.InformationDownlink, phy *lorawan.PHYPayload) {
 	// Check if codec is configured and payload has data
 	if CodecManager == nil || d.Info.Configuration.CodecID == "" || payload == nil {
@@ -101,8 +99,8 @@ func (d *Device) decodeDownlinkWithCodec(payload *dl.InformationDownlink, phy *l
 		}
 	}
 
-	// Decode using codec
-	decodedObj, err := CodecManager.DecodePayload(
+	// Execute OnDownlink for side effects (log, setState, setSendInterval)
+	err := CodecManager.DecodePayload(
 		d.Info.Configuration.CodecID,
 		devEUI,
 		payload.DataPayload,
@@ -111,8 +109,6 @@ func (d *Device) decodeDownlinkWithCodec(payload *dl.InformationDownlink, phy *l
 	)
 
 	if err != nil {
-		d.Print("Codec decode failed: "+err.Error(), err, util.PrintBoth)
-	} else {
-		d.Print(fmt.Sprintf("Downlink decoded (fPort=%d): %+v", fPort, decodedObj), nil, util.PrintBoth)
+		d.Print("Codec OnDownlink failed: "+err.Error(), err, util.PrintBoth)
 	}
 }

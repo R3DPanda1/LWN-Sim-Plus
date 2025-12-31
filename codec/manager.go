@@ -82,7 +82,7 @@ func (m *Manager) EncodePayload(codecID string, devEUI string, device DeviceInte
 	return bytes, returnedFPort, nil
 }
 
-// DecodePayload decodes a payload using a codec
+// DecodePayload executes the OnDownlink function from a codec
 // Parameters:
 //   - codecID: ID of the codec to use
 //   - devEUI: Device EUI for state management
@@ -90,24 +90,23 @@ func (m *Manager) EncodePayload(codecID string, devEUI string, device DeviceInte
 //   - fPort: LoRaWAN fPort
 //   - device: Device interface for accessing configuration
 //
-// Returns the decoded object and any error
-func (m *Manager) DecodePayload(codecID string, devEUI string, bytes []byte, fPort uint8, device DeviceInterface) (map[string]interface{}, error) {
+// OnDownlink is executed for its side effects (log, setState, setSendInterval).
+func (m *Manager) DecodePayload(codecID string, devEUI string, bytes []byte, fPort uint8, device DeviceInterface) error {
 	// Get codec
 	codec, err := m.library.Get(codecID)
 	if err != nil {
-		return nil, fmt.Errorf("codec not found: %w", err)
+		return fmt.Errorf("codec not found: %w", err)
 	}
 
 	// Get or create state
 	state := m.GetOrCreateState(devEUI)
 
-	// Execute decoding
-	obj, err := m.executor.ExecuteDecode(codec.Script, bytes, fPort, state, device)
-	if err != nil {
-		return nil, fmt.Errorf("decoding failed: %w", err)
+	// Execute decoding (for side effects only)
+	if err := m.executor.ExecuteDecode(codec.Script, bytes, fPort, state, device); err != nil {
+		return fmt.Errorf("decoding failed: %w", err)
 	}
 
-	return obj, nil
+	return nil
 }
 
 // AddCodec adds a codec to the library
