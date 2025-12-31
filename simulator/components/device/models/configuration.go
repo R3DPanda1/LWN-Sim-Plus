@@ -39,6 +39,11 @@ type Configuration struct {
 	// Codec configuration
 	CodecID  string `json:"codecID"`  // ID of codec to use (empty = use raw payload)
 	UseCodec bool   `json:"useCodec"` // Enable/disable codec
+
+	// ChirpStack Integration configuration
+	IntegrationEnabled bool   `json:"integrationEnabled"` // Enable ChirpStack integration
+	IntegrationID      string `json:"integrationId"`      // ID of integration to use
+	DeviceProfileID    string `json:"deviceProfileId"`    // ChirpStack device profile ID
 }
 
 func (c *Configuration) MarshalJSON() ([]byte, error) {
