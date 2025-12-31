@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
 	"log"
 	"time"
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/codes"
+	"github.com/R3DPanda1/LWN-Sim-Plus/integration"
+	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
 	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
 	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
 	mfw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder/models"
@@ -32,8 +33,9 @@ type Simulator struct {
 	NextIDDev             int                 `json:"nextIDDev"`     // Next device ID used for creating a new device
 	NextIDGw              int                 `json:"nextIDGw"`      // Next gateway ID used for creating a new gateway
 	BridgeAddress         string              `json:"bridgeAddress"` // Bridge address used to connect to a network
-	Resources             res.Resources       `json:"-"`             // Resources used for managing the simulator
-	Console               c.Console           `json:"-"`             // Console instance, used for logging in the web terminal
+	Resources             res.Resources        `json:"-"`             // Resources used for managing the simulator
+	Console               c.Console            `json:"-"`             // Console instance, used for logging in the web terminal
+	IntegrationManager    *integration.Manager `json:"-"`             // Integration manager for ChirpStack provisioning
 }
 
 // setup loads and initializes the simulator maps for gateways and devices. It also initializes the console

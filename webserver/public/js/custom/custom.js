@@ -2259,6 +2259,12 @@ function CleanInputDevice(){
     $("#textarea-payload").prop("disabled", false);
     $("[name=checkbox-base64]").prop("disabled", false);
 
+    // Clean integration fields
+    $("#checkbox-dev-integration-enabled").prop("checked", false);
+    $("#device-integration-settings").addClass("hide");
+    $("#select-dev-integration").val("");
+    $("#select-dev-profile").val("");
+
     //location
     CleanMap();
 
@@ -2416,6 +2422,32 @@ function LoadDevice(dev){
         $("#select-payload-generation").val("");
         $("#textarea-payload").prop("disabled", false);
         $("[name=checkbox-base64]").prop("disabled", false);
+    }
+
+    // Load integration configuration if present
+    if(dev.info.configuration.integrationEnabled){
+        $("#checkbox-dev-integration-enabled").prop("checked", true);
+        $("#device-integration-settings").removeClass("hide");
+
+        // Load integrations dropdown and select current value
+        if(typeof LoadIntegrationList === 'function') {
+            LoadIntegrationList();
+        }
+        setTimeout(function(){
+            $("#select-dev-integration").val(dev.info.configuration.integrationId || "");
+            // Load device profiles for selected integration
+            if(dev.info.configuration.integrationId && typeof LoadDeviceProfiles === 'function') {
+                LoadDeviceProfiles(dev.info.configuration.integrationId);
+                setTimeout(function(){
+                    $("#select-dev-profile").val(dev.info.configuration.deviceProfileId || "");
+                }, 500);
+            }
+        }, 300);
+    } else {
+        $("#checkbox-dev-integration-enabled").prop("checked", false);
+        $("#device-integration-settings").addClass("hide");
+        $("#select-dev-integration").val("");
+        $("#select-dev-profile").val("");
     }
 
     ChangeStateInputDevice(true,dev.info.devEUI);
@@ -2712,7 +2744,10 @@ function Click_SaveDevice(){
                     var codecID = $("#select-payload-generation").val() || "";
                     return codecID !== "";
                 })(),
-                "codecID": $("#select-payload-generation").val() || ""
+                "codecID": $("#select-payload-generation").val() || "",
+                "integrationEnabled": $("#checkbox-dev-integration-enabled").prop("checked"),
+                "integrationId": $("#select-dev-integration").val() || "",
+                "deviceProfileId": $("#select-dev-profile").val() || ""
             },
             "rxs":[
                 {

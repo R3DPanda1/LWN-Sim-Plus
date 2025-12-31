@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"github.com/R3DPanda1/LWN-Sim-Plus/codec"
+	"github.com/R3DPanda1/LWN-Sim-Plus/integration"
+	"github.com/R3DPanda1/LWN-Sim-Plus/integration/chirpstack"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	repo "github.com/R3DPanda1/LWN-Sim-Plus/repositories"
 
@@ -42,6 +44,16 @@ type SimulatorController interface {
 	DeleteCodec(string) error                  // Delete a codec by ID
 	GetDevicesUsingCodec(string) []string      // Get devices using a specific codec
 	EmitCodecEvent(string, interface{})        // Emit a WebSocket event for codec operations
+
+	// Integration management
+	GetIntegrations() []*integration.Integration                                              // Get all integrations
+	GetIntegration(string) (*integration.Integration, error)                                  // Get a specific integration
+	AddIntegration(string, integration.IntegrationType, string, string, string, string) (string, error) // Add a new integration (name, type, url, apiKey, tenantId, appId)
+	UpdateIntegration(string, string, string, string, string, string, bool) error             // Update an integration (id, name, url, apiKey, tenantId, appId, enabled)
+	DeleteIntegration(string) error                                                           // Delete an integration
+	TestIntegrationConnection(string) error                                                   // Test connection to an integration
+	GetDeviceProfiles(string) ([]chirpstack.DeviceProfile, error)                             // Get device profiles from ChirpStack
+	EmitIntegrationEvent(string, interface{})                                                 // Emit a WebSocket event for integration operations
 }
 
 // simulatorController controller struct
@@ -168,4 +180,38 @@ func (c *simulatorController) GetDevicesUsingCodec(codecID string) []string {
 
 func (c *simulatorController) EmitCodecEvent(eventName string, data interface{}) {
 	c.repo.EmitCodecEvent(eventName, data)
+}
+
+// --- Integration management methods ---
+
+func (c *simulatorController) GetIntegrations() []*integration.Integration {
+	return c.repo.GetIntegrations()
+}
+
+func (c *simulatorController) GetIntegration(id string) (*integration.Integration, error) {
+	return c.repo.GetIntegration(id)
+}
+
+func (c *simulatorController) AddIntegration(name string, intType integration.IntegrationType, url, apiKey, tenantID, appID string) (string, error) {
+	return c.repo.AddIntegration(name, intType, url, apiKey, tenantID, appID)
+}
+
+func (c *simulatorController) UpdateIntegration(id, name, url, apiKey, tenantID, appID string, enabled bool) error {
+	return c.repo.UpdateIntegration(id, name, url, apiKey, tenantID, appID, enabled)
+}
+
+func (c *simulatorController) DeleteIntegration(id string) error {
+	return c.repo.DeleteIntegration(id)
+}
+
+func (c *simulatorController) TestIntegrationConnection(id string) error {
+	return c.repo.TestIntegrationConnection(id)
+}
+
+func (c *simulatorController) GetDeviceProfiles(id string) ([]chirpstack.DeviceProfile, error) {
+	return c.repo.GetDeviceProfiles(id)
+}
+
+func (c *simulatorController) EmitIntegrationEvent(eventName string, data interface{}) {
+	c.repo.EmitIntegrationEvent(eventName, data)
 }

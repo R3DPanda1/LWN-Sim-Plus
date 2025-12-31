@@ -207,6 +207,17 @@ body.sidebar-mini .main-sidebar .sidebar-menu > li.active > a {
     color: white;
 }
 
+.btn-test{
+    background-color: white;
+    color: #3abaf4;
+    border-color: #3abaf4 !important;
+}
+
+.btn-test:hover, .btn-test:active, .btn-test:focus{
+    background-color: #3abaf4 !important;
+    color: white !important;
+}
+
 .hide{
     display: none;
 }
