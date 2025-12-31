@@ -8,6 +8,7 @@ import (
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/codec"
 	cnt "github.com/R3DPanda1/LWN-Sim-Plus/controllers"
+	"github.com/R3DPanda1/LWN-Sim-Plus/integration"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
 	rp "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters"
@@ -98,6 +99,15 @@ func NewWebServer(config *models.ServerConfig, controller cnt.SimulatorControlle
 		apiRoutes.POST("/add-codec", addCodec)               // Add a custom codec
 		apiRoutes.POST("/update-codec", updateCodec)         // Update an existing codec
 		apiRoutes.POST("/delete-codec", deleteCodec)         // Delete a codec by ID
+
+		// Integration management endpoints
+		apiRoutes.GET("/integrations", getIntegrations)                    // Get all integrations
+		apiRoutes.GET("/integration/:id", getIntegration)                  // Get a specific integration
+		apiRoutes.POST("/add-integration", addIntegration)                 // Add a new integration
+		apiRoutes.POST("/update-integration", updateIntegration)           // Update an integration
+		apiRoutes.POST("/delete-integration", deleteIntegration)           // Delete an integration
+		apiRoutes.POST("/integration/:id/test", testIntegrationConnection) // Test connection to an integration
+		apiRoutes.GET("/integration/:id/device-profiles", getDeviceProfiles) // Get device profiles from ChirpStack
 	}
 	// Set up the WebSocket routes.
 	router.GET("/socket.io/*any", gin.WrapH(serverSocket))
@@ -397,4 +407,130 @@ func getCodecUsage(c *gin.Context) {
 	id := c.Param("id")
 	devices := simulatorController.GetDevicesUsingCodec(id)
 	c.JSON(http.StatusOK, gin.H{"codecId": id, "devices": devices, "count": len(devices)})
+}
+
+// ==================== Integration Handlers ====================
+
+// getIntegrations returns all integrations
+func getIntegrations(c *gin.Context) {
+	integrations := simulatorController.GetIntegrations()
+	c.JSON(http.StatusOK, gin.H{"integrations": integrations})
+}
+
+// getIntegration returns a specific integration by ID
+func getIntegration(c *gin.Context) {
+	id := c.Param("id")
+	integ, err := simulatorController.GetIntegration(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"status": "Integration not found", "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"integration": integ})
+}
+
+// addIntegration adds a new integration
+func addIntegration(c *gin.Context) {
+	var data struct {
+		Name          string `json:"name"`
+		Type          string `json:"type"`
+		URL           string `json:"url"`
+		APIKey        string `json:"apiKey"`
+		TenantID      string `json:"tenantId"`
+		ApplicationID string `json:"applicationId"`
+	}
+
+	if err := c.BindJSON(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	intType := integration.IntegrationType(data.Type)
+	if intType == "" {
+		intType = integration.IntegrationTypeChirpStack
+	}
+
+	id, err := simulatorController.AddIntegration(data.Name, intType, data.URL, data.APIKey, data.TenantID, data.ApplicationID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	simulatorController.EmitIntegrationEvent(socket.EventIntegrationAdded, gin.H{"id": id, "name": data.Name})
+	c.JSON(http.StatusOK, gin.H{"id": id})
+}
+
+// updateIntegration updates an existing integration
+func updateIntegration(c *gin.Context) {
+	var data struct {
+		ID            string `json:"id"`
+		Name          string `json:"name"`
+		URL           string `json:"url"`
+		APIKey        string `json:"apiKey"`
+		TenantID      string `json:"tenantId"`
+		ApplicationID string `json:"applicationId"`
+		Enabled       bool   `json:"enabled"`
+	}
+
+	if err := c.BindJSON(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if data.ID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
+		return
+	}
+
+	if err := simulatorController.UpdateIntegration(data.ID, data.Name, data.URL, data.APIKey, data.TenantID, data.ApplicationID, data.Enabled); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	simulatorController.EmitIntegrationEvent(socket.EventIntegrationUpdated, gin.H{"id": data.ID, "name": data.Name})
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+// deleteIntegration removes an integration
+func deleteIntegration(c *gin.Context) {
+	var data struct {
+		ID string `json:"id"`
+	}
+
+	if err := c.BindJSON(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := simulatorController.DeleteIntegration(data.ID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	simulatorController.EmitIntegrationEvent(socket.EventIntegrationDeleted, gin.H{"id": data.ID})
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+// testIntegrationConnection tests connection to an integration
+func testIntegrationConnection(c *gin.Context) {
+	id := c.Param("id")
+
+	if err := simulatorController.TestIntegrationConnection(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+// getDeviceProfiles returns device profiles for an integration
+func getDeviceProfiles(c *gin.Context) {
+	id := c.Param("id")
+
+	profiles, err := simulatorController.GetDeviceProfiles(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"deviceProfiles": profiles})
 }
