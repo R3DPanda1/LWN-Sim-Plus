@@ -81,17 +81,21 @@ func (p *VMPool) clearVM(vm *goja.Runtime) {
 	// so we manually remove known custom properties
 
 	// Remove state helper functions
-	vm.Set("getCounter", goja.Undefined())
-	vm.Set("setCounter", goja.Undefined())
 	vm.Set("getState", goja.Undefined())
 	vm.Set("setState", goja.Undefined())
-	vm.Set("getPreviousPayload", goja.Undefined())
-	vm.Set("getPreviousPayloads", goja.Undefined())
+
+	// Remove device helper functions
+	vm.Set("getSendInterval", goja.Undefined())
+	vm.Set("setSendInterval", goja.Undefined())
 	vm.Set("log", goja.Undefined())
 
+	// Remove conversion helpers
+	vm.Set("hexToBytes", goja.Undefined())
+	vm.Set("base64ToBytes", goja.Undefined())
+
 	// Remove codec functions
-	vm.Set("Encode", goja.Undefined())
-	vm.Set("Decode", goja.Undefined())
+	vm.Set("OnUplink", goja.Undefined())
+	vm.Set("OnDownlink", goja.Undefined())
 }
 
 // Close closes the pool and releases all VMs

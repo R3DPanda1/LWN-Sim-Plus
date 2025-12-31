@@ -17,18 +17,15 @@ var (
 	ErrInvalidScript = errors.New("invalid JavaScript code")
 	// ErrOnUplinkNotFound is returned when OnUplink function is not defined
 	ErrOnUplinkNotFound = errors.New("OnUplink function not found")
-	// ErrOnDownlinkNotFound is returned when OnDownlink function is not defined
-	ErrOnDownlinkNotFound = errors.New("OnDownlink function not found")
 	// ErrInvalidReturnType is returned when the codec returns an invalid type
 	ErrInvalidReturnType = errors.New("invalid return type from codec")
 )
 
 // Executor manages JavaScript codec execution with goja
 type Executor struct {
-	vmPool    *VMPool
-	timeout   time.Duration
-	mu        sync.RWMutex
-	metrics   *ExecutorMetrics
+	vmPool  *VMPool
+	timeout time.Duration
+	metrics *ExecutorMetrics
 }
 
 // ExecutorMetrics tracks codec execution statistics
@@ -361,12 +358,6 @@ func (e *Executor) arrayToBytes(arr []interface{}) ([]byte, error) {
 		}
 	}
 	return bytes, nil
-}
-
-// convertToBytes converts a goja.Value to a byte slice (legacy method for backward compatibility)
-func (e *Executor) convertToBytes(vm *goja.Runtime, value goja.Value) ([]byte, error) {
-	bytes, _, err := e.convertToBytesWithFPort(vm, value, 1)
-	return bytes, err
 }
 
 // GetMetrics returns current executor metrics
