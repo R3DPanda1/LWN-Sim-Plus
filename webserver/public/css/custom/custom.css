@@ -31,6 +31,10 @@ img {
     color: orange;
 }
 
+.text-navy{
+    color: #34395e;
+}
+
 .home{
     content: url("../../img/blue_home.svg");
 }

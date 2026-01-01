@@ -6,6 +6,7 @@ import (
 	"github.com/R3DPanda1/LWN-Sim-Plus/integration/chirpstack"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	repo "github.com/R3DPanda1/LWN-Sim-Plus/repositories"
+	"github.com/R3DPanda1/LWN-Sim-Plus/template"
 
 	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
 	gw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway"
@@ -54,6 +55,14 @@ type SimulatorController interface {
 	TestIntegrationConnection(string) error                                                   // Test connection to an integration
 	GetDeviceProfiles(string) ([]chirpstack.DeviceProfile, error)                             // Get device profiles from ChirpStack
 	EmitIntegrationEvent(string, interface{})                                                 // Emit a WebSocket event for integration operations
+
+	// Template management
+	GetTemplates() []*template.DeviceTemplate                                                         // Get all templates
+	GetTemplate(string) (*template.DeviceTemplate, error)                                             // Get a specific template
+	AddTemplate(*template.DeviceTemplate) (string, error)                                             // Add a new template
+	UpdateTemplate(*template.DeviceTemplate) error                                                    // Update a template
+	DeleteTemplate(string) error                                                                      // Delete a template
+	CreateDevicesFromTemplate(string, int, string, float64, float64, int32, float64) ([]int, error)   // Bulk create devices from template
 }
 
 // simulatorController controller struct
@@ -214,4 +223,30 @@ func (c *simulatorController) GetDeviceProfiles(id string) ([]chirpstack.DeviceP
 
 func (c *simulatorController) EmitIntegrationEvent(eventName string, data interface{}) {
 	c.repo.EmitIntegrationEvent(eventName, data)
+}
+
+// --- Template management methods ---
+
+func (c *simulatorController) GetTemplates() []*template.DeviceTemplate {
+	return c.repo.GetTemplates()
+}
+
+func (c *simulatorController) GetTemplate(id string) (*template.DeviceTemplate, error) {
+	return c.repo.GetTemplate(id)
+}
+
+func (c *simulatorController) AddTemplate(tmpl *template.DeviceTemplate) (string, error) {
+	return c.repo.AddTemplate(tmpl)
+}
+
+func (c *simulatorController) UpdateTemplate(tmpl *template.DeviceTemplate) error {
+	return c.repo.UpdateTemplate(tmpl)
+}
+
+func (c *simulatorController) DeleteTemplate(id string) error {
+	return c.repo.DeleteTemplate(id)
+}
+
+func (c *simulatorController) CreateDevicesFromTemplate(templateID string, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
+	return c.repo.CreateDevicesFromTemplate(templateID, count, namePrefix, baseLat, baseLng, baseAlt, spreadMeters)
 }

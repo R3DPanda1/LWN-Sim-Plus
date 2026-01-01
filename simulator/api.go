@@ -1,11 +1,15 @@
 package simulator
 
 import (
+	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
+	"math"
+	mrand "math/rand"
 	"strings"
+	"time"
 
 	"github.com/brocaar/lorawan"
 
@@ -13,14 +17,20 @@ import (
 	"github.com/R3DPanda1/LWN-Sim-Plus/codes"
 	"github.com/R3DPanda1/LWN-Sim-Plus/integration"
 	"github.com/R3DPanda1/LWN-Sim-Plus/integration/chirpstack"
+	"github.com/R3DPanda1/LWN-Sim-Plus/template"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
 
 	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
+	devChannels "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features/channels"
+	devFeatures "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features"
+	devModels "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/models"
+	rp "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters"
 	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
 	mfw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder/models"
 	gw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway"
 	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/location"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/R3DPanda1/LWN-Sim-Plus/socket"
 	socketio "github.com/googollee/go-socket.io"
@@ -76,6 +86,17 @@ func GetInstance() *Simulator {
 			shared.DebugPrint(fmt.Sprintf("Warning: failed to load integrations: %v", err))
 		} else {
 			shared.DebugPrint("Integrations loaded from disk")
+		}
+	}
+
+	// Initialize template manager
+	s.TemplateManager = template.NewManager()
+	if pathDir != "" {
+		templatePath := pathDir + "/templates.json"
+		if err := s.TemplateManager.Load(templatePath); err != nil {
+			shared.DebugPrint(fmt.Sprintf("Warning: failed to load templates: %v", err))
+		} else {
+			shared.DebugPrint("Templates loaded from disk")
 		}
 	}
 
@@ -140,6 +161,19 @@ func (s *Simulator) Stop() {
 				shared.DebugPrint(fmt.Sprintf("Warning: failed to save integrations: %v", err))
 			} else {
 				shared.DebugPrint("Integrations saved to disk")
+			}
+		}
+	}
+
+	// Save templates
+	if s.TemplateManager != nil {
+		pathDir, err := util.GetPath()
+		if err == nil {
+			templatePath := pathDir + "/templates.json"
+			if err := s.TemplateManager.Save(templatePath); err != nil {
+				shared.DebugPrint(fmt.Sprintf("Warning: failed to save templates: %v", err))
+			} else {
+				shared.DebugPrint("Templates saved to disk")
 			}
 		}
 	}
@@ -384,7 +418,7 @@ func (s *Simulator) DeleteDevice(Id int) bool {
 		return false
 	}
 
-	// Delete device from ChirpStack if integration was enabled
+	// Delete device from ChirpStack if integration was enabled for this specific device
 	device := s.Devices[Id]
 	if device.Info.Configuration.IntegrationEnabled && device.Info.Configuration.IntegrationID != "" {
 		devEUI := hex.EncodeToString(device.Info.DevEUI[:])
@@ -525,13 +559,24 @@ func (s *Simulator) GetCodec(id string) (*codec.Codec, error) {
 }
 
 // GetDevicesUsingCodec returns a list of device EUIs using the specified codec
+// Also counts templates that use this codec
 func (s *Simulator) GetDevicesUsingCodec(codecID string) []string {
 	devicesUsingCodec := []string{}
+
+	// Check devices
 	for _, device := range s.Devices {
 		if device.Info.Configuration.CodecID == codecID {
 			devicesUsingCodec = append(devicesUsingCodec, device.Info.DevEUI.String())
 		}
 	}
+
+	// Check templates
+	for _, tmpl := range s.TemplateManager.List() {
+		if tmpl.UseCodec && tmpl.CodecID == codecID {
+			devicesUsingCodec = append(devicesUsingCodec, "template:"+tmpl.ID)
+		}
+	}
+
 	return devicesUsingCodec
 }
 
@@ -571,10 +616,29 @@ func (s *Simulator) DeleteCodec(id string) error {
 		return errors.New("codec manager not initialized")
 	}
 
-	// Check if any devices are using this codec
-	devicesUsingCodec := s.GetDevicesUsingCodec(id)
-	if len(devicesUsingCodec) > 0 {
-		return fmt.Errorf("cannot delete codec: used by %d device(s)", len(devicesUsingCodec))
+	// Check if any devices or templates are using this codec
+	usersOfCodec := s.GetDevicesUsingCodec(id)
+	if len(usersOfCodec) > 0 {
+		// Count devices and templates separately for better error message
+		deviceCount := 0
+		templateCount := 0
+		for _, user := range usersOfCodec {
+			if len(user) > 9 && user[:9] == "template:" {
+				templateCount++
+			} else {
+				deviceCount++
+			}
+		}
+
+		var parts []string
+		if deviceCount > 0 {
+			parts = append(parts, fmt.Sprintf("%d device(s)", deviceCount))
+		}
+		if templateCount > 0 {
+			parts = append(parts, fmt.Sprintf("%d template(s)", templateCount))
+		}
+
+		return fmt.Errorf("cannot delete codec: used by %s", strings.Join(parts, " and "))
 	}
 
 	if err := dev.CodecManager.RemoveCodec(id); err != nil {
@@ -712,4 +776,242 @@ func (s *Simulator) saveToFile(filename string, saveFn func(string) error) {
 			shared.DebugPrint(fmt.Sprintf("Warning: failed to save %s: %v", filename, err))
 		}
 	}
+}
+
+// ==================== Template Management ====================
+
+// GetTemplates returns all templates
+func (s *Simulator) GetTemplates() []*template.DeviceTemplate {
+	if s.TemplateManager == nil {
+		return []*template.DeviceTemplate{}
+	}
+	return s.TemplateManager.List()
+}
+
+// GetTemplate returns a specific template by ID
+func (s *Simulator) GetTemplate(id string) (*template.DeviceTemplate, error) {
+	if s.TemplateManager == nil {
+		return nil, errors.New("template manager not initialized")
+	}
+	return s.TemplateManager.Get(id)
+}
+
+// AddTemplate adds a new template
+func (s *Simulator) AddTemplate(tmpl *template.DeviceTemplate) (string, error) {
+	if s.TemplateManager == nil {
+		return "", errors.New("template manager not initialized")
+	}
+
+	// Generate ID if not set
+	if tmpl.ID == "" {
+		tmpl.RegenerateID()
+	}
+
+	if err := s.TemplateManager.Add(tmpl); err != nil {
+		return "", err
+	}
+
+	// Save to disk
+	s.saveTemplateLibrary()
+	return tmpl.ID, nil
+}
+
+// UpdateTemplate updates an existing template
+func (s *Simulator) UpdateTemplate(tmpl *template.DeviceTemplate) error {
+	if s.TemplateManager == nil {
+		return errors.New("template manager not initialized")
+	}
+
+	if err := s.TemplateManager.Update(tmpl); err != nil {
+		return err
+	}
+
+	// Save to disk
+	s.saveTemplateLibrary()
+	return nil
+}
+
+// DeleteTemplate removes a template by ID
+func (s *Simulator) DeleteTemplate(id string) error {
+	if s.TemplateManager == nil {
+		return errors.New("template manager not initialized")
+	}
+
+	if err := s.TemplateManager.Remove(id); err != nil {
+		return err
+	}
+
+	// Save to disk
+	s.saveTemplateLibrary()
+	return nil
+}
+
+// saveTemplateLibrary saves templates to disk
+func (s *Simulator) saveTemplateLibrary() {
+	s.saveToFile("templates.json", func(path string) error {
+		if s.TemplateManager != nil {
+			return s.TemplateManager.Save(path)
+		}
+		return nil
+	})
+}
+
+// ==================== Bulk Device Creation ====================
+
+// CreateDevicesFromTemplate creates multiple devices from a template
+func (s *Simulator) CreateDevicesFromTemplate(templateID string, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
+	if s.TemplateManager == nil {
+		return nil, errors.New("template manager not initialized")
+	}
+
+	// Get template
+	tmpl, err := s.TemplateManager.Get(templateID)
+	if err != nil {
+		return nil, fmt.Errorf("template not found: %w", err)
+	}
+
+	// Seed random number generator
+	mrand.Seed(time.Now().UnixNano())
+
+	createdIDs := make([]int, 0, count)
+
+	for i := 1; i <= count; i++ {
+		// Generate device name
+		name := fmt.Sprintf("%s-%d", namePrefix, i)
+
+		// Generate random DevEUI
+		devEUI, err := generateRandomEUI64()
+		if err != nil {
+			s.Print(fmt.Sprintf("Failed to generate DevEUI for %s: %v", name, err), nil, util.PrintOnlyConsole)
+			continue
+		}
+
+		// Generate random AppKey
+		appKey, err := generateRandomKey()
+		if err != nil {
+			s.Print(fmt.Sprintf("Failed to generate AppKey for %s: %v", name, err), nil, util.PrintOnlyConsole)
+			continue
+		}
+
+		// Randomize coordinates
+		lat, lng := randomizeCoordinates(baseLat, baseLng, spreadMeters)
+
+		// Create device from template
+		device := s.createDeviceFromTemplate(tmpl, name, devEUI, appKey, lat, lng, baseAlt)
+
+		// Add device
+		code, id, err := s.SetDevice(device, false)
+		if err != nil {
+			s.Print(fmt.Sprintf("Failed to create device %s: %v (code: %d)", name, err, code), nil, util.PrintOnlyConsole)
+			continue
+		}
+
+		createdIDs = append(createdIDs, id)
+		s.Print(fmt.Sprintf("Created device %s (ID: %d)", name, id), nil, util.PrintOnlyConsole)
+	}
+
+	return createdIDs, nil
+}
+
+// createDeviceFromTemplate creates a Device struct from a template
+func (s *Simulator) createDeviceFromTemplate(tmpl *template.DeviceTemplate, name string, devEUI lorawan.EUI64, appKey [16]byte, lat, lng float64, alt int32) *dev.Device {
+	// Get regional parameters
+	region := rp.GetRegionalParameters(tmpl.Region)
+
+	device := &dev.Device{
+		Info: devModels.InformationDevice{
+			Name:   name,
+			DevEUI: devEUI,
+			AppKey: appKey,
+			Location: location.Location{
+				Latitude:  lat,
+				Longitude: lng,
+				Altitude:  alt,
+			},
+			Status: devModels.Status{
+				Active: true, // Devices are active by default
+				MType:  getMType(tmpl.MType),
+				Payload: &lorawan.DataPayload{
+					Bytes: []byte{}, // Empty default payload
+				},
+			},
+			Configuration: devModels.Configuration{
+				Region:               region,
+				SupportedOtaa:        true, // Templates are OTAA only
+				SupportedClassB:      tmpl.SupportedClassB,
+				SupportedClassC:      tmpl.SupportedClassC,
+				SupportedADR:         tmpl.SupportedADR,
+				SupportedFragment:    tmpl.SupportedFragment,
+				Range:                tmpl.Range,
+				DataRateInitial:      tmpl.DataRate,
+				RX1DROffset:          tmpl.RX1DROffset,
+				SendInterval:         time.Duration(tmpl.SendInterval) * time.Second,
+				AckTimeout:           time.Duration(tmpl.AckTimeout) * time.Second,
+				NbRepConfirmedDataUp: tmpl.NbRetransmission,
+				UseCodec:             tmpl.UseCodec,
+				CodecID:              tmpl.CodecID,
+				IntegrationEnabled:   tmpl.IntegrationEnabled,
+				IntegrationID:        tmpl.IntegrationID,
+				DeviceProfileID:      tmpl.DeviceProfileID,
+			},
+			RX: []devFeatures.Window{
+				{
+					Delay:        time.Duration(tmpl.RX1Delay) * time.Millisecond,
+					DurationOpen: time.Duration(tmpl.RX1Duration) * time.Millisecond,
+					DataRate:     tmpl.DataRate,
+				},
+				{
+					Delay:        time.Duration(tmpl.RX2Delay) * time.Millisecond,
+					DurationOpen: time.Duration(tmpl.RX2Duration) * time.Millisecond,
+					DataRate:     uint8(tmpl.RX2DataRate),
+					Channel: devChannels.Channel{
+						FrequencyDownlink: uint32(tmpl.RX2Frequency),
+					},
+				},
+			},
+		},
+	}
+
+	// Set fPort in uplink info
+	fport := tmpl.FPort
+	device.Info.Status.DataUplink.FPort = &fport
+
+	return device
+}
+
+// generateRandomEUI64 generates a random 8-byte EUI64 address
+func generateRandomEUI64() (lorawan.EUI64, error) {
+	var eui lorawan.EUI64
+	_, err := rand.Read(eui[:])
+	return eui, err
+}
+
+// generateRandomKey generates a random 16-byte key
+func generateRandomKey() ([16]byte, error) {
+	var key [16]byte
+	_, err := rand.Read(key[:])
+	return key, err
+}
+
+// randomizeCoordinates adds random offset to coordinates within a square spread
+func randomizeCoordinates(baseLat, baseLng, spreadMeters float64) (float64, float64) {
+	// Approximately 111,320 meters per degree of latitude
+	const metersPerDegree = 111320.0
+
+	// Random offset in range [-1, 1]
+	latOffset := (mrand.Float64()*2 - 1) * (spreadMeters / metersPerDegree)
+
+	// Longitude degrees vary with latitude
+	lngMetersPerDegree := metersPerDegree * math.Cos(baseLat*math.Pi/180)
+	lngOffset := (mrand.Float64()*2 - 1) * (spreadMeters / lngMetersPerDegree)
+
+	return baseLat + latOffset, baseLng + lngOffset
+}
+
+// getMType converts int to lorawan.MType
+func getMType(mtype int) lorawan.MType {
+	if mtype == 1 {
+		return lorawan.ConfirmedDataUp
+	}
+	return lorawan.UnconfirmedDataUp
 }
