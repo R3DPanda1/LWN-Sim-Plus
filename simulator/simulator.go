@@ -10,6 +10,7 @@ import (
 	"github.com/R3DPanda1/LWN-Sim-Plus/codes"
 	"github.com/R3DPanda1/LWN-Sim-Plus/integration"
 	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
+	"github.com/R3DPanda1/LWN-Sim-Plus/template"
 	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
 	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
 	mfw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder/models"
@@ -36,6 +37,7 @@ type Simulator struct {
 	Resources             res.Resources        `json:"-"`             // Resources used for managing the simulator
 	Console               c.Console            `json:"-"`             // Console instance, used for logging in the web terminal
 	IntegrationManager    *integration.Manager `json:"-"`             // Integration manager for ChirpStack provisioning
+	TemplateManager       *template.Manager    `json:"-"`             // Template manager for device templates
 }
 
 // setup loads and initializes the simulator maps for gateways and devices. It also initializes the console

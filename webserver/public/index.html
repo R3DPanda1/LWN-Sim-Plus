@@ -56,7 +56,8 @@
 
                             <ul class="dropdown-menu">
                                 <li><a id="devs-tab" class="nav-link" data-tab="#devs" >List devices</a></li>
-                                <li><a id="add-dev-tab" class="nav-link" data-tab="#add-dev">Add new device</a></li>                  
+                                <li><a id="add-dev-tab" class="nav-link" data-tab="#add-dev">Add new device</a></li>
+                                <li><a id="add-from-template-tab" class="nav-link" data-tab="#add-from-template">Add from template</a></li>
                             </ul>
                         </li>
 
@@ -100,6 +101,18 @@
                             <ul class="dropdown-menu">
                                 <li><a id="integrations-tab" class="nav-link" data-tab="#integrations">List integrations</a></li>
                                 <li><a id="add-integration-tab" class="nav-link" data-tab="#add-integration">Add new integration</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="nav-item dropdown">
+                            <a href="#" class="nav-link has-dropdown">
+                                <img class="device mr-3"/>
+                                <span>Templates</span>
+                            </a>
+
+                            <ul class="dropdown-menu">
+                                <li><a id="templates-tab" class="nav-link" data-tab="#templates">List templates</a></li>
+                                <li><a id="add-template-tab" class="nav-link" data-tab="#add-template">Add new template</a></li>
                             </ul>
                         </li>
                     </ul>
@@ -995,7 +1008,84 @@
                     </div>
                     
                 </div>
-                    
+
+                <!-- add devices from template -->
+                <div id="add-from-template" class="tab-pane fade">
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4>Create Devices from Template</h4>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Template selection -->
+                                    <div class="form-group">
+                                        <label>Template</label>
+                                        <select id="select-bulk-template" class="form-control" required>
+                                            <option value="">Select a template...</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Device count -->
+                                    <div class="form-group">
+                                        <label>Number of Devices</label>
+                                        <input type="number" id="input-bulk-count" class="form-control" min="1" max="1000" value="10" required>
+                                    </div>
+
+                                    <!-- Name prefix -->
+                                    <div class="form-group">
+                                        <label>Name Prefix</label>
+                                        <input type="text" id="input-bulk-prefix" class="form-control" placeholder="e.g., AM319" required>
+                                        <small class="form-text text-muted">Devices will be named: AM319-1, AM319-2, etc.</small>
+                                    </div>
+
+                                    <!-- Submit button -->
+                                    <div class="form-group">
+                                        <button type="button" class="btn btn-classic btn-block" id="btn-bulk-create-submit">Create Devices</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4>Base Location</h4>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Map for base location -->
+                                    <div class="form-group">
+                                        <label>Click on map to set location</label>
+                                        <div id="map-bulk-create" style="height: 300px;"></div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label>Latitude</label>
+                                                <input type="text" id="input-bulk-lat" class="form-control" placeholder="Latitude" value="0">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label>Longitude</label>
+                                                <input type="text" id="input-bulk-lng" class="form-control" placeholder="Longitude" value="0">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Spread radius -->
+                                    <div class="form-group">
+                                        <label>Coordinate Spread (meters)</label>
+                                        <input type="number" id="input-bulk-spread" class="form-control" value="100" min="1">
+                                        <small class="form-text text-muted">Devices will be placed randomly within this radius</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- list of gateways-->
                 <div id="gws" class="tab-pane fade" >
 
@@ -1185,6 +1275,7 @@
                                 <thead>
                                 <tr>
                                     <th scope="col">Name</th>
+                                    <th scope="col">Used By</th>
                                 </tr>
                                 </thead>
                                 <tbody id="list-codecs">
@@ -1241,10 +1332,10 @@
                             <table class="table table-sm table-hover">
                                 <thead>
                                 <tr>
+                                    <th scope="col">Status</th>
                                     <th scope="col">Name</th>
                                     <th scope="col">Type</th>
                                     <th scope="col">URL</th>
-                                    <th scope="col">Status</th>
                                 </tr>
                                 </thead>
                                 <tbody id="list-integrations">
@@ -1337,6 +1428,170 @@
                             <button name="btn-delete-integration" class="btn btn-del hide" type="button">Delete</button>
                             <button name="btn-edit-integration" class="btn btn-edit hide" type="button">Edit</button>
                             <button name="btn-save-integration" class="btn btn-classic" type="button">Save</button>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- list of templates-->
+                <div id="templates" class="tab-pane fade" >
+                    <div class="card">
+                        <div class="card-body overflow-auto">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                <tr>
+                                    <th scope="col">Name</th>
+                                    <th scope="col">Region</th>
+                                    <th scope="col">Codec</th>
+                                </tr>
+                                </thead>
+                                <tbody id="list-templates">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- add template-->
+                <div id="add-template" class="tab-pane fade" >
+                    <div class="card">
+                        <div class="card-header">
+                            <h4>Template Configuration</h4>
+                        </div>
+                        <div class="card-body">
+
+                            <!--Name-->
+                            <div class="form-group">
+                                <label>Template Name</label>
+                                <input type="text" class="form-control" name="input-template-name" placeholder="e.g., AM319 Temperature Sensor" required="">
+                                <div class="invalid-feedback">
+                                    Choose a unique name for the template.
+                                </div>
+                            </div>
+
+                            <!--Region-->
+                            <div class="form-group">
+                                <label>Region</label>
+                                <select id="select-template-region" class="form-control" name="select-template-region">
+                                    <option value="1" selected>EU868</option>
+                                    <option value="2">US915</option>
+                                    <option value="3">CN779</option>
+                                    <option value="4">EU433</option>
+                                    <option value="5">AU915</option>
+                                    <option value="6">CN470</option>
+                                    <option value="7">AS923</option>
+                                    <option value="8">KR920</option>
+                                    <option value="9">IN865</option>
+                                    <option value="10">RU864</option>
+                                </select>
+                            </div>
+
+                            <hr>
+                            <h5>Device Class</h5>
+
+                            <!--Class B-->
+                            <div class="form-group">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="checkbox-template-classb">
+                                    <label class="form-check-label" for="checkbox-template-classb">
+                                        Support Class B
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!--Class C-->
+                            <div class="form-group">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="checkbox-template-classc">
+                                    <label class="form-check-label" for="checkbox-template-classc">
+                                        Support Class C
+                                    </label>
+                                </div>
+                            </div>
+
+                            <hr>
+                            <h5>Features</h5>
+
+                            <!--ADR-->
+                            <div class="form-group">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="checkbox-template-adr" checked>
+                                    <label class="form-check-label" for="checkbox-template-adr">
+                                        Enable ADR (Adaptive Data Rate)
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!--Range-->
+                            <div class="form-group">
+                                <label>Antenna Range (meters)</label>
+                                <input type="number" class="form-control" name="input-template-range" value="10000" min="1">
+                            </div>
+
+                            <!--Data Rate-->
+                            <div class="form-group">
+                                <label>Initial Data Rate</label>
+                                <input type="number" class="form-control" name="input-template-datarate" value="0" min="0" max="15">
+                            </div>
+
+                            <!--Send Interval-->
+                            <div class="form-group">
+                                <label>Send Interval (seconds)</label>
+                                <input type="number" class="form-control" name="input-template-sendinterval" value="60" min="1">
+                            </div>
+
+                            <!--fPort-->
+                            <div class="form-group">
+                                <label>Default fPort</label>
+                                <input type="number" class="form-control" name="input-template-fport" value="1" min="1" max="223">
+                            </div>
+
+                            <hr>
+                            <h5>Payload</h5>
+
+                            <!--Codec-->
+                            <div class="form-group">
+                                <label>Payload Generation</label>
+                                <select id="select-template-codec" class="form-control" name="select-template-codec">
+                                    <option value="">Static Payload</option>
+                                </select>
+                            </div>
+
+                            <hr>
+                            <h5>Integration</h5>
+
+                            <!--Integration Enabled-->
+                            <div class="form-group">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="checkbox-template-integration-enabled">
+                                    <label class="form-check-label" for="checkbox-template-integration-enabled">
+                                        Enable ChirpStack Integration
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!--Integration Selection (hidden by default)-->
+                            <div id="template-integration-settings" class="hide">
+                                <div class="form-group">
+                                    <label>Integration</label>
+                                    <select id="select-template-integration" class="form-control" name="select-template-integration">
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Device Profile</label>
+                                    <select id="select-template-device-profile" class="form-control" name="select-template-device-profile">
+                                    </select>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!--buttons-->
+                        <div id="div-buttons-template" data-id="" class="card-footer bg-whitesmoke text-right">
+                            <button name="btn-delete-template" class="btn btn-del hide" type="button">Delete</button>
+                            <button name="btn-edit-template" class="btn btn-edit hide" type="button">Edit</button>
+                            <button name="btn-save-template" class="btn btn-classic" type="button">Save</button>
                         </div>
 
                     </div>
@@ -1571,6 +1826,7 @@
   <script src="js/custom/custom.js"></script>
   <script src="js/custom/codec.js"></script>
   <script src="js/custom/integration.js"></script>
+  <script src="js/custom/template.js"></script>
 
 </body>
 
