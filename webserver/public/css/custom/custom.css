@@ -47,6 +47,18 @@ img {
     content: url("../../img/blue_gateway.svg");
 }
 
+.codec{
+    content: url("../../img/blue_codec.svg");
+}
+
+.integration{
+    content: url("../../img/blue_integration.svg");
+}
+
+.template{
+    content: url("../../img/blue_template.svg");
+}
+
 .main-sidebar .sidebar-menu li.active a, .card .card-header h4{
     box-shadow: none;
     color:  var(--bluesea) ;
