@@ -35,15 +35,17 @@ function LoadIntegrationList() {
 
 // Add integration item to the list
 function AddItemListIntegrations(integration){
-    var statusBadge = integration.enabled ?
-        '<span class="badge badge-success">Enabled</span>' :
-        '<span class="badge badge-secondary">Disabled</span>';
+    var statusImg = integration.enabled ?
+        './img/green_circle.svg' :
+        './img/red_circle.svg';
 
     var item = "<tr data-id=\""+integration.id+"\">\
-                    <td class=\"clickable text-orange font-weight-bold font-italic\" >"+integration.name+"</td>\
+                    <th scope=\"row\"> \
+                        <img src=\""+statusImg+"\">\
+                    </th>\
+                    <td class=\"clickable font-weight-bold font-italic text-navy\" >"+integration.name+"</td>\
                     <td>"+integration.type+"</td>\
                     <td>"+integration.url+"</td>\
-                    <td>"+statusBadge+"</td>\
                 </tr>";
 
     $("#list-integrations").append(item);
@@ -379,6 +381,7 @@ $("[name=btn-watch-apikey]").on('click', function(){
 // Initialize integration list on page load
 $("#integrations-tab").on('click', function(){
     LoadIntegrationList();
+    $(".section-header h1").text("List Integrations");
 });
 
 // Clean form when adding new integration

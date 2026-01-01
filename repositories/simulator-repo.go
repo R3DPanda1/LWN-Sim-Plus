@@ -10,6 +10,7 @@ import (
 	"github.com/R3DPanda1/LWN-Sim-Plus/integration/chirpstack"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	e "github.com/R3DPanda1/LWN-Sim-Plus/socket"
+	"github.com/R3DPanda1/LWN-Sim-Plus/template"
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator"
 	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
@@ -58,6 +59,14 @@ type SimulatorRepository interface {
 	TestIntegrationConnection(string) error                                                            // Test connection to an integration
 	GetDeviceProfiles(string) ([]chirpstack.DeviceProfile, error)                                      // Get device profiles from ChirpStack
 	EmitIntegrationEvent(string, interface{})                                                          // Emit a WebSocket event for integration operations
+
+	// Template management
+	GetTemplates() []*template.DeviceTemplate                                                         // Get all templates
+	GetTemplate(string) (*template.DeviceTemplate, error)                                             // Get a specific template
+	AddTemplate(*template.DeviceTemplate) (string, error)                                             // Add a new template
+	UpdateTemplate(*template.DeviceTemplate) error                                                    // Update a template
+	DeleteTemplate(string) error                                                                      // Delete a template
+	CreateDevicesFromTemplate(string, int, string, float64, float64, int32, float64) ([]int, error)   // Bulk create devices from template
 }
 
 // simulatorRepository repository struct
@@ -239,4 +248,30 @@ func (s *simulatorRepository) GetDeviceProfiles(id string) ([]chirpstack.DeviceP
 
 func (s *simulatorRepository) EmitIntegrationEvent(eventName string, data interface{}) {
 	s.sim.Console.PrintSocket(eventName, data)
+}
+
+// --- Template management methods ---
+
+func (s *simulatorRepository) GetTemplates() []*template.DeviceTemplate {
+	return s.sim.GetTemplates()
+}
+
+func (s *simulatorRepository) GetTemplate(id string) (*template.DeviceTemplate, error) {
+	return s.sim.GetTemplate(id)
+}
+
+func (s *simulatorRepository) AddTemplate(tmpl *template.DeviceTemplate) (string, error) {
+	return s.sim.AddTemplate(tmpl)
+}
+
+func (s *simulatorRepository) UpdateTemplate(tmpl *template.DeviceTemplate) error {
+	return s.sim.UpdateTemplate(tmpl)
+}
+
+func (s *simulatorRepository) DeleteTemplate(id string) error {
+	return s.sim.DeleteTemplate(id)
+}
+
+func (s *simulatorRepository) CreateDevicesFromTemplate(templateID string, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
+	return s.sim.CreateDevicesFromTemplate(templateID, count, namePrefix, baseLat, baseLng, baseAlt, spreadMeters)
 }

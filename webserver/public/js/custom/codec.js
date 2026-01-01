@@ -44,9 +44,17 @@ function LoadCodecList() {
         Codecs.clear();
 
         if(data.codecs && data.codecs.length > 0){
+            // Load all codecs and their usage data
             data.codecs.forEach(codec => {
                 Codecs.set(codec.id, codec);
-                AddItemListCodecs(codec);
+                // Fetch usage data for each codec
+                $.get(url + "/api/codec/" + codec.id + "/usage")
+                    .done((usageData) => {
+                        AddItemListCodecs(codec, usageData);
+                    })
+                    .fail(() => {
+                        AddItemListCodecs(codec, null);
+                    });
             });
         }
     }).fail((data)=>{
@@ -55,9 +63,35 @@ function LoadCodecList() {
 }
 
 // Add codec item to the list
-function AddItemListCodecs(codec){
+function AddItemListCodecs(codec, usageData){
+    var usageText = "Not used";
+
+    if (usageData && usageData.count > 0) {
+        // Count devices and templates separately
+        var deviceCount = 0;
+        var templateCount = 0;
+
+        usageData.devices.forEach(function(item) {
+            if (item.startsWith("template:")) {
+                templateCount++;
+            } else {
+                deviceCount++;
+            }
+        });
+
+        var parts = [];
+        if (deviceCount > 0) {
+            parts.push(deviceCount + " device" + (deviceCount > 1 ? "s" : ""));
+        }
+        if (templateCount > 0) {
+            parts.push(templateCount + " template" + (templateCount > 1 ? "s" : ""));
+        }
+        usageText = parts.join(", ");
+    }
+
     var item = "<tr data-id=\""+codec.id+"\">\
-                    <td class=\"clickable text-orange font-weight-bold font-italic\" >"+codec.name+"</td>\
+                    <td class=\"clickable font-weight-bold font-italic text-navy\" >"+codec.name+"</td>\
+                    <td>"+usageText+"</td>\
                 </tr>";
 
     $("#list-codecs").append(item);
@@ -270,10 +304,31 @@ function DeleteCodec(codecId){
     $.get(url + "/api/codec/" + codecId + "/usage")
     .done((usageData) => {
         if (usageData.count > 0) {
-            // Show warning with device count
+            // Count devices and templates separately
+            var deviceCount = 0;
+            var templateCount = 0;
+
+            usageData.devices.forEach(function(item) {
+                if (item.startsWith("template:")) {
+                    templateCount++;
+                } else {
+                    deviceCount++;
+                }
+            });
+
+            var parts = [];
+            if (deviceCount > 0) {
+                parts.push(deviceCount + " device" + (deviceCount > 1 ? "s" : ""));
+            }
+            if (templateCount > 0) {
+                parts.push(templateCount + " template" + (templateCount > 1 ? "s" : ""));
+            }
+            var usageText = parts.join(" and ");
+
+            // Show warning with device and template count
             swal({
                 title: "Cannot Delete Codec",
-                text: "This codec is currently used by " + usageData.count + " device(s). Please remove the codec from all devices before deleting.",
+                text: "This codec is currently used by " + usageText + ". Please remove the codec from all devices and templates before deleting.",
                 icon: "warning",
                 button: "OK"
             });
@@ -313,6 +368,7 @@ function DeleteCodec(codecId){
 // Initialize codec list on page load
 $("#codecs-tab").on('click', function(){
     LoadCodecList();
+    $(".section-header h1").text("List Codecs");
 });
 
 // Clean form when adding new codec

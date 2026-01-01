@@ -10,6 +10,7 @@ import (
 	cnt "github.com/R3DPanda1/LWN-Sim-Plus/controllers"
 	"github.com/R3DPanda1/LWN-Sim-Plus/integration"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
+	"github.com/R3DPanda1/LWN-Sim-Plus/template"
 	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
 	rp "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters"
 	mrp "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters/models_rp"
@@ -108,6 +109,14 @@ func NewWebServer(config *models.ServerConfig, controller cnt.SimulatorControlle
 		apiRoutes.POST("/delete-integration", deleteIntegration)           // Delete an integration
 		apiRoutes.POST("/integration/:id/test", testIntegrationConnection) // Test connection to an integration
 		apiRoutes.GET("/integration/:id/device-profiles", getDeviceProfiles) // Get device profiles from ChirpStack
+
+		// Template management endpoints
+		apiRoutes.GET("/templates", getTemplates)                                  // Get all templates
+		apiRoutes.GET("/template/:id", getTemplate)                                // Get a specific template
+		apiRoutes.POST("/add-template", addTemplate)                               // Add a new template
+		apiRoutes.POST("/update-template", updateTemplate)                         // Update a template
+		apiRoutes.POST("/delete-template", deleteTemplate)                         // Delete a template
+		apiRoutes.POST("/create-devices-from-template", createDevicesFromTemplate) // Bulk create devices from template
 	}
 	// Set up the WebSocket routes.
 	router.GET("/socket.io/*any", gin.WrapH(serverSocket))
@@ -533,4 +542,128 @@ func getDeviceProfiles(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"deviceProfiles": profiles})
+}
+
+// ==================== Template Handlers ====================
+
+// getTemplates returns all templates
+func getTemplates(c *gin.Context) {
+	templates := simulatorController.GetTemplates()
+	c.JSON(http.StatusOK, gin.H{"templates": templates})
+}
+
+// getTemplate returns a specific template by ID
+func getTemplate(c *gin.Context) {
+	id := c.Param("id")
+	tmpl, err := simulatorController.GetTemplate(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"template": tmpl})
+}
+
+// addTemplate adds a new template
+func addTemplate(c *gin.Context) {
+	var tmpl template.DeviceTemplate
+
+	if err := c.BindJSON(&tmpl); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	id, err := simulatorController.AddTemplate(&tmpl)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"id": id})
+}
+
+// updateTemplate updates an existing template
+func updateTemplate(c *gin.Context) {
+	var tmpl template.DeviceTemplate
+
+	if err := c.BindJSON(&tmpl); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if tmpl.ID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
+		return
+	}
+
+	if err := simulatorController.UpdateTemplate(&tmpl); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+// deleteTemplate removes a template
+func deleteTemplate(c *gin.Context) {
+	var data struct {
+		ID string `json:"id"`
+	}
+
+	if err := c.BindJSON(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := simulatorController.DeleteTemplate(data.ID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+// BulkDeviceRequest represents the request for bulk device creation
+type BulkDeviceRequest struct {
+	TemplateID   string  `json:"templateId"`
+	Count        int     `json:"count"`
+	NamePrefix   string  `json:"namePrefix"`
+	BaseLat      float64 `json:"baseLat"`
+	BaseLng      float64 `json:"baseLng"`
+	BaseAlt      int32   `json:"baseAlt"`
+	SpreadMeters float64 `json:"spreadMeters"`
+}
+
+// createDevicesFromTemplate creates multiple devices from a template
+func createDevicesFromTemplate(c *gin.Context) {
+	var req BulkDeviceRequest
+
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate request
+	if req.TemplateID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "templateId is required"})
+		return
+	}
+	if req.Count < 1 || req.Count > 1000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "count must be between 1 and 1000"})
+		return
+	}
+	if req.NamePrefix == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "namePrefix is required"})
+		return
+	}
+	if req.SpreadMeters <= 0 {
+		req.SpreadMeters = 100 // Default 100m spread
+	}
+
+	createdIDs, err := simulatorController.CreateDevicesFromTemplate(req.TemplateID, req.Count, req.NamePrefix, req.BaseLat, req.BaseLng, req.BaseAlt, req.SpreadMeters)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"created": len(createdIDs), "deviceIds": createdIDs})
 }
