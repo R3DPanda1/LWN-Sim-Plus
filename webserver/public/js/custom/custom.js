@@ -642,6 +642,38 @@ $(document).ready(function(){
         Click_SaveDevice();
     });
 
+    // Mass delete device handlers
+    $("#list-devices").on("change", ".device-checkbox", function(e) {
+        e.stopPropagation();
+        updateSelectedDevicesCount();
+    });
+
+    $("#select-all-devices").on("change", function() {
+        var isChecked = $(this).prop("checked");
+        $(".device-checkbox").prop("checked", isChecked);
+        updateSelectedDevicesCount();
+    });
+
+    $("#btn-delete-selected-devices").on("click", function() {
+        var count = $(".device-checkbox:checked").length;
+        swal({
+            title: 'Delete ' + count + ' devices?',
+            text: 'This action cannot be undone!',
+            icon: 'warning',
+            buttons: true,
+            dangerMode: true,
+        }).then((willDelete) => {
+            if (willDelete) {
+                massDeleteDevices();
+            }
+        });
+    });
+
+    // Prevent checkbox click from triggering row click
+    $("#list-devices").on("click", ".device-checkbox", function(e) {
+        e.stopPropagation();
+    });
+
     // ********************** sidebar/dropdown: list gateways *********************
     //click item list
     $("#list-gateways").on("click","tr .clickable",function(){
@@ -1070,16 +1102,19 @@ function Init(){
     }).done((data)=>{
 
         $("#list-devices").empty();
-        
+
+        // Reset select-all checkbox to prevent browser caching
+        $("#select-all-devices").prop("checked", false);
+
         data.forEach(element => {
 
             Devices.set(element.info.devEUI,element)
-            
+
             Add_ItemList_Devices(element);
-            
+
             AddMarker(element.info.devEUI, element.info.name,
                 L.latLng(element.info.location.latitude, element.info.location.longitude),
-                false);               
+                false);
 
         });
 
@@ -1222,14 +1257,17 @@ function Add_ItemList_Gateways(element){
 
 }
 
-function Add_ItemList_Devices(element){  
+function Add_ItemList_Devices(element){
 
     var img ="./img/green_circle.svg";
     if(!element.info.status.active)
         img ="./img/red_circle.svg";
 
     var item = "<tr data-addr=\""+element.info.devEUI+"\" class=\"p-5\">\
-                    <th id=\"state-dev\" scope=\"row\"> \
+                    <td style=\"text-align: center;\">\
+                        <input type=\"checkbox\" class=\"device-checkbox\" data-deveui=\""+element.info.devEUI+"\" style=\"cursor: pointer;\">\
+                    </td>\
+                    <th id=\"state-dev\" scope=\"row\">\
                         <img src=\""+img+"\">\
                     </th>\
                     <td id=\"name-dev\" class=\"clickable text-blue font-weight-bold font-italic\" >"+element.info.name+"</td>\
@@ -2480,9 +2518,9 @@ function Click_DeleteDevice(){
             //ajax
             $.post(url+"/api/del-device",jsonData, "json")
             .done((data)=>{
-        
+
                 if (data.status){
-        
+
                     $("tr[data-addr=\""+devEUI+"\"]").remove();
 
                     Devices.delete(devEUI);
@@ -2495,12 +2533,120 @@ function Click_DeleteDevice(){
                 else
                     Show_ErrorSweetToast("Error","Device didn't deleted. It could be active");
 
-            }).fail((data)=>{    
+            }).fail((data)=>{
                 Show_ErrorSweetToast("Unable to delete the device", data.statusText);
             });
         }
-    });   
+    });
 
+}
+
+// ==================== Mass Delete Functions ====================
+
+function updateSelectedDevicesCount() {
+    var count = $(".device-checkbox:checked").length;
+    $("#selected-count").text(count);
+
+    var wrapper = $("#mass-delete-controls-wrapper");
+
+    if (count > 0) {
+        if (!wrapper.is(":visible")) {
+            wrapper.stop(true, true).slideDown(200);
+        }
+    } else {
+        if (wrapper.is(":visible")) {
+            wrapper.stop(true, true).slideUp(200);
+        }
+    }
+
+    // Update select all checkbox state
+    var totalCheckboxes = $(".device-checkbox").length;
+    if (totalCheckboxes > 0 && count === totalCheckboxes) {
+        $("#select-all-devices").prop("checked", true);
+        $("#select-all-devices").prop("indeterminate", false);
+    } else if (count > 0) {
+        $("#select-all-devices").prop("checked", false);
+        $("#select-all-devices").prop("indeterminate", true);
+    } else {
+        $("#select-all-devices").prop("checked", false);
+        $("#select-all-devices").prop("indeterminate", false);
+    }
+}
+
+function deleteDeviceAsync(devEUI) {
+    return new Promise((resolve, reject) => {
+        var device = Devices.get(devEUI);
+        if (!device) {
+            reject(new Error("Device not found"));
+            return;
+        }
+
+        var jsonData = JSON.stringify({
+            "id": device.id
+        });
+
+        $.post(url + "/api/del-device", jsonData, "json")
+            .done((data) => {
+                if (data.status) {
+                    $("tr[data-addr=\"" + devEUI + "\"]").remove();
+                    Devices.delete(devEUI);
+                    RemoveMarker(devEUI);
+                    resolve({ success: true, devEUI: devEUI });
+                } else {
+                    resolve({ success: false, devEUI: devEUI, error: "Device could not be deleted (may be active)" });
+                }
+            })
+            .fail((data) => {
+                resolve({ success: false, devEUI: devEUI, error: data.statusText });
+            });
+    });
+}
+
+async function massDeleteDevices() {
+    var selectedDevices = [];
+    $(".device-checkbox:checked").each(function() {
+        selectedDevices.push($(this).data("deveui"));
+    });
+
+    if (selectedDevices.length === 0) {
+        Show_ErrorSweetToast("Error", "No devices selected");
+        return;
+    }
+
+    var total = selectedDevices.length;
+    var deleted = 0;
+    var failed = 0;
+    var failedDevices = [];
+
+    // Delete all selected devices
+    for (var i = 0; i < selectedDevices.length; i++) {
+        var devEUI = selectedDevices[i];
+        var deviceName = Devices.get(devEUI) ? Devices.get(devEUI).info.name : devEUI;
+
+        try {
+            var result = await deleteDeviceAsync(devEUI);
+            if (result.success) {
+                deleted++;
+            } else {
+                failed++;
+                failedDevices.push({ name: deviceName, error: result.error });
+            }
+        } catch (e) {
+            failed++;
+            failedDevices.push({ name: deviceName, error: e.message });
+        }
+    }
+
+    // Reset checkboxes
+    updateSelectedDevicesCount();
+
+    // Show results
+    if (failed > 0) {
+        var failedList = failedDevices.map(function(d) { return d.name; }).join(", ");
+        Show_ErrorSweetToast("Mass Delete", deleted + " deleted, " + failed + " failed: " + failedList);
+    } else {
+        Show_SweetToast("Mass Delete Complete", deleted + " devices deleted successfully");
+    }
 }
 
 function Click_SaveDevice(){
