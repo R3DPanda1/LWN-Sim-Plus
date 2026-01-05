@@ -28,7 +28,7 @@ window.InitializeMonacoEditor = function() {
     // Create a container for Monaco
     const editorContainer = document.createElement("div");
     editorContainer.id = "monaco-editor-container";
-    editorContainer.style.height = "500px";
+    editorContainer.style.height = "800px";
     editorContainer.style.border = "1px solid #ced4da";
     editorContainer.style.borderRadius = "0.25rem";
 
