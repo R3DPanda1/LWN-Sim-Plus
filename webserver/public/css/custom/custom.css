@@ -190,6 +190,14 @@ body.sidebar-mini .main-sidebar .sidebar-menu > li.active > a {
    content: url("../../img/white_generate.svg");
 }
 
+.btn-copy > img{
+    content: url("../../img/blue_copy.svg");
+}
+
+.btn-copy:hover > img, .btn-copy:active > img, .btn-copy:focus > img{
+   content: url("../../img/white_copy.svg");
+}
+
 .btn-del{
     color: var(--firered)   !important;
     border-color:var(--firered) !important ;
@@ -240,4 +248,35 @@ body.sidebar-mini .main-sidebar .sidebar-menu > li.active > a {
 
 .w-33{
     width: 33.3% !important;
+}
+
+/* Codec Testing Panel Styles */
+#codec-test-panel {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+#codec-test-panel .font-monospace {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+}
+
+#codec-test-panel pre {
+    margin-bottom: 0;
+}
+
+#output-console-logs {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+#output-console-logs .text-danger {
+    color: #ff6b6b !important;
+}
+
+#output-console-logs .text-warning {
+    color: #ffd93d !important;
+}
+
+#output-console-logs .text-white {
+    color: #f8f9fa !important;
 }
