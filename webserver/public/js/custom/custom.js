@@ -2473,12 +2473,9 @@ function LoadDevice(dev){
         }
         setTimeout(function(){
             $("#select-dev-integration").val(dev.info.configuration.integrationId || "");
-            // Load device profiles for selected integration
+            // Load device profiles for selected integration, passing saved ID for offline fallback
             if(dev.info.configuration.integrationId && typeof LoadDeviceProfiles === 'function') {
-                LoadDeviceProfiles(dev.info.configuration.integrationId);
-                setTimeout(function(){
-                    $("#select-dev-profile").val(dev.info.configuration.deviceProfileId || "");
-                }, 500);
+                LoadDeviceProfiles(dev.info.configuration.integrationId, dev.info.configuration.deviceProfileId);
             }
         }, 300);
     } else {
