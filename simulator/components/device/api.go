@@ -17,7 +17,7 @@ func (d *Device) Setup(Resources *res.Resources, forwarder *f.Forwarder) {
 
 	d.State = util.Stopped
 
-	d.Exit = make(chan struct{})
+	d.Exit = make(chan struct{}, 1) // Buffered to avoid blocking TurnOFF
 
 	d.Info.JoinEUI = lorawan.EUI64{0, 0, 0, 0, 0, 0, 0, 0}
 	d.Info.NetID = lorawan.NetID{0, 0, 0}
@@ -78,7 +78,15 @@ func (d *Device) TurnOFF() {
 	d.State = util.Stopped
 	d.Mutex.Unlock()
 
-	d.Exit <- struct{}{}
+	// Non-blocking send to Exit channel (buffered size 1)
+	select {
+	case d.Exit <- struct{}{}:
+	default:
+		// Already signaled
+	}
+
+	// Wake up any goroutine blocked in ReceivedDownlink.Pull()
+	d.Info.ReceivedDownlink.Signal()
 
 }
 
