@@ -1299,7 +1299,7 @@
                 <div id="add-codec" class="tab-pane fade" >
                     <div class="card">
                         <div class="card-header">
-                            <h4>Codec Information</h4>
+                            <h4>Codec Configuration</h4>
                         </div>
                         <div class="card-body">
 
@@ -1314,7 +1314,7 @@
 
                             <!--JavaScript Code-->
                             <div class="form-group">
-                                <label>JavaScript Codec Code</label>
+                                <label>JavaScript Code</label>
                                 <div class="form-text mb-2">
                                     Write your OnUplink and/or OnDownlink functions below. Available helpers: getState(), setState(), getSendInterval(), setSendInterval(), hexToBytes(), base64ToBytes(), log()
                                 </div>
@@ -1331,6 +1331,107 @@
                         </div>
 
                     </div>
+
+                    <!-- Codec Testing Panel -->
+                    <div class="card mt-3" id="codec-test-panel">
+                        <div class="card-header">
+                            <h4>Codec Testing</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- Left Column: Test Controls -->
+                                <div class="col-md-6">
+
+                                    <!-- Test Uplink Section -->
+                                    <div class="form-group">
+                                        <label>OnUplink()</label>
+                                        <button id="btn-test-uplink" class="btn btn-classic btn-block" type="button">
+                                            Run OnUplink
+                                        </button>
+                                        <small id="uplink-exec-time" class="form-text text-muted" style="display: none;"></small>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Bytes</label>
+                                        <div class="input-group">
+                                            <input type="text" id="output-uplink-bytes" class="form-control font-monospace mr-1" readonly placeholder="Byte array will appear here...">
+                                            <button id="btn-copy-uplink-bytes" class="btn btn-classic btn-copy" type="button" title="Copy">
+                                                <img height="16" width="16" src="">
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>fPort</label>
+                                        <input type="text" id="output-uplink-fport" class="form-control font-monospace" readonly placeholder="">
+                                    </div>
+
+                                    <hr>
+
+                                    <!-- Test Downlink Section -->
+                                    <div class="form-group">
+                                        <label>OnDownlink(bytes, fPort)</label>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Input Bytes</label>
+                                        <input type="text" id="input-downlink-bytes" class="form-control font-monospace" placeholder="01A2FF">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>fPort</label>
+                                        <input type="number" id="input-downlink-fport" class="form-control" value="1" min="1" max="223">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <button id="btn-test-downlink" class="btn btn-classic btn-block" type="button">
+                                            Run OnDownlink
+                                        </button>
+                                        <small id="downlink-exec-time" class="form-text text-muted" style="display: none;"></small>
+                                    </div>
+
+                                </div>
+
+                                <!-- Right Column: State and Logs -->
+                                <div class="col-md-6">
+
+                                    <!-- State Viewer Card -->
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-blue clickable p-0">
+                                            <div class="w-100 d-flex align-items-center align-self-stretch">
+                                                <div class="w-100 d-flex align-items-center align-self-stretch">
+                                                    <h4 class="ml-4 w-100 text-white">State</h4>
+                                                </div>
+                                                <button id="btn-reset-state" class="btn-clean btn pt-2 pb-2 mr-2" type="button"> <img src="img/white_delete.svg"> </button>
+                                            </div>
+                                        </div>
+                                        <div class="card-body">
+                                            <pre id="output-state-viewer" class="border rounded p-2 bg-light" style="height: 150px; overflow-y: auto; font-size: 12px;">{}</pre>
+                                        </div>
+                                    </div>
+
+                                    <!-- Console/Log Output Card -->
+                                    <div class="card">
+                                        <div class="card-header bg-blue clickable p-0">
+                                            <div class="w-100 d-flex align-items-center align-self-stretch">
+                                                <div class="w-100 d-flex align-items-center align-self-stretch">
+                                                    <h4 class="ml-4 w-100 text-white">Console</h4>
+                                                </div>
+                                                <button id="btn-clear-logs" class="btn-clean btn pt-2 pb-2 mr-2" type="button"> <img src="img/white_delete.svg"> </button>
+                                            </div>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="output-console-logs" class="border rounded p-2 bg-dark text-white" style="height: 300px; overflow-y: auto; font-size: 12px; font-family: monospace;">
+                                                <div class="text-muted">Console output will appear here...</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- list of integrations-->
