@@ -468,6 +468,11 @@ function OnDownlink(bytes, fPort) {
 
     log('  OUT1: ' + (oldOutput ? 'ON' : 'OFF') + ' -> ' + (newOutput ? 'ON' : 'OFF'));
 
+    // Clear any existing timer when output state changes
+    if (enableMask & 0x01 || disableMask & 0x01) {
+        setState('timer', null);
+    }
+
     // Parse Ton timer if present
     if (bytes.length >= 12 && (enableMask & 0x01 || disableMask & 0x01)) {
         var tonValue = uint16LE(bytes, 10);
