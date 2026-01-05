@@ -287,13 +287,17 @@ function OnDownlink(bytes, fPort) {
     }
 }
 
+// Converts a byte array to a lowercase hex string without spaces
+// Example: [255, 3, 30, 0] -> "ff031e00"
+// Handles undefined/null bytes by treating them as 0
 function bytesToHex(bytes) {
     var hex = '';
     for (var i = 0; i < bytes.length; i++) {
-        hex += ('0' + bytes[i].toString(16)).slice(-2);
+        var byte = bytes[i];
+        if (byte === undefined || byte === null) byte = 0;
+        hex += ('0' + (byte & 0xFF).toString(16)).slice(-2);
     }
     return hex;
 }
 `
 }
-
