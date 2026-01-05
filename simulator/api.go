@@ -91,13 +91,25 @@ func GetInstance() *Simulator {
 
 	// Initialize template manager
 	s.TemplateManager = template.NewManager()
+	templateLoaded := false
 	if pathDir != "" {
 		templatePath := pathDir + "/templates.json"
 		if err := s.TemplateManager.Load(templatePath); err != nil {
 			shared.DebugPrint(fmt.Sprintf("Warning: failed to load templates: %v", err))
 		} else {
 			shared.DebugPrint("Templates loaded from disk")
+			templateLoaded = true
 		}
+	}
+
+	// If no templates loaded from disk, load defaults
+	if !templateLoaded || s.TemplateManager.Count() == 0 {
+		// Create codec lookup function to link templates with their codecs
+		codecLookup := func(name string) string {
+			return dev.CodecManager.GetCodecIDByName(name)
+		}
+		s.TemplateManager.LoadDefaults(codecLookup)
+		shared.DebugPrint("Default templates loaded")
 	}
 
 	return &s
