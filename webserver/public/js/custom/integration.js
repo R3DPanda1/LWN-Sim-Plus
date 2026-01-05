@@ -303,7 +303,8 @@ function PopulateDeviceIntegrationDropdown() {
 }
 
 // Load device profiles from ChirpStack
-function LoadDeviceProfiles(integrationId) {
+// savedProfileId: optional - the currently saved device profile ID to preserve if API fails
+function LoadDeviceProfiles(integrationId, savedProfileId) {
     var dropdown = $("#select-dev-profile");
     dropdown.empty();
     dropdown.append('<option value="">Loading device profiles...</option>');
@@ -326,12 +327,26 @@ function LoadDeviceProfiles(integrationId) {
 
         if(data.deviceProfiles && data.deviceProfiles.length > 0) {
             data.deviceProfiles.forEach(profile => {
-                dropdown.append('<option value="' + profile.id + '">' + profile.name + '</option>');
+                // Show name with full ID
+                var displayText = profile.name + ' (' + profile.id + ')';
+                dropdown.append('<option value="' + profile.id + '">' + displayText + '</option>');
             });
+        }
+
+        // Select the saved profile if provided
+        if(savedProfileId) {
+            dropdown.val(savedProfileId);
         }
     }).fail((data) => {
         dropdown.empty();
-        dropdown.append('<option value="">Failed to load profiles</option>');
+        // If we have a saved profile ID, show it even if API failed
+        if(savedProfileId) {
+            dropdown.append('<option value="">Select a device profile...</option>');
+            dropdown.append('<option value="' + savedProfileId + '">' + savedProfileId + '</option>');
+            dropdown.val(savedProfileId);
+        } else {
+            dropdown.append('<option value="">Failed to load profiles</option>');
+        }
         console.error("Unable to load device profiles", data.statusText);
     });
 }

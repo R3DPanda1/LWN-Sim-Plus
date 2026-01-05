@@ -128,10 +128,8 @@ function LoadTemplate(template) {
         setTimeout(function() {
             $("#select-template-integration").val(template.integrationId || "");
             if (template.integrationId) {
-                LoadTemplateDeviceProfiles(template.integrationId);
-                setTimeout(function() {
-                    $("#select-template-device-profile").val(template.deviceProfileId || "");
-                }, 300);
+                // Pass saved profile ID for offline fallback
+                LoadTemplateDeviceProfiles(template.integrationId, template.deviceProfileId);
             }
         }, 200);
     } else {
@@ -255,9 +253,16 @@ function LoadTemplateIntegrationList() {
     });
 }
 
-function LoadTemplateDeviceProfiles(integrationId) {
+// Load device profiles for template form
+// savedProfileId: optional - the currently saved device profile ID to preserve if API fails
+function LoadTemplateDeviceProfiles(integrationId, savedProfileId) {
+    var select = $("#select-template-device-profile");
+    select.empty();
+    select.append('<option value="">Loading device profiles...</option>');
+
     if (!integrationId) {
-        $("#select-template-device-profile").empty();
+        select.empty();
+        select.append('<option value="">Select an integration first...</option>');
         return;
     }
 
@@ -265,16 +270,31 @@ function LoadTemplateDeviceProfiles(integrationId) {
         url: url + "/api/integration/" + integrationId + "/device-profiles",
         type: "GET"
     }).done(function(data) {
-        var select = $("#select-template-device-profile");
         select.empty();
         select.append('<option value="">Select device profile...</option>');
 
         if (data.deviceProfiles && data.deviceProfiles.length > 0) {
             data.deviceProfiles.forEach(function(profile) {
-                select.append('<option value="' + profile.id + '">' + profile.name + '</option>');
+                // Show name with full ID
+                var displayText = profile.name + ' (' + profile.id + ')';
+                select.append('<option value="' + profile.id + '">' + displayText + '</option>');
             });
         }
+
+        // Select the saved profile if provided
+        if (savedProfileId) {
+            select.val(savedProfileId);
+        }
     }).fail(function(err) {
+        select.empty();
+        // If we have a saved profile ID, show it even if API failed
+        if (savedProfileId) {
+            select.append('<option value="">Select device profile...</option>');
+            select.append('<option value="' + savedProfileId + '">' + savedProfileId + '</option>');
+            select.val(savedProfileId);
+        } else {
+            select.append('<option value="">Failed to load profiles</option>');
+        }
         console.error("Failed to load device profiles:", err);
     });
 }
