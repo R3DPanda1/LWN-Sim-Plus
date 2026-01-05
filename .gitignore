@@ -8,3 +8,5 @@ simulator.log
 *.md
 !README.md
 am319
+mcf-lw13io
+sdm230
