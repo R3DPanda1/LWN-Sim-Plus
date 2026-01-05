@@ -170,6 +170,10 @@ func (cl *CodecLibrary) LoadDefaults() {
 	// Milesight AM319 Environmental Sensor Codec
 	am319Codec := NewCodec("Milesight AM319", CreateAM319Codec())
 	cl.Add(am319Codec)
+
+	// Enginko MCF-LW13IO I/O Controller Codec
+	mcflw13ioCodec := NewCodec("Enginko MCF-LW13IO", CreateMCFLW13IOCodec())
+	cl.Add(mcflw13ioCodec)
 }
 
 // ToJSON serializes the codec library to JSON

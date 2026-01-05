@@ -151,11 +151,34 @@ func InjectDeviceHelpers(vm *goja.Runtime, device DeviceInterface) error {
 // CreateAM319Codec returns the Milesight AM319 codec script
 func CreateAM319Codec() string {
 	return `
-// Milesight AM319 Indoor Ambiance Monitoring Sensor Codec
+// ============================================================================
+// Milesight AM319 - Indoor Ambiance Monitoring Sensor Codec
+// ============================================================================
+//
+// Device: AM319 (temperature, humidity, CO2, TVOC, PM2.5, PM10, HCHO, pressure)
+// Docs:   https://www.milesight.com/iot/product/lorawan-sensor/am319
+//
+// UPLINK (fPort 85): Sensor readings in Milesight channel format
+// DOWNLINK (fPort 85): Configuration commands (0xFF prefix)
+//
+// DOWNLINK EXAMPLES:
+//   Set report interval to 300s:  FF 03 2C 01
+//   Set TVOC mode to ppb:         FF EB 01
+//   Calibrate CO2 to 400ppm:      FF 1A 03
+//
+// ============================================================================
 
 function initState() {
     if (getState('battery') === null) setState('battery', 100);
     if (getState('tvocMode') === null) setState('tvocMode', 0);
+}
+
+function bytesToHex(bytes) {
+    var hex = '';
+    for (var i = 0; i < bytes.length; i++) {
+        hex += ('0' + ((bytes[i] || 0) & 0xFF).toString(16)).slice(-2);
+    }
+    return hex;
 }
 
 function uint16LE(value) {
@@ -249,16 +272,15 @@ function OnUplink() {
     bytes.push(0x0C, 0x7D);
     bytes = bytes.concat(uint16LE(values.pm10));
 
-    log('AM319 Uplink: Temp=' + values.temperature.toFixed(1) + '°C, Hum=' +
-        values.humidity.toFixed(1) + '%, CO2=' + values.co2 + 'ppm');
+    log('TX Sensor Data | Temp=' + values.temperature.toFixed(1) + 'C Hum=' +
+        values.humidity.toFixed(1) + '% CO2=' + values.co2 + 'ppm PIR=' + values.pir);
 
     return { fPort: 85, bytes: bytes };
 }
 
 function OnDownlink(bytes, fPort) {
     initState();
-
-    log('fPort=' + fPort + ', bytes=' + bytesToHex(bytes));
+    log('RX Downlink | fPort=' + fPort + ' data=' + bytesToHex(bytes));
 
     var i = 0;
     while (i < bytes.length) {
@@ -268,36 +290,193 @@ function OnDownlink(bytes, fPort) {
             case 0x03: // Report interval
                 var intervalSec = decodeUint16LE(bytes, i + 2);
                 setSendInterval(intervalSec);
-                log('Interval set to ' + intervalSec + 's');
+                log('  Set report interval: ' + intervalSec + 's');
                 i += 4;
                 break;
             case 0xEB: // TVOC mode
                 var tvocMode = bytes[i + 2];
                 setState('tvocMode', tvocMode);
+                log('  Set TVOC mode: ' + (tvocMode === 0 ? 'level' : 'ppb'));
                 i += 3;
                 break;
             case 0x1A: // CO2 calibration
-                if (bytes[i + 2] === 0x03) setState('baseCO2', 400);
+                if (bytes[i + 2] === 0x03) {
+                    setState('baseCO2', 400);
+                    log('  CO2 calibrated to 400ppm');
+                }
                 i += 3;
                 break;
             default:
+                log('  Unknown command: 0x' + cmd.toString(16));
                 i += 3;
                 break;
         }
     }
 }
+`
+}
 
-// Converts a byte array to a lowercase hex string without spaces
-// Example: [255, 3, 30, 0] -> "ff031e00"
-// Handles undefined/null bytes by treating them as 0
+// CreateMCFLW13IOCodec returns the Enginko MCF-LW13IO I/O Controller codec script
+func CreateMCFLW13IOCodec() string {
+	return `
+// ============================================================================
+// Enginko MCF-LW13IO - LoRaWAN I/O Controller Codec
+// ============================================================================
+//
+// Device: MCF-LW13IO (1 relay output, 1 digital input)
+// Class:  LoRaWAN Class C (always listening)
+// Docs:   https://www.enginko.com/support/doku.php?id=manual_mcf-lw13io
+//
+// UPLINK MESSAGES (fPort 2):
+//   0x01 - TimeSync: Device info, firmware version
+//   0x0A - IO Status: Input state, output state, trigger events
+//
+// DOWNLINK FORMAT (fPort 2):
+//   0x04 0x00 <enable 4B> <disable 4B> [Ton 2B]
+//
+// DOWNLINK EXAMPLES:
+//   Turn ON output 1:            04 00 01000000 00000000
+//   Turn OFF output 1:           04 00 00000000 01000000
+//   Turn ON output 1 for 12.3s:  04 00 01000000 00000000 7B00
+//   Turn OFF output 1 for 12.3s: 04 00 00000000 01000000 7B00
+//
+// ============================================================================
+
+function initState() {
+    if (getState('input') === null) setState('input', false);
+    if (getState('output') === null) setState('output', false);
+    if (getState('trigger') === null) setState('trigger', false);
+    if (getState('messageCount') === null) setState('messageCount', 0);
+    if (getState('syncID') === null) setState('syncID', 0x2B438900);
+}
+
 function bytesToHex(bytes) {
     var hex = '';
     for (var i = 0; i < bytes.length; i++) {
-        var byte = bytes[i];
-        if (byte === undefined || byte === null) byte = 0;
-        hex += ('0' + (byte & 0xFF).toString(16)).slice(-2);
+        hex += ('0' + ((bytes[i] || 0) & 0xFF).toString(16)).slice(-2);
     }
     return hex;
+}
+
+// Encode Enginko date: year(7b) month(4b) day(5b) hour(5b) min(6b) sec/2(5b)
+function encodeDate() {
+    var now = new Date();
+    var packed = ((now.getFullYear() - 2000) & 0x7F) << 25;
+    packed |= ((now.getMonth() + 1) & 0x0F) << 21;
+    packed |= (now.getDate() & 0x1F) << 16;
+    packed |= (now.getHours() & 0x1F) << 11;
+    packed |= (now.getMinutes() & 0x3F) << 5;
+    packed |= (Math.floor(now.getSeconds() / 2) & 0x1F);
+    return [packed & 0xFF, (packed >> 8) & 0xFF, (packed >> 16) & 0xFF, (packed >> 24) & 0xFF];
+}
+
+function uint32LE(bytes, offset) {
+    return bytes[offset] | (bytes[offset+1] << 8) | (bytes[offset+2] << 16) | (bytes[offset+3] << 24);
+}
+
+function uint16LE(bytes, offset) {
+    return bytes[offset] | (bytes[offset+1] << 8);
+}
+
+// Check and process expired timer
+function processTimer() {
+    var timer = getState('timer');
+    if (timer && Date.now() >= timer.expiry) {
+        setState('output', timer.action === 'on');
+        setState('timer', null);
+        log('Timer expired: OUT1 -> ' + (timer.action === 'on' ? 'ON' : 'OFF'));
+    }
+}
+
+function generateTimeSync() {
+    var syncID = (getState('syncID') + 1) & 0xFFFFFFFF;
+    setState('syncID', syncID);
+
+    var bytes = [0x01];
+    bytes.push(syncID & 0xFF, (syncID >> 8) & 0xFF, (syncID >> 16) & 0xFF, (syncID >> 24) & 0xFF);
+    bytes.push(0x00, 0x02, 0x5d); // Firmware 0.2.93
+    bytes.push(0x07, 0x01);       // App type (I/O controller)
+    bytes.push(0x00);             // RFU
+
+    log('TX TimeSync | syncID=' + syncID.toString(16) + ' firmware=0.2.93');
+    return bytes;
+}
+
+function generateIOStatus() {
+    processTimer();
+
+    var input = getState('input');
+    var output = getState('output');
+    var trigger = getState('trigger');
+
+    // Simulate random input activity (~30% chance)
+    if (Math.random() > 0.7) {
+        input = !input;
+        trigger = true;
+        setState('input', input);
+        setState('trigger', trigger);
+    }
+
+    var bytes = [0x0A];
+    bytes = bytes.concat(encodeDate());
+    // Input (4 bytes LE) - bit 0 only
+    bytes.push(input ? 0x01 : 0x00, 0x00, 0x00, 0x00);
+    // Output (4 bytes LE) - bit 0 only
+    bytes.push(output ? 0x01 : 0x00, 0x00, 0x00, 0x00);
+    // Trigger (4 bytes LE) - bit 0 only
+    bytes.push(trigger ? 0x01 : 0x00, 0x00, 0x00, 0x00);
+
+    setState('trigger', false);
+
+    log('TX IO Status | IN1=' + (input ? 'ON' : 'OFF') + ' OUT1=' + (output ? 'ON' : 'OFF') + ' TRIG=' + (trigger ? 'yes' : 'no'));
+    return bytes;
+}
+
+function OnUplink() {
+    initState();
+    var count = (getState('messageCount') || 0) + 1;
+    setState('messageCount', count);
+
+    // Send TimeSync every 10th message
+    var bytes = (count % 10 === 1) ? generateTimeSync() : generateIOStatus();
+    return { fPort: 2, bytes: bytes };
+}
+
+function OnDownlink(bytes, fPort) {
+    initState();
+    log('RX Downlink | fPort=' + fPort + ' data=' + bytesToHex(bytes));
+
+    if (bytes.length < 10) {
+        log('  Error: Payload too short');
+        return;
+    }
+
+    if (bytes[0] !== 0x04 || bytes[1] !== 0x00) {
+        log('  Error: Unknown command');
+        return;
+    }
+
+    var enableMask = uint32LE(bytes, 2);
+    var disableMask = uint32LE(bytes, 6);
+    var oldOutput = getState('output');
+    var newOutput = oldOutput;
+
+    // Apply immediate state change
+    if (enableMask & 0x01) newOutput = true;
+    if (disableMask & 0x01) newOutput = false;
+    setState('output', newOutput);
+
+    log('  OUT1: ' + (oldOutput ? 'ON' : 'OFF') + ' -> ' + (newOutput ? 'ON' : 'OFF'));
+
+    // Parse Ton timer if present
+    if (bytes.length >= 12 && (enableMask & 0x01 || disableMask & 0x01)) {
+        var tonValue = uint16LE(bytes, 10);
+        if (tonValue > 0) {
+            var action = (enableMask & 0x01) ? 'off' : 'on';
+            setState('timer', { expiry: Date.now() + tonValue * 100, action: action });
+            log('  Timer: OUT1 -> ' + action.toUpperCase() + ' in ' + (tonValue / 10) + 's');
+        }
+    }
 }
 `
 }

@@ -120,6 +120,19 @@ func (m *Manager) ListCodecs() []CodecMetadata {
 	return m.library.List()
 }
 
+// GetCodecIDByName returns the ID of a codec by its name, or empty string if not found
+func (m *Manager) GetCodecIDByName(name string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, meta := range m.library.List() {
+		if meta.Name == name {
+			return meta.ID
+		}
+	}
+	return ""
+}
+
 // GetCodecCount returns the number of codecs in the library
 func (m *Manager) GetCodecCount() int {
 	m.mu.RLock()

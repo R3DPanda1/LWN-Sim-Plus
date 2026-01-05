@@ -134,3 +134,83 @@ func (m *Manager) Load(filepath string) error {
 
 	return nil
 }
+
+// Count returns the number of templates
+func (m *Manager) Count() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.templates)
+}
+
+// LoadDefaults loads default templates for common device types
+// codecLookup is an optional function to resolve codec names to IDs
+func (m *Manager) LoadDefaults(codecLookup func(name string) string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Milesight AM319 Environmental Sensor Template
+	am319 := &DeviceTemplate{
+		Name:              "Milesight AM319",
+		Region:            1, // EU868
+		SupportedClassB:   false,
+		SupportedClassC:   false,
+		SupportedADR:      true,
+		Range:             5000, // 5km typical indoor/urban
+		DataRate:          5,    // SF7 - good for indoor sensors
+		RX1DROffset:       0,
+		SendInterval:      300, // 5 minutes - typical for environmental sensors
+		AckTimeout:        2,
+		RX1Delay:          1000,
+		RX1Duration:       500,
+		RX2Delay:          2000,
+		RX2Duration:       500,
+		RX2Frequency:      869525000,
+		RX2DataRate:       0,
+		FPort:             85, // Milesight uses fPort 85
+		NbRetransmission:  1,
+		MType:             0, // Unconfirmed
+		SupportedFragment: false,
+		UseCodec:          true,
+	}
+	am319.ID = am319.generateID()
+
+	// Look up codec ID if lookup function provided
+	if codecLookup != nil {
+		am319.CodecID = codecLookup("Milesight AM319")
+	}
+
+	m.templates[am319.ID] = am319
+
+	// Enginko MCF-LW13IO I/O Controller Template
+	mcfio := &DeviceTemplate{
+		Name:              "Enginko MCF-LW13IO",
+		Region:            1, // EU868
+		SupportedClassB:   false,
+		SupportedClassC:   true, // Class C for immediate downlink response
+		SupportedADR:      true,
+		Range:             3000, // 3km - typically installed in fixed locations
+		DataRate:          5,    // SF7
+		RX1DROffset:       0,
+		SendInterval:      60, // 1 minute - I/O controllers report frequently
+		AckTimeout:        2,
+		RX1Delay:          1000,
+		RX1Duration:       500,
+		RX2Delay:          2000,
+		RX2Duration:       500,
+		RX2Frequency:      869525000,
+		RX2DataRate:       0,
+		FPort:             2, // Enginko uses fPort 2
+		NbRetransmission:  1,
+		MType:             0, // Unconfirmed
+		SupportedFragment: false,
+		UseCodec:          true,
+	}
+	mcfio.ID = mcfio.generateID()
+
+	// Look up codec ID if lookup function provided
+	if codecLookup != nil {
+		mcfio.CodecID = codecLookup("Enginko MCF-LW13IO")
+	}
+
+	m.templates[mcfio.ID] = mcfio
+}
