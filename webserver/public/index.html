@@ -1650,6 +1650,29 @@
                                 <input type="number" class="form-control" name="input-template-sendinterval" value="60" min="1">
                             </div>
 
+                            <hr>
+                            <h5>RX Window Settings</h5>
+
+                            <!--RX1 Duration-->
+                            <div class="form-group">
+                                <label>RX1 Window Duration (ms)</label>
+                                <input type="number" class="form-control" name="input-template-rx1duration" value="3000" min="100" max="30000">
+                                <div class="form-text mt-0">
+                                    How long the RX1 receive window stays open. Default: 3000ms (3 seconds).
+                                </div>
+                            </div>
+
+                            <!--RX2 Duration-->
+                            <div class="form-group">
+                                <label>RX2 Window Duration (ms)</label>
+                                <input type="number" class="form-control" name="input-template-rx2duration" value="3000" min="100" max="30000">
+                                <div class="form-text mt-0">
+                                    How long the RX2 receive window stays open. Default: 3000ms (3 seconds).
+                                </div>
+                            </div>
+
+                            <hr>
+
                             <!--fPort-->
                             <div class="form-group">
                                 <label>Default fPort</label>

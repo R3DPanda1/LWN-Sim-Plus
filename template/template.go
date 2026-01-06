@@ -79,9 +79,9 @@ func NewDeviceTemplate(name string) *DeviceTemplate {
 		SendInterval:      60,   // 1 minute
 		AckTimeout:        2,    // 2 seconds
 		RX1Delay:          1000, // 1 second
-		RX1Duration:       500,
+		RX1Duration:       3000, // 3 seconds (increased for reliable downlink reception)
 		RX2Delay:          2000, // 2 seconds
-		RX2Duration:       500,
+		RX2Duration:       3000, // 3 seconds (increased for reliable downlink reception)
 		RX2Frequency:      869525000, // Default EU868 RX2
 		RX2DataRate:       0,
 		FPort:             1,
