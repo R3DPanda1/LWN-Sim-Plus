@@ -161,9 +161,9 @@ func (m *Manager) LoadDefaults(codecLookup func(name string) string) {
 		SendInterval:      300, // 5 minutes - typical for environmental sensors
 		AckTimeout:        2,
 		RX1Delay:          1000,
-		RX1Duration:       500,
+		RX1Duration:       3000,
 		RX2Delay:          2000,
-		RX2Duration:       500,
+		RX2Duration:       3000,
 		RX2Frequency:      869525000,
 		RX2DataRate:       0,
 		FPort:             85, // Milesight uses fPort 85
@@ -194,9 +194,9 @@ func (m *Manager) LoadDefaults(codecLookup func(name string) string) {
 		SendInterval:      60, // 1 minute - I/O controllers report frequently
 		AckTimeout:        2,
 		RX1Delay:          1000,
-		RX1Duration:       500,
+		RX1Duration:       3000,
 		RX2Delay:          2000,
-		RX2Duration:       500,
+		RX2Duration:       3000,
 		RX2Frequency:      869525000,
 		RX2DataRate:       0,
 		FPort:             2, // Enginko uses fPort 2

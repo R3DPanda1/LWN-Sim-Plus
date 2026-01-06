@@ -13,21 +13,22 @@ type ReceivedDownlink struct {
 	IsOpen   bool
 }
 
-func (b *ReceivedDownlink) Push(data *lorawan.PHYPayload) {
+func (b *ReceivedDownlink) Push(data *lorawan.PHYPayload) bool {
 
 	if data == nil {
-		return
+		return false
 	}
 
 	b.Mutex.Lock()
-	if b.IsOpen {
+	defer b.Mutex.Unlock()
 
+	if b.IsOpen {
 		b.Downlink = data
 		b.Notify.Broadcast()
-
+		return true // Device accepted the downlink
 	}
 
-	b.Mutex.Unlock()
+	return false // Window closed, dropped
 
 }
 
