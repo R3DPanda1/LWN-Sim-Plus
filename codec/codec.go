@@ -174,6 +174,10 @@ func (cl *CodecLibrary) LoadDefaults() {
 	// Enginko MCF-LW13IO I/O Controller Codec
 	mcflw13ioCodec := NewCodec("Enginko MCF-LW13IO", CreateMCFLW13IOCodec())
 	cl.Add(mcflw13ioCodec)
+
+	// Eastron SDM230 Energy Meter Codec
+	sdm230Codec := NewCodec("Eastron SDM230", CreateSDM230Codec())
+	cl.Add(sdm230Codec)
 }
 
 // ToJSON serializes the codec library to JSON
