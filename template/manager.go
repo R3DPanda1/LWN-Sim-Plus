@@ -158,7 +158,7 @@ func (m *Manager) LoadDefaults(codecLookup func(name string) string) {
 		Range:             5000, // 5km typical indoor/urban
 		DataRate:          5,    // SF7 - good for indoor sensors
 		RX1DROffset:       0,
-		SendInterval:      300, // 5 minutes - typical for environmental sensors
+		SendInterval:      300, // 5 minutes
 		AckTimeout:        2,
 		RX1Delay:          1000,
 		RX1Duration:       3000,
@@ -188,10 +188,10 @@ func (m *Manager) LoadDefaults(codecLookup func(name string) string) {
 		SupportedClassB:   false,
 		SupportedClassC:   true, // Class C for immediate downlink response
 		SupportedADR:      true,
-		Range:             3000, // 3km - typically installed in fixed locations
+		Range:             3000, // 3km
 		DataRate:          5,    // SF7
 		RX1DROffset:       0,
-		SendInterval:      60, // 1 minute - I/O controllers report frequently
+		SendInterval:      60, // 1 minute
 		AckTimeout:        2,
 		RX1Delay:          1000,
 		RX1Duration:       3000,
@@ -213,4 +213,37 @@ func (m *Manager) LoadDefaults(codecLookup func(name string) string) {
 	}
 
 	m.templates[mcfio.ID] = mcfio
+
+	// Eastron SDM230 Energy Meter Template
+	sdm230 := &DeviceTemplate{
+		Name:              "Eastron SDM230",
+		Region:            1, // EU868
+		SupportedClassB:   false,
+		SupportedClassC:   true, // Class C device
+		SupportedADR:      true,
+		Range:             3000, // 3km
+		DataRate:          5,    // SF7
+		RX1DROffset:       0,
+		SendInterval:      900, // 15 minutes
+		AckTimeout:        2,
+		RX1Delay:          1000,
+		RX1Duration:       3000,
+		RX2Delay:          2000,
+		RX2Duration:       3000,
+		RX2Frequency:      869525000,
+		RX2DataRate:       0,
+		FPort:             1, // SDM230 uses fPort 1
+		NbRetransmission:  1,
+		MType:             0, // Unconfirmed
+		SupportedFragment: false,
+		UseCodec:          true,
+	}
+	sdm230.ID = sdm230.generateID()
+
+	// Look up codec ID if lookup function provided
+	if codecLookup != nil {
+		sdm230.CodecID = codecLookup("Eastron SDM230")
+	}
+
+	m.templates[sdm230.ID] = sdm230
 }
