@@ -183,7 +183,7 @@ window.InitializeMonacoEditor = function() {
             formatOnType: true
         });
 
-        console.log("Monaco Editor initialized successfully");
+        //console.log("Monaco Editor initialized successfully");
     });
 };
 
