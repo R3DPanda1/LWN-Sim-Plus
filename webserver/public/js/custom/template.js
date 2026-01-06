@@ -76,6 +76,8 @@ function CleanTemplateForm() {
     $("[name=input-template-range]").val("10000");
     $("[name=input-template-datarate]").val("0");
     $("[name=input-template-sendinterval]").val("60");
+    $("[name=input-template-rx1duration]").val("3000");
+    $("[name=input-template-rx2duration]").val("3000");
     $("[name=input-template-fport]").val("1");
     $("#select-template-codec").val("");
     $("#checkbox-template-integration-enabled").prop("checked", false);
@@ -102,6 +104,8 @@ function SetTemplateFormEnabled(enabled) {
     $("[name=input-template-range]").prop("disabled", !enabled);
     $("[name=input-template-datarate]").prop("disabled", !enabled);
     $("[name=input-template-sendinterval]").prop("disabled", !enabled);
+    $("[name=input-template-rx1duration]").prop("disabled", !enabled);
+    $("[name=input-template-rx2duration]").prop("disabled", !enabled);
     $("[name=input-template-fport]").prop("disabled", !enabled);
     $("#select-template-codec").prop("disabled", !enabled);
     $("#checkbox-template-integration-enabled").prop("disabled", !enabled);
@@ -118,6 +122,8 @@ function LoadTemplate(template) {
     $("[name=input-template-range]").val(template.range);
     $("[name=input-template-datarate]").val(template.dataRate);
     $("[name=input-template-sendinterval]").val(template.sendInterval);
+    $("[name=input-template-rx1duration]").val(template.rx1Duration || 3000);
+    $("[name=input-template-rx2duration]").val(template.rx2Duration || 3000);
     $("[name=input-template-fport]").val(template.fport);
     $("#select-template-codec").val(template.codecId || "");
 
@@ -167,12 +173,12 @@ function SaveTemplate() {
         integrationEnabled: $("#checkbox-template-integration-enabled").prop("checked"),
         integrationId: $("#select-template-integration").val() || "",
         deviceProfileId: $("#select-template-device-profile").val() || "",
-        // Default values for RX windows
+        // RX window settings (read from form)
         rx1Delay: 1000,
-        rx1Duration: 500,
+        rx1Duration: parseInt($("[name=input-template-rx1duration]").val()) || 3000,
         rx1DROffset: 0,
         rx2Delay: 2000,
-        rx2Duration: 500,
+        rx2Duration: parseInt($("[name=input-template-rx2duration]").val()) || 3000,
         rx2Frequency: 869525000,
         rx2DataRate: 0,
         ackTimeout: 2,
