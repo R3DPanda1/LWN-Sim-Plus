@@ -99,6 +99,22 @@ func (c *Client) SetDeviceKeys(devEUI string, nwkKey string) error {
 	return err
 }
 
+// ActivateDeviceABP activates a device using ABP (Activation By Personalization)
+// This sets the session keys directly, bypassing the OTAA join process
+func (c *Client) ActivateDeviceABP(devEUI, devAddr, nwkSKey, appSKey string) error {
+	req := DeviceActivationRequest{
+		DeviceActivation: DeviceActivation{
+			DevAddr:     devAddr,
+			AppSKey:     appSKey,
+			NwkSEncKey:  nwkSKey, // For LoRaWAN 1.0.x, all NwkS*Key are the same
+			FNwkSIntKey: nwkSKey,
+			SNwkSIntKey: nwkSKey,
+		},
+	}
+	_, err := c.doRequest("POST", "/api/devices/"+devEUI+"/activate", req)
+	return err
+}
+
 // ListDeviceProfiles returns available device profiles for a tenant
 func (c *Client) ListDeviceProfiles(tenantID string, limit int) ([]DeviceProfile, error) {
 	path := fmt.Sprintf("/api/device-profiles?limit=%d&tenantId=%s", limit, tenantID)

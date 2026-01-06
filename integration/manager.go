@@ -150,7 +150,7 @@ func (m *Manager) GetDeviceProfiles(id string) ([]chirpstack.DeviceProfile, erro
 	return client.ListDeviceProfiles(integration.TenantID, 100)
 }
 
-// ProvisionDevice creates a device in ChirpStack
+// ProvisionDevice creates a device in ChirpStack using OTAA
 func (m *Manager) ProvisionDevice(integrationID, devEUI, name, deviceProfileID, appKey string) error {
 	m.mu.RLock()
 	integration, exists := m.integrations[integrationID]
@@ -182,6 +182,45 @@ func (m *Manager) ProvisionDevice(integrationID, devEUI, name, deviceProfileID, 
 		// Rollback: delete the device
 		_ = client.DeleteDevice(devEUI)
 		return fmt.Errorf("failed to set device keys: %w", err)
+	}
+
+	return nil
+}
+
+// ProvisionDeviceABP creates a device in ChirpStack and activates it using ABP
+// This bypasses the OTAA join process entirely
+func (m *Manager) ProvisionDeviceABP(integrationID, devEUI, name, deviceProfileID, devAddr, nwkSKey, appSKey string) error {
+	m.mu.RLock()
+	integration, exists := m.integrations[integrationID]
+	client := m.clients[integrationID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return ErrIntegrationNotFound
+	}
+
+	if !integration.Enabled {
+		return fmt.Errorf("integration is disabled")
+	}
+
+	// Create device
+	device := &chirpstack.Device{
+		DevEUI:          devEUI,
+		Name:            name,
+		ApplicationID:   integration.ApplicationID,
+		DeviceProfileID: deviceProfileID,
+		SkipFcntCheck:   true, // Skip frame counter check for ABP (prevents issues with device resets)
+	}
+
+	if err := client.CreateDevice(device); err != nil {
+		return fmt.Errorf("failed to create device: %w", err)
+	}
+
+	// Activate device with ABP keys
+	if err := client.ActivateDeviceABP(devEUI, devAddr, nwkSKey, appSKey); err != nil {
+		// Rollback: delete the device
+		_ = client.DeleteDevice(devEUI)
+		return fmt.Errorf("failed to activate device (ABP): %w", err)
 	}
 
 	return nil
