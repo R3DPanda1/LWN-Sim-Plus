@@ -14,7 +14,7 @@ var (
 )
 
 // DeviceTemplate represents a template for bulk device creation
-// Templates are OTAA-only; DevEUI, AppKey, and Name are auto-generated when creating devices
+// Templates use ABP activation; DevEUI, DevAddr, NwkSKey, AppSKey, and Name are auto-generated
 type DeviceTemplate struct {
 	ID   string `json:"id"`
 	Name string `json:"name"` // Template name (e.g., "AM319 Temperature Sensor")
