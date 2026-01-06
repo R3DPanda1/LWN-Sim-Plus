@@ -151,27 +151,9 @@ func InjectDeviceHelpers(vm *goja.Runtime, device DeviceInterface) error {
 // CreateAM319Codec returns the Milesight AM319 codec script
 func CreateAM319Codec() string {
 	return `
-// ============================================================================
-// Milesight AM319 - Indoor Ambiance Monitoring Sensor Codec
-// ============================================================================
-//
-// Device: AM319 (temperature, humidity, CO2, TVOC, PM2.5, PM10, HCHO, pressure)
-// Docs:   https://www.milesight.com/iot/product/lorawan-sensor/am319
-//
-// UPLINK (fPort 85): Sensor readings in Milesight channel format
-// DOWNLINK (fPort 85): Configuration commands (0xFF prefix)
-//
-// DOWNLINK EXAMPLES:
-//   Set report interval to 300s:  FF 03 2C 01
-//   Set TVOC mode to ppb:         FF EB 01
-//   Calibrate CO2 to 400ppm:      FF 1A 03
-//
-// ============================================================================
-
-function initState() {
-    if (getState('battery') === null) setState('battery', 100);
-    if (getState('tvocMode') === null) setState('tvocMode', 0);
-}
+// Milesight AM319 - Indoor Ambiance Monitoring Sensor
+// https://www.milesight.com/iot/product/lorawan-sensor/am319
+// Uplink fPort 85, Milesight channel format (DC powered, no battery)
 
 function bytesToHex(bytes) {
     var hex = '';
@@ -195,24 +177,24 @@ function decodeUint16LE(bytes, offset) {
 }
 
 function generateSensorValues() {
-    var values = {};
-    var baseTemp = getState('baseTemperature') || 22.5;
-    var baseHumidity = getState('baseHumidity') || 45;
-    var baseCO2 = getState('baseCO2') || 550;
+    var baseTemp = getState('baseTemperature') || 19.0;
+    var baseHumidity = getState('baseHumidity') || 35;
+    var baseCO2 = getState('baseCO2') || 450;
     var tvocMode = getState('tvocMode') || 0;
 
+    var values = {};
     values.temperature = baseTemp + (Math.random() - 0.5) * 2;
     values.humidity = baseHumidity + (Math.random() - 0.5) * 10;
-    values.pir = Math.random() > 0.7 ? 1 : 0;
+    values.pir = Math.random() > 0.9 ? 1 : 0;
     values.lightLevel = Math.floor(Math.random() * 6);
     values.co2 = Math.max(400, Math.floor(baseCO2 + (Math.random() - 0.5) * 100));
-    values.pressure = 1013.25 + (Math.random() - 0.5) * 10;
-    values.hcho = Math.max(0.01, 0.03 + (Math.random() - 0.5) * 0.02);
-    values.pm25 = Math.max(0, Math.floor(25 + (Math.random() - 0.5) * 20));
-    values.pm10 = Math.max(0, Math.floor(35 + (Math.random() - 0.5) * 30));
+    values.pressure = 990 + (Math.random() - 0.5) * 10;
+    values.hcho = Math.max(0.01, 0.02 + (Math.random() - 0.5) * 0.02);
+    values.pm25 = Math.max(0, Math.floor(12 + (Math.random() - 0.5) * 10));
+    values.pm10 = Math.max(0, Math.floor(12 + (Math.random() - 0.5) * 10));
 
     if (tvocMode === 0) {
-        values.tvocLevel = 1.5 + (Math.random() - 0.5) * 0.5;
+        values.tvocLevel = 0.7 + (Math.random() - 0.5) * 0.2;
     } else {
         values.tvocConcentration = Math.floor(200 + (Math.random() - 0.5) * 100);
     }
@@ -221,33 +203,22 @@ function generateSensorValues() {
 }
 
 function OnUplink() {
-    initState();
     var values = generateSensorValues();
     var bytes = [];
-    var battery = getState('battery') || 100;
     var tvocMode = getState('tvocMode') || 0;
 
-    // Battery Level: Channel 0x01, Type 0x75
-    bytes.push(0x01, 0x75, battery & 0xFF);
-
-    // Temperature: Channel 0x03, Type 0x67 (INT16/10, °C)
     bytes.push(0x03, 0x67);
     bytes = bytes.concat(int16LE(Math.round(values.temperature * 10)));
 
-    // Humidity: Channel 0x04, Type 0x68 (UINT8/2, %RH)
     bytes.push(0x04, 0x68, Math.round(values.humidity * 2) & 0xFF);
 
-    // PIR Status: Channel 0x05, Type 0x00
     bytes.push(0x05, 0x00, values.pir ? 0x01 : 0x00);
 
-    // Light Level: Channel 0x06, Type 0xCB
     bytes.push(0x06, 0xCB, values.lightLevel & 0xFF);
 
-    // CO2: Channel 0x07, Type 0x7D (UINT16, ppm)
     bytes.push(0x07, 0x7D);
     bytes = bytes.concat(uint16LE(values.co2));
 
-    // TVOC: Channel 0x08
     if (tvocMode === 0) {
         bytes.push(0x08, 0x7D);
         bytes = bytes.concat(uint16LE(Math.round(values.tvocLevel * 100)));
@@ -256,58 +227,47 @@ function OnUplink() {
         bytes = bytes.concat(uint16LE(values.tvocConcentration));
     }
 
-    // Barometric Pressure: Channel 0x09, Type 0x73
     bytes.push(0x09, 0x73);
     bytes = bytes.concat(uint16LE(Math.round(values.pressure * 10)));
 
-    // HCHO: Channel 0x0A, Type 0x7D
     bytes.push(0x0A, 0x7D);
     bytes = bytes.concat(uint16LE(Math.round(values.hcho * 100)));
 
-    // PM2.5: Channel 0x0B, Type 0x7D
     bytes.push(0x0B, 0x7D);
     bytes = bytes.concat(uint16LE(values.pm25));
 
-    // PM10: Channel 0x0C, Type 0x7D
     bytes.push(0x0C, 0x7D);
     bytes = bytes.concat(uint16LE(values.pm10));
 
-    log('TX Sensor Data | Temp=' + values.temperature.toFixed(1) + 'C Hum=' +
-        values.humidity.toFixed(1) + '% CO2=' + values.co2 + 'ppm PIR=' + values.pir);
+    log('TX | Temp=' + values.temperature.toFixed(1) + 'C Hum=' +
+        values.humidity.toFixed(1) + '% CO2=' + values.co2 + 'ppm');
 
     return { fPort: 85, bytes: bytes };
 }
 
 function OnDownlink(bytes, fPort) {
-    initState();
-    log('RX Downlink | fPort=' + fPort + ' data=' + bytesToHex(bytes));
+    log('RX | fPort=' + fPort + ' data=' + bytesToHex(bytes));
 
     var i = 0;
     while (i < bytes.length) {
         if (bytes[i] !== 0xFF) { i++; continue; }
         var cmd = bytes[i + 1];
         switch (cmd) {
-            case 0x03: // Report interval
+            case 0x03:
                 var intervalSec = decodeUint16LE(bytes, i + 2);
                 setSendInterval(intervalSec);
-                log('  Set report interval: ' + intervalSec + 's');
+                log('Set report interval: ' + intervalSec + 's');
                 i += 4;
                 break;
-            case 0xEB: // TVOC mode
-                var tvocMode = bytes[i + 2];
-                setState('tvocMode', tvocMode);
-                log('  Set TVOC mode: ' + (tvocMode === 0 ? 'level' : 'ppb'));
+            case 0xEB:
+                setState('tvocMode', bytes[i + 2]);
                 i += 3;
                 break;
-            case 0x1A: // CO2 calibration
-                if (bytes[i + 2] === 0x03) {
-                    setState('baseCO2', 400);
-                    log('  CO2 calibrated to 400ppm');
-                }
+            case 0x1A:
+                if (bytes[i + 2] === 0x03) setState('baseCO2', 400);
                 i += 3;
                 break;
             default:
-                log('  Unknown command: 0x' + cmd.toString(16));
                 i += 3;
                 break;
         }
@@ -481,6 +441,219 @@ function OnDownlink(bytes, fPort) {
             setState('timer', { expiry: Date.now() + tonValue * 100, action: action });
             log('  Timer: OUT1 -> ' + action.toUpperCase() + ' in ' + (tonValue / 10) + 's');
         }
+    }
+}
+`
+}
+
+// CreateSDM230Codec returns the Eastron SDM230 energy meter codec script
+func CreateSDM230Codec() string {
+	return `
+// ============================================================================
+// Eastron SDM230 - LoRaWAN Single-Phase Energy Meter Codec
+// ============================================================================
+//
+// Device: SDM230-LoRaWAN (single-phase energy meter)
+// Class:  LoRaWAN Class C
+// Docs:   Eastron SDM230-LoRaWAN Protocol V1.1
+//
+// UPLINK (fPort 1): 28-byte fixed payload (verified against real device)
+//   Bytes 0-3:   Serial Number (uint32 Little-Endian)
+//   Byte 4:      Message Fragment Number (always 1)
+//   Byte 5:      Number of Parameter Bytes (0x14 = 20 for 5 floats)
+//   Bytes 6-9:   Active Energy Total (float32 Big-Endian, kWh)
+//   Bytes 10-13: Voltage (float32 Big-Endian, V)
+//   Bytes 14-17: Current (float32 Big-Endian, A)
+//   Bytes 18-21: Power Factor (float32 Big-Endian, 0-1)
+//   Bytes 22-25: Frequency (float32 Big-Endian, Hz)
+//   Bytes 26-27: Modbus CRC-16 (Little-Endian)
+//
+// DOWNLINK (fPort 1): Modbus RTU commands
+//   Set interval:  01 10 FE 01 00 01 02 <min_hi> <min_lo> <crc_lo> <crc_hi>
+//   Set params:    01 10 FE 02 00 0F 1E <30 param bytes> <crc_lo> <crc_hi>
+//   Reset energy:  01 10 F0 10 00 01 02 00 03 <crc_lo> <crc_hi>
+//
+// ============================================================================
+
+function initState() {
+    // Default serial number matches real device: 0x8bfb590e
+    if (getState('serialNumber') === null) setState('serialNumber', 0x8bfb590e);
+    // Default energy ~745 kWh to match real device logs
+    if (getState('energy') === null) setState('energy', 744.5 + Math.random() * 1);
+    // Default values from real device measurements
+    if (getState('baseVoltage') === null) setState('baseVoltage', 233.5);
+    if (getState('baseCurrent') === null) setState('baseCurrent', 0.528);
+    if (getState('basePowerFactor') === null) setState('basePowerFactor', 0.9765);
+}
+
+function bytesToHex(bytes) {
+    var hex = '';
+    for (var i = 0; i < bytes.length; i++) {
+        hex += ('0' + ((bytes[i] || 0) & 0xFF).toString(16)).slice(-2);
+    }
+    return hex;
+}
+
+// Convert uint32 to 4 bytes (Little-Endian - verified from real device)
+function uint32ToLE(value) {
+    return [
+        value & 0xFF,
+        (value >> 8) & 0xFF,
+        (value >> 16) & 0xFF,
+        (value >> 24) & 0xFF
+    ];
+}
+
+// Convert float32 to 4 bytes (Big-Endian) using IEEE 754
+function floatToBytes(value) {
+    var buffer = new ArrayBuffer(4);
+    var view = new DataView(buffer);
+    view.setFloat32(0, value, false); // false = big-endian
+    return [view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3)];
+}
+
+// Calculate Modbus CRC-16
+function modbusCRC16(bytes) {
+    var crc = 0xFFFF;
+    for (var i = 0; i < bytes.length; i++) {
+        crc ^= bytes[i];
+        for (var j = 0; j < 8; j++) {
+            if (crc & 0x0001) {
+                crc = (crc >> 1) ^ 0xA001;
+            } else {
+                crc = crc >> 1;
+            }
+        }
+    }
+    return [crc & 0xFF, (crc >> 8) & 0xFF];
+}
+
+// Decode uint16 from bytes (Big-Endian)
+function uint16BE(bytes, offset) {
+    return (bytes[offset] << 8) | bytes[offset + 1];
+}
+
+function generateMeterReadings() {
+    var readings = {};
+    var baseVoltage = getState('baseVoltage') || 233.5;
+    var baseCurrent = getState('baseCurrent') || 0.528;
+    var basePF = getState('basePowerFactor') || 0.9765;
+
+    // Simulate energy accumulation
+    var energy = getState('energy') || 744.5;
+    var sendInterval = getSendInterval() || 1800; // default 30 min (matches real device)
+
+    // Calculate energy increment based on power consumption
+    // Real device shows ~0.06 kWh increase per 30 minutes
+    var activePower = baseCurrent * baseVoltage * basePF; // ~120W
+    var energyIncrement = (activePower * sendInterval) / 3600000; // kWh
+    energy += energyIncrement + (Math.random() - 0.5) * 0.01;
+    setState('energy', energy);
+
+    // Generate readings with realistic variations matching real device
+    readings.energy = energy;
+    readings.voltage = baseVoltage + (Math.random() - 0.5) * 3;      // ~231-235V range
+    readings.current = baseCurrent + (Math.random() - 0.5) * 0.004;  // ~0.526-0.530A
+    readings.powerFactor = Math.min(1, Math.max(0.97, basePF + (Math.random() - 0.5) * 0.002));
+    readings.frequency = 49.95 + Math.random() * 0.1;                // 49.95-50.05 Hz
+
+    return readings;
+}
+
+function OnUplink() {
+    initState();
+    var readings = generateMeterReadings();
+    var serialNumber = getState('serialNumber') || 0x8bfb590e;
+
+    var bytes = [];
+
+    // Serial Number (4 bytes, Little-Endian - verified from real device)
+    bytes = bytes.concat(uint32ToLE(serialNumber));
+
+    // Message Fragment Number (always 1)
+    bytes.push(0x01);
+
+    // Number of Parameter Bytes (0x14 = 20 bytes for 5 floats)
+    bytes.push(0x14);
+
+    // Active Energy Total (float32 Big-Endian, kWh)
+    bytes = bytes.concat(floatToBytes(readings.energy));
+
+    // Voltage (float32 Big-Endian, V)
+    bytes = bytes.concat(floatToBytes(readings.voltage));
+
+    // Current (float32 Big-Endian, A)
+    bytes = bytes.concat(floatToBytes(readings.current));
+
+    // Power Factor (float32 Big-Endian)
+    bytes = bytes.concat(floatToBytes(readings.powerFactor));
+
+    // Frequency (float32 Big-Endian, Hz)
+    bytes = bytes.concat(floatToBytes(readings.frequency));
+
+    // Modbus CRC-16 (2 bytes, Little-Endian)
+    var crc = modbusCRC16(bytes);
+    bytes = bytes.concat(crc);
+
+    log('TX SDM230 | E=' + readings.energy.toFixed(2) + 'kWh V=' +
+        readings.voltage.toFixed(1) + 'V I=' + readings.current.toFixed(3) + 'A PF=' +
+        readings.powerFactor.toFixed(4) + ' F=' + readings.frequency.toFixed(2) + 'Hz');
+
+    return { fPort: 1, bytes: bytes };
+}
+
+function OnDownlink(bytes, fPort) {
+    initState();
+    log('RX SDM230 | fPort=' + fPort + ' data=' + bytesToHex(bytes));
+
+    if (bytes.length < 4) {
+        log('  Error: Payload too short');
+        return;
+    }
+
+    // Verify CRC
+    var dataLen = bytes.length - 2;
+    var expectedCrc = modbusCRC16(bytes.slice(0, dataLen));
+    if (bytes[dataLen] !== expectedCrc[0] || bytes[dataLen + 1] !== expectedCrc[1]) {
+        log('  Warning: CRC mismatch (continuing anyway)');
+    }
+
+    // Parse Modbus RTU command
+    var slaveAddr = bytes[0];   // Usually 0x01
+    var funcCode = bytes[1];    // 0x10 = write, 0x03 = read
+
+    if (funcCode === 0x10) {
+        // Write multiple registers
+        var regAddr = uint16BE(bytes, 2);
+        var regCount = uint16BE(bytes, 4);
+        var byteCount = bytes[6];
+
+        log('  Modbus Write: addr=0x' + regAddr.toString(16) + ' regs=' + regCount);
+
+        if (regAddr === 0xFE01) {
+            // Set upload interval (minutes)
+            var intervalMin = uint16BE(bytes, 7);
+            var intervalSec = intervalMin * 60;
+            setSendInterval(intervalSec);
+            log('  Set interval: ' + intervalMin + ' min (' + intervalSec + 's)');
+
+        } else if (regAddr === 0xF010) {
+            // Reset commands
+            var resetType = uint16BE(bytes, 7);
+            if (resetType === 0x0000) {
+                log('  Reset maximum demand');
+            } else if (resetType === 0x0003) {
+                setState('energy', 0);
+                log('  Reset resettable energy counter');
+            }
+        } else {
+            log('  Unknown register: 0x' + regAddr.toString(16));
+        }
+    } else if (funcCode === 0x03) {
+        // Read registers (authentication/status check)
+        log('  Modbus Read request (acknowledged)');
+    } else {
+        log('  Unknown function code: 0x' + funcCode.toString(16));
     }
 }
 `
