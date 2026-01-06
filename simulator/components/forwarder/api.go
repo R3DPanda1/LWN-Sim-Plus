@@ -140,15 +140,19 @@ func (f *Forwarder) Uplink(data pkt.RXPK, DevEUI lorawan.EUI64) {
 
 }
 
-func (f *Forwarder) Downlink(data *lorawan.PHYPayload, freq uint32, macAddress lorawan.EUI64) {
+func (f *Forwarder) Downlink(data *lorawan.PHYPayload, freq uint32, macAddress lorawan.EUI64) bool {
 
 	f.Mutex.Lock()
+	defer f.Mutex.Unlock()
 
+	anyDelivered := false
 	for _, dl := range f.GwtoDev[freq][macAddress] {
-		dl.Push(data)
+		if dl.Push(data) {
+			anyDelivered = true
+		}
 	}
 
-	f.Mutex.Unlock()
+	return anyDelivered
 
 }
 

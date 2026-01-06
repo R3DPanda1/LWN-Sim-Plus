@@ -115,11 +115,17 @@ func (g *Gateway) Receiver() {
 				continue
 			}
 
-			g.Forwarder.Downlink(phy, *freq, g.Info.MACAddress)
+			delivered := g.Forwarder.Downlink(phy, *freq, g.Info.MACAddress)
 
 			g.Stat.RXFW++
 
 			pullRespCounter.Inc()
+
+			// Only send TX ACK if at least one device received the downlink
+			if !delivered {
+				g.Print("No device listening, TX ACK not sent", nil, util.PrintBoth)
+				continue
+			}
 
 			//TX ACK
 			packet, err := pkt.CreatePacket(pkt.TypeTxAck, g.Info.MACAddress, pkt.Stat{}, nil, pkt.GetTokenFromPullResp(receivedPack))
