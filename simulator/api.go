@@ -390,19 +390,42 @@ func (s *Simulator) SetDevice(device *dev.Device, update bool) (int, int, error)
 	// Provision device to ChirpStack if integration is enabled (only for new devices)
 	if !update && device.Info.Configuration.IntegrationEnabled && device.Info.Configuration.IntegrationID != "" {
 		devEUI := hex.EncodeToString(device.Info.DevEUI[:])
-		appKey := hex.EncodeToString(device.Info.AppKey[:])
 
-		err := s.IntegrationManager.ProvisionDevice(
-			device.Info.Configuration.IntegrationID,
-			devEUI,
-			device.Info.Name,
-			device.Info.Configuration.DeviceProfileID,
-			appKey,
-		)
+		var err error
+		if device.Info.Configuration.SupportedOtaa {
+			// OTAA: provision with AppKey
+			appKey := hex.EncodeToString(device.Info.AppKey[:])
+			err = s.IntegrationManager.ProvisionDevice(
+				device.Info.Configuration.IntegrationID,
+				devEUI,
+				device.Info.Name,
+				device.Info.Configuration.DeviceProfileID,
+				appKey,
+			)
+		} else {
+			// ABP: provision with session keys and activate immediately
+			devAddr := hex.EncodeToString(device.Info.DevAddr[:])
+			nwkSKey := hex.EncodeToString(device.Info.NwkSKey[:])
+			appSKey := hex.EncodeToString(device.Info.AppSKey[:])
+			err = s.IntegrationManager.ProvisionDeviceABP(
+				device.Info.Configuration.IntegrationID,
+				devEUI,
+				device.Info.Name,
+				device.Info.Configuration.DeviceProfileID,
+				devAddr,
+				nwkSKey,
+				appSKey,
+			)
+		}
+
 		if err != nil {
 			s.Print("ChirpStack provisioning failed: "+err.Error(), nil, util.PrintOnlyConsole)
 		} else {
-			s.Print("Device provisioned to ChirpStack", nil, util.PrintOnlyConsole)
+			activationType := "OTAA"
+			if !device.Info.Configuration.SupportedOtaa {
+				activationType = "ABP"
+			}
+			s.Print(fmt.Sprintf("Device provisioned to ChirpStack (%s)", activationType), nil, util.PrintOnlyConsole)
 		}
 	}
 
@@ -898,18 +921,30 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID string, count int, name
 			continue
 		}
 
-		// Generate random AppKey
-		appKey, err := generateRandomKey()
+		// Generate ABP keys (NwkSKey, AppSKey, DevAddr) instead of OTAA AppKey
+		nwkSKey, err := generateRandomKey()
 		if err != nil {
-			s.Print(fmt.Sprintf("Failed to generate AppKey for %s: %v", name, err), nil, util.PrintOnlyConsole)
+			s.Print(fmt.Sprintf("Failed to generate NwkSKey for %s: %v", name, err), nil, util.PrintOnlyConsole)
+			continue
+		}
+
+		appSKey, err := generateRandomKey()
+		if err != nil {
+			s.Print(fmt.Sprintf("Failed to generate AppSKey for %s: %v", name, err), nil, util.PrintOnlyConsole)
+			continue
+		}
+
+		devAddr, err := generateRandomDevAddr()
+		if err != nil {
+			s.Print(fmt.Sprintf("Failed to generate DevAddr for %s: %v", name, err), nil, util.PrintOnlyConsole)
 			continue
 		}
 
 		// Randomize coordinates
 		lat, lng := randomizeCoordinates(baseLat, baseLng, spreadMeters)
 
-		// Create device from template
-		device := s.createDeviceFromTemplate(tmpl, name, devEUI, appKey, lat, lng, baseAlt)
+		// Create device from template using ABP (no join required)
+		device := s.createDeviceFromTemplate(tmpl, name, devEUI, nwkSKey, appSKey, devAddr, lat, lng, baseAlt)
 
 		// Add device
 		code, id, err := s.SetDevice(device, false)
@@ -919,22 +954,25 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID string, count int, name
 		}
 
 		createdIDs = append(createdIDs, id)
-		s.Print(fmt.Sprintf("Created device %s (ID: %d)", name, id), nil, util.PrintOnlyConsole)
+		s.Print(fmt.Sprintf("Created ABP device %s (ID: %d, DevAddr: %s)", name, id, hex.EncodeToString(devAddr[:])), nil, util.PrintOnlyConsole)
 	}
 
 	return createdIDs, nil
 }
 
-// createDeviceFromTemplate creates a Device struct from a template
-func (s *Simulator) createDeviceFromTemplate(tmpl *template.DeviceTemplate, name string, devEUI lorawan.EUI64, appKey [16]byte, lat, lng float64, alt int32) *dev.Device {
+// createDeviceFromTemplate creates a Device struct from a template using ABP activation
+// ABP devices have pre-set session keys and don't need to join the network
+func (s *Simulator) createDeviceFromTemplate(tmpl *template.DeviceTemplate, name string, devEUI lorawan.EUI64, nwkSKey, appSKey [16]byte, devAddr lorawan.DevAddr, lat, lng float64, alt int32) *dev.Device {
 	// Get regional parameters
 	region := rp.GetRegionalParameters(tmpl.Region)
 
 	device := &dev.Device{
 		Info: devModels.InformationDevice{
-			Name:   name,
-			DevEUI: devEUI,
-			AppKey: appKey,
+			Name:    name,
+			DevEUI:  devEUI,
+			DevAddr: devAddr,  // ABP: pre-set device address
+			NwkSKey: nwkSKey,  // ABP: pre-set network session key
+			AppSKey: appSKey,  // ABP: pre-set application session key
 			Location: location.Location{
 				Latitude:  lat,
 				Longitude: lng,
@@ -949,7 +987,7 @@ func (s *Simulator) createDeviceFromTemplate(tmpl *template.DeviceTemplate, name
 			},
 			Configuration: devModels.Configuration{
 				Region:               region,
-				SupportedOtaa:        true, // Templates are OTAA only
+				SupportedOtaa:        false, // ABP: no OTAA join required
 				SupportedClassB:      tmpl.SupportedClassB,
 				SupportedClassC:      tmpl.SupportedClassC,
 				SupportedADR:         tmpl.SupportedADR,
@@ -965,6 +1003,7 @@ func (s *Simulator) createDeviceFromTemplate(tmpl *template.DeviceTemplate, name
 				IntegrationEnabled:   tmpl.IntegrationEnabled,
 				IntegrationID:        tmpl.IntegrationID,
 				DeviceProfileID:      tmpl.DeviceProfileID,
+				DisableFCntDown:      true, // ABP: disable frame counter check to avoid issues
 			},
 			RX: []devFeatures.Window{
 				{
@@ -1003,6 +1042,13 @@ func generateRandomKey() ([16]byte, error) {
 	var key [16]byte
 	_, err := rand.Read(key[:])
 	return key, err
+}
+
+// generateRandomDevAddr generates a random 4-byte DevAddr
+func generateRandomDevAddr() (lorawan.DevAddr, error) {
+	var addr lorawan.DevAddr
+	_, err := rand.Read(addr[:])
+	return addr, err
 }
 
 // randomizeCoordinates adds random offset to coordinates within a square spread
