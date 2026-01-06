@@ -48,3 +48,18 @@ type ErrorResponse struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
+
+// DeviceActivationRequest represents the ABP activation request
+type DeviceActivationRequest struct {
+	DeviceActivation DeviceActivation `json:"deviceActivation"`
+}
+
+// DeviceActivation contains ABP session keys for a device
+// For LoRaWAN 1.0.x, all NwkS*Key fields should be set to the same value (NwkSKey)
+type DeviceActivation struct {
+	DevAddr     string `json:"devAddr"`
+	AppSKey     string `json:"appSKey"`
+	NwkSEncKey  string `json:"nwkSEncKey"`  // LoRaWAN 1.1 (set to NwkSKey for 1.0.x)
+	FNwkSIntKey string `json:"fNwkSIntKey"` // LoRaWAN 1.1 (set to NwkSKey for 1.0.x)
+	SNwkSIntKey string `json:"sNwkSIntKey"` // LoRaWAN 1.1 (set to NwkSKey for 1.0.x)
+}
