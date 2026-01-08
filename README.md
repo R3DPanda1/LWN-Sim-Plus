@@ -25,14 +25,24 @@ This fork adds the following features to the original LWN-Simulator:
 
 **JavaScript Codec System**
 - Execute ChirpStack-compatible JavaScript codecs for dynamic payload generation
-- Built-in helper functions: `getCounter()`, `setState()`, `getPreviousPayload()`, `log()`
+- Built-in helper functions:
+  - `getState(name)` / `setState(name, value)` - persistent state storage
+  - `getSendInterval()` / `setSendInterval(seconds)` - dynamic transmission interval control
+  - `hexToBytes(hex)` / `base64ToBytes(b64)` - payload conversion utilities
+  - `log(message)` - debug logging
 - Per-device persistent state management across simulator restarts
 - Monaco Editor integration for codec editing with IntelliSense
 
-**Device Profile System**
+**Device Templates**
 - Pre-configured templates for real LoRaWAN devices
-- REST API endpoints for device and codec management
-- WebSocket events for real-time UI updates
+- Bulk device creation (up to 1000 devices from a single template)
+- ABP activation with auto-generated credentials
+- Geographic randomization for coverage testing
+
+**ChirpStack Integration**
+- Automatic device provisioning via ChirpStack v4 REST API
+- Connection testing and device profile fetching
+- Automatic device cleanup on deletion
 
 **Production Deployment**
 - Daemon scripts for background execution (`start.sh`, `stop.sh`)
@@ -69,28 +79,31 @@ There are two types of gateway:
 ### JavaScript Codec Example
 
 ```javascript
-function Encode(fPort, obj) {
+// OnUplink is called when device sends an uplink
+function OnUplink() {
     var bytes = [];
 
     // Access persistent state
-    var counter = getCounter("messageCount") || 0;
-    setCounter("messageCount", counter + 1);
+    var counter = getState("messageCount") || 0;
+    setState("messageCount", counter + 1);
 
     // Encode temperature (2 bytes, signed, 0.1°C resolution)
-    var temp = Math.round((obj.temperature || 20) * 10);
+    var temp = Math.round((20 + Math.random() * 5) * 10);
     bytes.push((temp >> 8) & 0xFF);
     bytes.push(temp & 0xFF);
 
-    return {
-        fPort: fPort || 85,
-        bytes: bytes
-    };
+    log("TX message #" + counter + " temp=" + (temp/10) + "C");
+
+    return { fPort: 85, bytes: bytes };
 }
 
-function Decode(fPort, bytes) {
-    return {
-        temperature: (((bytes[0] << 8) | bytes[1]) << 16 >> 16) / 10.0
-    };
+// OnDownlink is called when device receives a downlink (optional)
+function OnDownlink(bytes, fPort) {
+    log("RX fPort=" + fPort + " len=" + bytes.length);
+    // Process downlink commands, update state, etc.
+    if (bytes[0] === 0x01) {
+        setSendInterval(bytes[1] * 60); // Set interval in minutes
+    }
 }
 ```
 
