@@ -3,7 +3,7 @@ package device
 import (
 	"time"
 
-	"github.com/R3DPanda1/LWN-Sim-Plus/codec"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/codec"
 	"github.com/brocaar/lorawan"
 )
 

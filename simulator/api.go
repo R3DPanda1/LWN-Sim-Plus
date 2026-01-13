@@ -13,11 +13,11 @@ import (
 
 	"github.com/brocaar/lorawan"
 
-	"github.com/R3DPanda1/LWN-Sim-Plus/codec"
 	"github.com/R3DPanda1/LWN-Sim-Plus/codes"
-	"github.com/R3DPanda1/LWN-Sim-Plus/integration"
-	"github.com/R3DPanda1/LWN-Sim-Plus/integration/chirpstack"
-	"github.com/R3DPanda1/LWN-Sim-Plus/template"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/codec"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration/chirpstack"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/template"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
 
