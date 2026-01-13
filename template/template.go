@@ -1,8 +1,6 @@
 package template
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -16,7 +14,7 @@ var (
 // DeviceTemplate represents a template for bulk device creation
 // Templates use ABP activation; DevEUI, DevAddr, NwkSKey, AppSKey, and Name are auto-generated
 type DeviceTemplate struct {
-	ID   string `json:"id"`
+	ID   int    `json:"id"`
 	Name string `json:"name"` // Template name (e.g., "AM319 Temperature Sensor")
 
 	// Region configuration
@@ -57,18 +55,18 @@ type DeviceTemplate struct {
 	SupportedFragment bool `json:"supportedFragment"` // true=fragment, false=truncate
 
 	// Codec configuration
-	UseCodec bool   `json:"useCodec"`
-	CodecID  string `json:"codecId"`
+	UseCodec bool `json:"useCodec"`
+	CodecID  int  `json:"codecId"`
 
 	// ChirpStack Integration configuration
 	IntegrationEnabled bool   `json:"integrationEnabled"`
-	IntegrationID      string `json:"integrationId"`
+	IntegrationID      int    `json:"integrationId"`
 	DeviceProfileID    string `json:"deviceProfileId"`
 }
 
-// NewDeviceTemplate creates a new template with auto-generated ID
+// NewDeviceTemplate creates a new template (ID must be set by the registry)
 func NewDeviceTemplate(name string) *DeviceTemplate {
-	t := &DeviceTemplate{
+	return &DeviceTemplate{
 		Name: name,
 		// Defaults
 		Region:            1, // EU868
@@ -89,19 +87,6 @@ func NewDeviceTemplate(name string) *DeviceTemplate {
 		MType:             0, // UnconfirmedDataUp
 		SupportedFragment: false,
 	}
-	t.ID = t.generateID()
-	return t
-}
-
-// generateID creates a unique ID based on name
-func (t *DeviceTemplate) generateID() string {
-	hash := sha256.Sum256([]byte(t.Name + fmt.Sprintf("%d", t.Region)))
-	return hex.EncodeToString(hash[:])[:16]
-}
-
-// RegenerateID regenerates the ID (useful after name change)
-func (t *DeviceTemplate) RegenerateID() {
-	t.ID = t.generateID()
 }
 
 // Validate checks if the template has all required fields
@@ -151,4 +136,102 @@ func (t *DeviceTemplate) Clone() *DeviceTemplate {
 		IntegrationID:      t.IntegrationID,
 		DeviceProfileID:    t.DeviceProfileID,
 	}
+}
+
+// GetDefaultTemplates returns built-in default templates for common device types
+// codecLookup is an optional function to resolve codec names to IDs
+func GetDefaultTemplates(codecLookup func(name string) int) []*DeviceTemplate {
+	templates := make([]*DeviceTemplate, 0, 4)
+
+	// Milesight AM319 Environmental Sensor Template (ID: 1)
+	am319 := &DeviceTemplate{
+		ID:                1,
+		Name:              "Milesight AM319",
+		Region:            1, // EU868
+		SupportedClassB:   false,
+		SupportedClassC:   false,
+		SupportedADR:      true,
+		Range:             5000, // 5km typical indoor/urban
+		DataRate:          5,    // SF7 - good for indoor sensors
+		RX1DROffset:       0,
+		SendInterval:      300, // 5 minutes
+		AckTimeout:        2,
+		RX1Delay:          1000,
+		RX1Duration:       3000,
+		RX2Delay:          2000,
+		RX2Duration:       3000,
+		RX2Frequency:      869525000,
+		RX2DataRate:       0,
+		FPort:             85, // Milesight uses fPort 85
+		NbRetransmission:  1,
+		MType:             0, // Unconfirmed
+		SupportedFragment: false,
+		UseCodec:          true,
+	}
+	if codecLookup != nil {
+		am319.CodecID = codecLookup("Milesight AM319")
+	}
+	templates = append(templates, am319)
+
+	// Enginko MCF-LW13IO I/O Controller Template (ID: 2)
+	mcfio := &DeviceTemplate{
+		ID:                2,
+		Name:              "Enginko MCF-LW13IO",
+		Region:            1, // EU868
+		SupportedClassB:   false,
+		SupportedClassC:   true, // Class C for immediate downlink response
+		SupportedADR:      true,
+		Range:             3000, // 3km
+		DataRate:          5,    // SF7
+		RX1DROffset:       0,
+		SendInterval:      60, // 1 minute
+		AckTimeout:        2,
+		RX1Delay:          1000,
+		RX1Duration:       3000,
+		RX2Delay:          2000,
+		RX2Duration:       3000,
+		RX2Frequency:      869525000,
+		RX2DataRate:       0,
+		FPort:             2, // Enginko uses fPort 2
+		NbRetransmission:  1,
+		MType:             0, // Unconfirmed
+		SupportedFragment: false,
+		UseCodec:          true,
+	}
+	if codecLookup != nil {
+		mcfio.CodecID = codecLookup("Enginko MCF-LW13IO")
+	}
+	templates = append(templates, mcfio)
+
+	// Eastron SDM230 Energy Meter Template (ID: 3)
+	sdm230 := &DeviceTemplate{
+		ID:                3,
+		Name:              "Eastron SDM230",
+		Region:            1, // EU868
+		SupportedClassB:   false,
+		SupportedClassC:   true, // Class C device
+		SupportedADR:      true,
+		Range:             3000, // 3km
+		DataRate:          5,    // SF7
+		RX1DROffset:       0,
+		SendInterval:      900, // 15 minutes
+		AckTimeout:        2,
+		RX1Delay:          1000,
+		RX1Duration:       3000,
+		RX2Delay:          2000,
+		RX2Duration:       3000,
+		RX2Frequency:      869525000,
+		RX2DataRate:       0,
+		FPort:             1, // SDM230 uses fPort 1
+		NbRetransmission:  1,
+		MType:             0, // Unconfirmed
+		SupportedFragment: false,
+		UseCodec:          true,
+	}
+	if codecLookup != nil {
+		sdm230.CodecID = codecLookup("Eastron SDM230")
+	}
+	templates = append(templates, sdm230)
+
+	return templates
 }

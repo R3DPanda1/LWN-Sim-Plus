@@ -7,9 +7,9 @@ import (
 	"github.com/brocaar/lorawan"
 )
 
-// CodecManager is a global codec manager instance
+// Codecs is a global codec registry instance
 // It will be initialized by the simulator
-var CodecManager *codec.Manager
+var Codecs *codec.Registry
 
 // GetSendInterval returns the device's send interval (implements codec.DeviceInterface)
 func (d *Device) GetSendInterval() time.Duration {
@@ -33,12 +33,12 @@ func (d *Device) SetSendInterval(interval time.Duration) {
 // GenerateCodecPayload generates a payload using the configured codec
 func (d *Device) GenerateCodecPayload() lorawan.Payload {
 	// Safety check
-	if CodecManager == nil {
-		d.Print("Codec manager not initialized, using static payload", nil, 1)
+	if Codecs == nil {
+		d.Print("Codec registry not initialized, using static payload", nil, 1)
 		return d.Info.Status.Payload
 	}
 
-	if d.Info.Configuration.CodecID == "" {
+	if d.Info.Configuration.CodecID == 0 {
 		d.Print("No codec ID configured, using static payload", nil, 1)
 		return d.Info.Status.Payload
 	}
@@ -47,7 +47,7 @@ func (d *Device) GenerateCodecPayload() lorawan.Payload {
 	devEUI := d.Info.DevEUI.String()
 
 	// Encode using codec (returns bytes and fPort)
-	bytes, fPort, err := CodecManager.EncodePayload(
+	bytes, fPort, err := Codecs.EncodePayload(
 		d.Info.Configuration.CodecID,
 		devEUI,
 		d, // Pass device for getSendInterval/setSendInterval

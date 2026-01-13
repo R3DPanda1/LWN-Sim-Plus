@@ -42,31 +42,31 @@ type SimulatorRepository interface {
 	SendUplink(e.NewPayload)                   // Send an uplink
 	ChangeLocation(e.NewLocation) bool         // Change the location
 	ToggleStateGateway(int)                    // Toggle the state of a gateway
-	GetCodecs() []codec.CodecMetadata          // Get all available codecs
-	GetCodec(string) (*codec.Codec, error)     // Get a specific codec by ID
-	AddCodec(*codec.Codec) error               // Add a custom codec
-	UpdateCodec(string, string, string) error  // Update an existing codec by ID
-	DeleteCodec(string) error                  // Delete a codec by ID
-	GetDevicesUsingCodec(string) []string      // Get devices using a specific codec
-	EmitCodecEvent(string, interface{})        // Emit a WebSocket event for codec operations
+	GetCodecs() []codec.CodecMetadata        // Get all available codecs
+	GetCodec(int) (*codec.Codec, error)      // Get a specific codec by ID
+	AddCodec(*codec.Codec) error             // Add a custom codec
+	UpdateCodec(int, string, string) error   // Update an existing codec by ID
+	DeleteCodec(int) error                   // Delete a codec by ID
+	GetDevicesUsingCodec(int) []string       // Get devices using a specific codec
+	EmitCodecEvent(string, interface{})      // Emit a WebSocket event for codec operations
 
 	// Integration management
-	GetIntegrations() []*integration.Integration                                                       // Get all integrations
-	GetIntegration(string) (*integration.Integration, error)                                           // Get a specific integration
-	AddIntegration(string, integration.IntegrationType, string, string, string, string) (string, error) // Add a new integration (name, type, url, apiKey, tenantId, appId)
-	UpdateIntegration(string, string, string, string, string, string, bool) error                      // Update an integration (id, name, url, apiKey, tenantId, appId, enabled)
-	DeleteIntegration(string) error                                                                    // Delete an integration
-	TestIntegrationConnection(string) error                                                            // Test connection to an integration
-	GetDeviceProfiles(string) ([]chirpstack.DeviceProfile, error)                                      // Get device profiles from ChirpStack
-	EmitIntegrationEvent(string, interface{})                                                          // Emit a WebSocket event for integration operations
+	GetIntegrations() []*integration.Integration                                                    // Get all integrations
+	GetIntegration(int) (*integration.Integration, error)                                           // Get a specific integration
+	AddIntegration(string, integration.IntegrationType, string, string, string, string) (int, error) // Add a new integration (name, type, url, apiKey, tenantId, appId)
+	UpdateIntegration(int, string, string, string, string, string, bool) error                      // Update an integration (id, name, url, apiKey, tenantId, appId, enabled)
+	DeleteIntegration(int) error                                                                    // Delete an integration
+	TestIntegrationConnection(int) error                                                            // Test connection to an integration
+	GetDeviceProfiles(int) ([]chirpstack.DeviceProfile, error)                                      // Get device profiles from ChirpStack
+	EmitIntegrationEvent(string, interface{})                                                       // Emit a WebSocket event for integration operations
 
 	// Template management
-	GetTemplates() []*template.DeviceTemplate                                                         // Get all templates
-	GetTemplate(string) (*template.DeviceTemplate, error)                                             // Get a specific template
-	AddTemplate(*template.DeviceTemplate) (string, error)                                             // Add a new template
-	UpdateTemplate(*template.DeviceTemplate) error                                                    // Update a template
-	DeleteTemplate(string) error                                                                      // Delete a template
-	CreateDevicesFromTemplate(string, int, string, float64, float64, int32, float64) ([]int, error)   // Bulk create devices from template
+	GetTemplates() []*template.DeviceTemplate                                                      // Get all templates
+	GetTemplate(int) (*template.DeviceTemplate, error)                                             // Get a specific template
+	AddTemplate(*template.DeviceTemplate) (int, error)                                             // Add a new template
+	UpdateTemplate(*template.DeviceTemplate) error                                                 // Update a template
+	DeleteTemplate(int) error                                                                      // Delete a template
+	CreateDevicesFromTemplate(int, int, string, float64, float64, int32, float64) ([]int, error)   // Bulk create devices from template
 }
 
 // simulatorRepository repository struct
@@ -192,7 +192,7 @@ func (s *simulatorRepository) GetCodecs() []codec.CodecMetadata {
 	return s.sim.GetCodecs()
 }
 
-func (s *simulatorRepository) GetCodec(id string) (*codec.Codec, error) {
+func (s *simulatorRepository) GetCodec(id int) (*codec.Codec, error) {
 	return s.sim.GetCodec(id)
 }
 
@@ -200,15 +200,15 @@ func (s *simulatorRepository) AddCodec(codec *codec.Codec) error {
 	return s.sim.AddCodec(codec)
 }
 
-func (s *simulatorRepository) UpdateCodec(id string, name string, script string) error {
+func (s *simulatorRepository) UpdateCodec(id int, name string, script string) error {
 	return s.sim.UpdateCodec(id, name, script)
 }
 
-func (s *simulatorRepository) DeleteCodec(id string) error {
+func (s *simulatorRepository) DeleteCodec(id int) error {
 	return s.sim.DeleteCodec(id)
 }
 
-func (s *simulatorRepository) GetDevicesUsingCodec(codecID string) []string {
+func (s *simulatorRepository) GetDevicesUsingCodec(codecID int) []string {
 	return s.sim.GetDevicesUsingCodec(codecID)
 }
 
@@ -222,27 +222,27 @@ func (s *simulatorRepository) GetIntegrations() []*integration.Integration {
 	return s.sim.GetIntegrations()
 }
 
-func (s *simulatorRepository) GetIntegration(id string) (*integration.Integration, error) {
+func (s *simulatorRepository) GetIntegration(id int) (*integration.Integration, error) {
 	return s.sim.GetIntegration(id)
 }
 
-func (s *simulatorRepository) AddIntegration(name string, intType integration.IntegrationType, url, apiKey, tenantID, appID string) (string, error) {
+func (s *simulatorRepository) AddIntegration(name string, intType integration.IntegrationType, url, apiKey, tenantID, appID string) (int, error) {
 	return s.sim.AddIntegration(name, intType, url, apiKey, tenantID, appID)
 }
 
-func (s *simulatorRepository) UpdateIntegration(id, name, url, apiKey, tenantID, appID string, enabled bool) error {
+func (s *simulatorRepository) UpdateIntegration(id int, name, url, apiKey, tenantID, appID string, enabled bool) error {
 	return s.sim.UpdateIntegration(id, name, url, apiKey, tenantID, appID, enabled)
 }
 
-func (s *simulatorRepository) DeleteIntegration(id string) error {
+func (s *simulatorRepository) DeleteIntegration(id int) error {
 	return s.sim.DeleteIntegration(id)
 }
 
-func (s *simulatorRepository) TestIntegrationConnection(id string) error {
+func (s *simulatorRepository) TestIntegrationConnection(id int) error {
 	return s.sim.TestIntegrationConnection(id)
 }
 
-func (s *simulatorRepository) GetDeviceProfiles(id string) ([]chirpstack.DeviceProfile, error) {
+func (s *simulatorRepository) GetDeviceProfiles(id int) ([]chirpstack.DeviceProfile, error) {
 	return s.sim.GetDeviceProfiles(id)
 }
 
@@ -256,11 +256,11 @@ func (s *simulatorRepository) GetTemplates() []*template.DeviceTemplate {
 	return s.sim.GetTemplates()
 }
 
-func (s *simulatorRepository) GetTemplate(id string) (*template.DeviceTemplate, error) {
+func (s *simulatorRepository) GetTemplate(id int) (*template.DeviceTemplate, error) {
 	return s.sim.GetTemplate(id)
 }
 
-func (s *simulatorRepository) AddTemplate(tmpl *template.DeviceTemplate) (string, error) {
+func (s *simulatorRepository) AddTemplate(tmpl *template.DeviceTemplate) (int, error) {
 	return s.sim.AddTemplate(tmpl)
 }
 
@@ -268,10 +268,10 @@ func (s *simulatorRepository) UpdateTemplate(tmpl *template.DeviceTemplate) erro
 	return s.sim.UpdateTemplate(tmpl)
 }
 
-func (s *simulatorRepository) DeleteTemplate(id string) error {
+func (s *simulatorRepository) DeleteTemplate(id int) error {
 	return s.sim.DeleteTemplate(id)
 }
 
-func (s *simulatorRepository) CreateDevicesFromTemplate(templateID string, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
+func (s *simulatorRepository) CreateDevicesFromTemplate(templateID int, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
 	return s.sim.CreateDevicesFromTemplate(templateID, count, namePrefix, baseLat, baseLng, baseAlt, spreadMeters)
 }

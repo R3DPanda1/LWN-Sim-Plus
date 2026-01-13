@@ -53,7 +53,7 @@ function AddItemListIntegrations(integration){
 
 // Handle integration list item click - load integration for editing
 $(document).on('click', '#list-integrations tr', function(){
-    var id = $(this).data("id");
+    var id = parseInt($(this).data("id"));
     var integrationMeta = Integrations.get(id);
 
     if(!integrationMeta){
@@ -158,7 +158,7 @@ $("[name=btn-edit-integration]").on('click', function(){
 $("[name=btn-delete-integration]").on('click', function(){
     var integrationId = $("#div-buttons-integration").data("id");
 
-    if(!integrationId){
+    if(integrationId === undefined || integrationId === null || integrationId === ""){
         Show_ErrorSweetToast("Error", "No integration selected");
         return;
     }
@@ -181,7 +181,7 @@ $("[name=btn-delete-integration]").on('click', function(){
 $("[name=btn-test-integration]").on('click', function(){
     var integrationId = $("#div-buttons-integration").data("id");
 
-    if(!integrationId){
+    if(integrationId === undefined || integrationId === null || integrationId === ""){
         // For new integration, test with form values
         TestIntegrationFromForm();
     } else {
@@ -199,7 +199,7 @@ function TestIntegrationConnection(integrationId) {
             "Access-Control-Allow-Origin": "*"
         }
     }).done((data) => {
-        Show_SweetToast("Connection successful", "ChirpStack server is reachable");
+        Show_SweetToast("Connection successful", "ChirpStack integration is working correctly");
     }).fail((data) => {
         var errorMsg = data.responseJSON ? data.responseJSON.error : data.statusText;
         Show_ErrorSweetToast("Connection failed", errorMsg);
@@ -239,8 +239,8 @@ function SaveIntegration(){
         return;
     }
 
-    // Determine if we're editing or adding
-    var isEdit = integrationId && integrationId !== "";
+    // Determine if we're editing or adding (ID 0 is valid)
+    var isEdit = integrationId !== undefined && integrationId !== null && integrationId !== "";
     var apiEndpoint = isEdit ? "/api/update-integration" : "/api/add-integration";
 
     var integrationData = {
@@ -309,7 +309,7 @@ function LoadDeviceProfiles(integrationId, savedProfileId) {
     dropdown.empty();
     dropdown.append('<option value="">Loading device profiles...</option>');
 
-    if(!integrationId) {
+    if(integrationId === undefined || integrationId === null || integrationId === "") {
         dropdown.empty();
         dropdown.append('<option value="">Select an integration first...</option>');
         return;

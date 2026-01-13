@@ -2472,9 +2472,11 @@ function LoadDevice(dev){
             LoadIntegrationList();
         }
         setTimeout(function(){
-            $("#select-dev-integration").val(dev.info.configuration.integrationId || "");
+            // Handle ID 0 properly - only use empty string if integrationId is null/undefined
+            var integrationIdVal = (dev.info.configuration.integrationId !== undefined && dev.info.configuration.integrationId !== null) ? dev.info.configuration.integrationId : "";
+            $("#select-dev-integration").val(integrationIdVal);
             // Load device profiles for selected integration, passing saved ID for offline fallback
-            if(dev.info.configuration.integrationId && typeof LoadDeviceProfiles === 'function') {
+            if(dev.info.configuration.integrationId !== undefined && dev.info.configuration.integrationId !== null && typeof LoadDeviceProfiles === 'function') {
                 LoadDeviceProfiles(dev.info.configuration.integrationId, dev.info.configuration.deviceProfileId);
             }
         }, 300);
@@ -2884,12 +2886,12 @@ function Click_SaveDevice(){
                 "sendInterval":Number(upInterval.val()),
                 "nbRetransmission":Number(retransmission.val()),
                 "useCodec": (function() {
-                    var codecID = $("#select-payload-generation").val() || "";
-                    return codecID !== "";
+                    var codecID = $("#select-payload-generation").val();
+                    return codecID !== "" && codecID !== null;
                 })(),
-                "codecID": $("#select-payload-generation").val() || "",
+                "codecID": Number($("#select-payload-generation").val()) || 0,
                 "integrationEnabled": $("#checkbox-dev-integration-enabled").prop("checked"),
-                "integrationId": $("#select-dev-integration").val() || "",
+                "integrationId": Number($("#select-dev-integration").val()) || 0,
                 "deviceProfileId": $("#select-dev-profile").val() || ""
             },
             "rxs":[

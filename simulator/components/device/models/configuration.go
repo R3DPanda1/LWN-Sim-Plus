@@ -37,12 +37,12 @@ type Configuration struct {
 	NbRepUnconfirmedDataUp uint8 `json:"-"`                // Nb retrasmission of UnconfirmedDataUp
 
 	// Codec configuration
-	CodecID  string `json:"codecID"`  // ID of codec to use (empty = use raw payload)
-	UseCodec bool   `json:"useCodec"` // Enable/disable codec
+	CodecID  int  `json:"codecID"`  // ID of codec to use (0 = use raw payload)
+	UseCodec bool `json:"useCodec"` // Enable/disable codec
 
 	// ChirpStack Integration configuration
 	IntegrationEnabled bool   `json:"integrationEnabled"` // Enable ChirpStack integration
-	IntegrationID      string `json:"integrationId"`      // ID of integration to use
+	IntegrationID      int    `json:"integrationId"`      // ID of integration to use (0 = none)
 	DeviceProfileID    string `json:"deviceProfileId"`    // ChirpStack device profile ID
 }
 

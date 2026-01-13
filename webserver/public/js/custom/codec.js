@@ -99,7 +99,7 @@ function AddItemListCodecs(codec, usageData){
 
 // Handle codec list item click - load codec for editing
 $(document).on('click', '#list-codecs tr', function(){
-    var id = $(this).data("id");
+    var id = parseInt($(this).data("id"));
     var codecMeta = Codecs.get(id);
 
     if(!codecMeta){
@@ -269,7 +269,7 @@ function SaveCodec(isUpdate){
     }
 
     // Determine if we're editing (codecId exists) or adding (no codecId)
-    var isEdit = codecId && codecId !== "";
+    var isEdit = codecId && codecId !== 0;
     var apiEndpoint = isEdit ? "/api/update-codec" : "/api/add-codec";
 
     var codecData = {

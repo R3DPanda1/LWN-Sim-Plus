@@ -9,6 +9,7 @@ import (
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/codes"
 	"github.com/R3DPanda1/LWN-Sim-Plus/integration"
+	"github.com/R3DPanda1/LWN-Sim-Plus/integration/chirpstack"
 	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
 	"github.com/R3DPanda1/LWN-Sim-Plus/template"
 	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
@@ -24,20 +25,26 @@ import (
 
 // Simulator is a model
 type Simulator struct {
-	State                 uint8               `json:"-"`             // Runtime state: Stop, Running
-	Devices               map[int]*dev.Device `json:"-"`             // A collection of devices
-	ActiveDevices         map[int]int         `json:"-"`             // A collection of active devices
-	ActiveGateways        map[int]int         `json:"-"`             // A collection of active gateways
-	ComponentsInactiveTmp int                 `json:"-"`             // Number of inactive components
-	Gateways              map[int]*gw.Gateway `json:"-"`             // A collection of gateways
-	Forwarder             f.Forwarder         `json:"-"`             // Forwarder instance used for communication between devices and gateways
-	NextIDDev             int                 `json:"nextIDDev"`     // Next device ID used for creating a new device
-	NextIDGw              int                 `json:"nextIDGw"`      // Next gateway ID used for creating a new gateway
-	BridgeAddress         string              `json:"bridgeAddress"` // Bridge address used to connect to a network
-	Resources             res.Resources        `json:"-"`             // Resources used for managing the simulator
-	Console               c.Console            `json:"-"`             // Console instance, used for logging in the web terminal
-	IntegrationManager    *integration.Manager `json:"-"`             // Integration manager for ChirpStack provisioning
-	TemplateManager       *template.Manager    `json:"-"`             // Template manager for device templates
+	State                 uint8               `json:"-"`                 // Runtime state: Stop, Running
+	Devices               map[int]*dev.Device `json:"-"`                 // A collection of devices
+	ActiveDevices         map[int]int         `json:"-"`                 // A collection of active devices
+	ActiveGateways        map[int]int         `json:"-"`                 // A collection of active gateways
+	ComponentsInactiveTmp int                 `json:"-"`                 // Number of inactive components
+	Gateways              map[int]*gw.Gateway `json:"-"`                 // A collection of gateways
+	Forwarder             f.Forwarder         `json:"-"`                 // Forwarder instance used for communication between devices and gateways
+	NextIDDev             int                 `json:"nextIDDev"`         // Next device ID used for creating a new device
+	NextIDGw              int                 `json:"nextIDGw"`          // Next gateway ID used for creating a new gateway
+	NextIDIntegration     int                 `json:"nextIDIntegration"` // Next integration ID
+	NextIDTemplate        int                 `json:"nextIDTemplate"`    // Next template ID
+	NextIDCodec           int                 `json:"nextIDCodec"`       // Next codec ID
+	BridgeAddress         string              `json:"bridgeAddress"`     // Bridge address used to connect to a network
+	Resources             res.Resources       `json:"-"`                 // Resources used for managing the simulator
+	Console               c.Console           `json:"-"`                 // Console instance, used for logging in the web terminal
+	// Integration management (like Devices/Gateways pattern)
+	Integrations       map[int]*integration.Integration `json:"-"` // A collection of integrations
+	IntegrationClients map[int]*chirpstack.Client       `json:"-"` // ChirpStack clients for each integration
+	// Template management (like Devices/Gateways pattern)
+	Templates map[int]*template.DeviceTemplate `json:"-"` // A collection of device templates
 }
 
 // setup loads and initializes the simulator maps for gateways and devices. It also initializes the console
@@ -80,7 +87,7 @@ func (s *Simulator) SetupConsole() {
 	}
 }
 
-// loadData retrieves the simulator configuration, devices, and gateways from the JSON files by populating the Simulator struct
+// loadData retrieves the simulator configuration, devices, gateways, integrations, and templates from JSON files
 func (s *Simulator) loadData() {
 	path, err := util.GetPath()
 	if err != nil {
@@ -98,6 +105,68 @@ func (s *Simulator) loadData() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// Load integrations (non-fatal if missing)
+	err = util.RecoverConfigFile(path+"/integrations.json", &s.Integrations)
+	if err != nil {
+		shared.DebugPrint(fmt.Sprintf("Warning: failed to load integrations: %v", err))
+	}
+	// Load templates (non-fatal if missing)
+	err = util.RecoverConfigFile(path+"/templates.json", &s.Templates)
+	if err != nil {
+		shared.DebugPrint(fmt.Sprintf("Warning: failed to load templates: %v", err))
+	}
+}
+
+// setupIntegrations initializes ChirpStack clients for all integrations
+func (s *Simulator) setupIntegrations() {
+	if s.Integrations == nil {
+		s.Integrations = make(map[int]*integration.Integration)
+	}
+	if s.IntegrationClients == nil {
+		s.IntegrationClients = make(map[int]*chirpstack.Client)
+	}
+	for _, i := range s.Integrations {
+		if i.Type == integration.IntegrationTypeChirpStack {
+			s.IntegrationClients[i.ID] = chirpstack.NewClient(i.URL, i.APIKey)
+		}
+		// Track highest ID for NextIDIntegration
+		if i.ID >= s.NextIDIntegration {
+			s.NextIDIntegration = i.ID + 1
+		}
+	}
+	shared.DebugPrint("Integrations setup OK")
+}
+
+// setupTemplates initializes templates and loads defaults if empty
+func (s *Simulator) setupTemplates() {
+	if s.Templates == nil {
+		s.Templates = make(map[int]*template.DeviceTemplate)
+	}
+	// Track highest ID for NextIDTemplate
+	for _, t := range s.Templates {
+		if t.ID >= s.NextIDTemplate {
+			s.NextIDTemplate = t.ID + 1
+		}
+	}
+	// Load defaults if no templates exist
+	if len(s.Templates) == 0 {
+		s.loadDefaultTemplates()
+	}
+	shared.DebugPrint("Templates setup OK")
+}
+
+// loadDefaultTemplates loads built-in default templates
+func (s *Simulator) loadDefaultTemplates() {
+	defaults := template.GetDefaultTemplates(func(name string) int {
+		return dev.Codecs.GetCodecIDByName(name)
+	})
+	for _, t := range defaults {
+		s.Templates[t.ID] = t
+		if t.ID >= s.NextIDTemplate {
+			s.NextIDTemplate = t.ID + 1
+		}
+	}
+	shared.DebugPrint("Default templates loaded")
 }
 
 func (s *Simulator) searchName(Name string, Id int, gwFlag bool) (int, error) {
@@ -172,7 +241,7 @@ func (s *Simulator) saveComponent(path string, v interface{}) {
 
 }
 
-// saveStatus saves the simulator status, devices, and gateways to JSON files
+// saveStatus saves the simulator status, devices, gateways, integrations, and templates to JSON files
 func (s *Simulator) saveStatus() {
 	shared.DebugPrint("Saving status on disk")
 	pathDir, err := util.GetPath()
@@ -185,6 +254,10 @@ func (s *Simulator) saveStatus() {
 	s.saveComponent(path, &s.Devices)
 	path = pathDir + "/gateways.json"
 	s.saveComponent(path, &s.Gateways)
+	path = pathDir + "/integrations.json"
+	s.saveComponent(path, &s.Integrations)
+	path = pathDir + "/templates.json"
+	s.saveComponent(path, &s.Templates)
 	s.Print("Status saved", nil, util.PrintOnlyConsole)
 }
 
