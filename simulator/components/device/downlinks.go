@@ -80,7 +80,7 @@ func (d *Device) ProcessDownlink(phy lorawan.PHYPayload) (*dl.InformationDownlin
 // decodeDownlinkWithCodec executes the OnDownlink codec function for its side effects
 func (d *Device) decodeDownlinkWithCodec(payload *dl.InformationDownlink, phy *lorawan.PHYPayload) {
 	// Check if codec is configured and payload has data
-	if CodecManager == nil || d.Info.Configuration.CodecID == "" || payload == nil {
+	if Codecs == nil || d.Info.Configuration.CodecID == 0 || payload == nil {
 		return
 	}
 
@@ -100,7 +100,7 @@ func (d *Device) decodeDownlinkWithCodec(payload *dl.InformationDownlink, phy *l
 	}
 
 	// Execute OnDownlink for side effects (log, setState, setSendInterval)
-	err := CodecManager.DecodePayload(
+	err := Codecs.DecodePayload(
 		d.Info.Configuration.CodecID,
 		devEUI,
 		payload.DataPayload,
