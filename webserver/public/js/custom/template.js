@@ -132,8 +132,10 @@ function LoadTemplate(template) {
         $("#template-integration-settings").removeClass("hide");
         LoadTemplateIntegrationList();
         setTimeout(function() {
-            $("#select-template-integration").val(template.integrationId || "");
-            if (template.integrationId) {
+            // Handle ID 0 properly - only use empty string if integrationId is null/undefined
+            var integrationIdVal = (template.integrationId !== undefined && template.integrationId !== null) ? template.integrationId : "";
+            $("#select-template-integration").val(integrationIdVal);
+            if (template.integrationId !== undefined && template.integrationId !== null) {
                 // Pass saved profile ID for offline fallback
                 LoadTemplateDeviceProfiles(template.integrationId, template.deviceProfileId);
             }
@@ -158,7 +160,7 @@ function SaveTemplate() {
     var isUpdate = templateId && templateId !== "";
 
     var template = {
-        id: templateId || "",
+        id: parseInt(templateId) || 0,
         name: $("[name=input-template-name]").val(),
         region: parseInt($("#select-template-region").val()),
         supportedClassB: $("#checkbox-template-classb").prop("checked"),
@@ -169,9 +171,9 @@ function SaveTemplate() {
         sendInterval: parseInt($("[name=input-template-sendinterval]").val()),
         fport: parseInt($("[name=input-template-fport]").val()),
         useCodec: $("#select-template-codec").val() !== "",
-        codecId: $("#select-template-codec").val() || "",
+        codecId: parseInt($("#select-template-codec").val()) || 0,
         integrationEnabled: $("#checkbox-template-integration-enabled").prop("checked"),
-        integrationId: $("#select-template-integration").val() || "",
+        integrationId: parseInt($("#select-template-integration").val()) || 0,
         deviceProfileId: $("#select-template-device-profile").val() || "",
         // RX window settings (read from form)
         rx1Delay: 1000,
@@ -223,7 +225,7 @@ function DeleteTemplate(templateId) {
         url: url + "/api/delete-template",
         type: "POST",
         contentType: "application/json",
-        data: JSON.stringify({ id: templateId })
+        data: JSON.stringify({ id: parseInt(templateId) })
     }).done(function(result) {
         if (result.error) {
             Show_ErrorSweetToast("Error", result.error);
@@ -266,7 +268,7 @@ function LoadTemplateDeviceProfiles(integrationId, savedProfileId) {
     select.empty();
     select.append('<option value="">Loading device profiles...</option>');
 
-    if (!integrationId) {
+    if (integrationId === undefined || integrationId === null || integrationId === "") {
         select.empty();
         select.append('<option value="">Select an integration first...</option>');
         return;
@@ -376,7 +378,7 @@ function SubmitBulkCreate() {
     }
 
     var data = {
-        templateId: templateId,
+        templateId: parseInt(templateId),
         count: count,
         namePrefix: namePrefix,
         baseLat: baseLat,
@@ -447,7 +449,7 @@ $(document).ready(function() {
 
     // Template list row click
     $(document).on('click', '.click-template', function() {
-        var templateId = $(this).attr("data-id");
+        var templateId = parseInt($(this).attr("data-id"));
         var template = Templates.get(templateId);
         if (template) {
             PopulateTemplateCodecDropdown();

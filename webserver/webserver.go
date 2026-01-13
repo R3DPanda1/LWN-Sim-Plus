@@ -314,7 +314,11 @@ func getCodecs(c *gin.Context) {
 
 // getCodec returns a specific codec by ID
 func getCodec(c *gin.Context) {
-	id := c.Param("id")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "Invalid codec ID", "error": err.Error()})
+		return
+	}
 	codec, err := simulatorController.GetCodec(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"status": "Codec not found", "error": err.Error()})
@@ -353,7 +357,7 @@ func addCodec(c *gin.Context) {
 // updateCodec updates an existing codec
 func updateCodec(c *gin.Context) {
 	var codecData struct {
-		ID     string `json:"id"`
+		ID     int    `json:"id"`
 		Name   string `json:"name"`
 		Script string `json:"script"`
 	}
@@ -364,7 +368,7 @@ func updateCodec(c *gin.Context) {
 	}
 
 	// Validate required fields
-	if codecData.ID == "" {
+	if codecData.ID == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "Invalid request", "error": "ID is required"})
 		return
 	}
@@ -392,7 +396,7 @@ func updateCodec(c *gin.Context) {
 // deleteCodec deletes a codec by ID
 func deleteCodec(c *gin.Context) {
 	var reqData struct {
-		ID string `json:"id"`
+		ID int `json:"id"`
 	}
 
 	if err := c.BindJSON(&reqData); err != nil {
@@ -413,7 +417,11 @@ func deleteCodec(c *gin.Context) {
 
 // getCodecUsage returns which devices are using a specific codec
 func getCodecUsage(c *gin.Context) {
-	id := c.Param("id")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid codec ID"})
+		return
+	}
 	devices := simulatorController.GetDevicesUsingCodec(id)
 	c.JSON(http.StatusOK, gin.H{"codecId": id, "devices": devices, "count": len(devices)})
 }
@@ -428,7 +436,11 @@ func getIntegrations(c *gin.Context) {
 
 // getIntegration returns a specific integration by ID
 func getIntegration(c *gin.Context) {
-	id := c.Param("id")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "Invalid integration ID", "error": err.Error()})
+		return
+	}
 	integ, err := simulatorController.GetIntegration(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"status": "Integration not found", "error": err.Error()})
@@ -471,7 +483,7 @@ func addIntegration(c *gin.Context) {
 // updateIntegration updates an existing integration
 func updateIntegration(c *gin.Context) {
 	var data struct {
-		ID            string `json:"id"`
+		ID            *int   `json:"id"` // Pointer to distinguish between "not provided" and "0"
 		Name          string `json:"name"`
 		URL           string `json:"url"`
 		APIKey        string `json:"apiKey"`
@@ -485,24 +497,24 @@ func updateIntegration(c *gin.Context) {
 		return
 	}
 
-	if data.ID == "" {
+	if data.ID == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
 		return
 	}
 
-	if err := simulatorController.UpdateIntegration(data.ID, data.Name, data.URL, data.APIKey, data.TenantID, data.ApplicationID, data.Enabled); err != nil {
+	if err := simulatorController.UpdateIntegration(*data.ID, data.Name, data.URL, data.APIKey, data.TenantID, data.ApplicationID, data.Enabled); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	simulatorController.EmitIntegrationEvent(socket.EventIntegrationUpdated, gin.H{"id": data.ID, "name": data.Name})
+	simulatorController.EmitIntegrationEvent(socket.EventIntegrationUpdated, gin.H{"id": *data.ID, "name": data.Name})
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 // deleteIntegration removes an integration
 func deleteIntegration(c *gin.Context) {
 	var data struct {
-		ID string `json:"id"`
+		ID int `json:"id"`
 	}
 
 	if err := c.BindJSON(&data); err != nil {
@@ -521,7 +533,11 @@ func deleteIntegration(c *gin.Context) {
 
 // testIntegrationConnection tests connection to an integration
 func testIntegrationConnection(c *gin.Context) {
-	id := c.Param("id")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid integration ID"})
+		return
+	}
 
 	if err := simulatorController.TestIntegrationConnection(id); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -533,7 +549,11 @@ func testIntegrationConnection(c *gin.Context) {
 
 // getDeviceProfiles returns device profiles for an integration
 func getDeviceProfiles(c *gin.Context) {
-	id := c.Param("id")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid integration ID"})
+		return
+	}
 
 	profiles, err := simulatorController.GetDeviceProfiles(id)
 	if err != nil {
@@ -554,7 +574,11 @@ func getTemplates(c *gin.Context) {
 
 // getTemplate returns a specific template by ID
 func getTemplate(c *gin.Context) {
-	id := c.Param("id")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid template ID"})
+		return
+	}
 	tmpl, err := simulatorController.GetTemplate(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -590,7 +614,7 @@ func updateTemplate(c *gin.Context) {
 		return
 	}
 
-	if tmpl.ID == "" {
+	if tmpl.ID == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
 		return
 	}
@@ -606,7 +630,7 @@ func updateTemplate(c *gin.Context) {
 // deleteTemplate removes a template
 func deleteTemplate(c *gin.Context) {
 	var data struct {
-		ID string `json:"id"`
+		ID int `json:"id"`
 	}
 
 	if err := c.BindJSON(&data); err != nil {
@@ -624,7 +648,7 @@ func deleteTemplate(c *gin.Context) {
 
 // BulkDeviceRequest represents the request for bulk device creation
 type BulkDeviceRequest struct {
-	TemplateID   string  `json:"templateId"`
+	TemplateID   int     `json:"templateId"`
 	Count        int     `json:"count"`
 	NamePrefix   string  `json:"namePrefix"`
 	BaseLat      float64 `json:"baseLat"`
@@ -643,7 +667,7 @@ func createDevicesFromTemplate(c *gin.Context) {
 	}
 
 	// Validate request
-	if req.TemplateID == "" {
+	if req.TemplateID == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "templateId is required"})
 		return
 	}

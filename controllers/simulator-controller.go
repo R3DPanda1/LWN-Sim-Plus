@@ -38,31 +38,31 @@ type SimulatorController interface {
 	SendUplink(e.NewPayload)                   // Send an uplink
 	ChangeLocation(e.NewLocation) bool         // Change the location
 	ToggleStateGateway(int)                    // Toggle the state of a gateway
-	GetCodecs() []codec.CodecMetadata          // Get all available codecs
-	GetCodec(string) (*codec.Codec, error)     // Get a specific codec by ID
-	AddCodec(*codec.Codec) error               // Add a custom codec
-	UpdateCodec(string, string, string) error  // Update an existing codec by ID
-	DeleteCodec(string) error                  // Delete a codec by ID
-	GetDevicesUsingCodec(string) []string      // Get devices using a specific codec
-	EmitCodecEvent(string, interface{})        // Emit a WebSocket event for codec operations
+	GetCodecs() []codec.CodecMetadata        // Get all available codecs
+	GetCodec(int) (*codec.Codec, error)      // Get a specific codec by ID
+	AddCodec(*codec.Codec) error             // Add a custom codec
+	UpdateCodec(int, string, string) error   // Update an existing codec by ID
+	DeleteCodec(int) error                   // Delete a codec by ID
+	GetDevicesUsingCodec(int) []string       // Get devices using a specific codec
+	EmitCodecEvent(string, interface{})      // Emit a WebSocket event for codec operations
 
 	// Integration management
-	GetIntegrations() []*integration.Integration                                              // Get all integrations
-	GetIntegration(string) (*integration.Integration, error)                                  // Get a specific integration
-	AddIntegration(string, integration.IntegrationType, string, string, string, string) (string, error) // Add a new integration (name, type, url, apiKey, tenantId, appId)
-	UpdateIntegration(string, string, string, string, string, string, bool) error             // Update an integration (id, name, url, apiKey, tenantId, appId, enabled)
-	DeleteIntegration(string) error                                                           // Delete an integration
-	TestIntegrationConnection(string) error                                                   // Test connection to an integration
-	GetDeviceProfiles(string) ([]chirpstack.DeviceProfile, error)                             // Get device profiles from ChirpStack
-	EmitIntegrationEvent(string, interface{})                                                 // Emit a WebSocket event for integration operations
+	GetIntegrations() []*integration.Integration                                                    // Get all integrations
+	GetIntegration(int) (*integration.Integration, error)                                           // Get a specific integration
+	AddIntegration(string, integration.IntegrationType, string, string, string, string) (int, error) // Add a new integration (name, type, url, apiKey, tenantId, appId)
+	UpdateIntegration(int, string, string, string, string, string, bool) error                      // Update an integration (id, name, url, apiKey, tenantId, appId, enabled)
+	DeleteIntegration(int) error                                                                    // Delete an integration
+	TestIntegrationConnection(int) error                                                            // Test connection to an integration
+	GetDeviceProfiles(int) ([]chirpstack.DeviceProfile, error)                                      // Get device profiles from ChirpStack
+	EmitIntegrationEvent(string, interface{})                                                       // Emit a WebSocket event for integration operations
 
 	// Template management
-	GetTemplates() []*template.DeviceTemplate                                                         // Get all templates
-	GetTemplate(string) (*template.DeviceTemplate, error)                                             // Get a specific template
-	AddTemplate(*template.DeviceTemplate) (string, error)                                             // Add a new template
-	UpdateTemplate(*template.DeviceTemplate) error                                                    // Update a template
-	DeleteTemplate(string) error                                                                      // Delete a template
-	CreateDevicesFromTemplate(string, int, string, float64, float64, int32, float64) ([]int, error)   // Bulk create devices from template
+	GetTemplates() []*template.DeviceTemplate                                                      // Get all templates
+	GetTemplate(int) (*template.DeviceTemplate, error)                                             // Get a specific template
+	AddTemplate(*template.DeviceTemplate) (int, error)                                             // Add a new template
+	UpdateTemplate(*template.DeviceTemplate) error                                                 // Update a template
+	DeleteTemplate(int) error                                                                      // Delete a template
+	CreateDevicesFromTemplate(int, int, string, float64, float64, int32, float64) ([]int, error)   // Bulk create devices from template
 }
 
 // simulatorController controller struct
@@ -167,7 +167,7 @@ func (c *simulatorController) GetCodecs() []codec.CodecMetadata {
 	return c.repo.GetCodecs()
 }
 
-func (c *simulatorController) GetCodec(id string) (*codec.Codec, error) {
+func (c *simulatorController) GetCodec(id int) (*codec.Codec, error) {
 	return c.repo.GetCodec(id)
 }
 
@@ -175,15 +175,15 @@ func (c *simulatorController) AddCodec(codec *codec.Codec) error {
 	return c.repo.AddCodec(codec)
 }
 
-func (c *simulatorController) UpdateCodec(id string, name string, script string) error {
+func (c *simulatorController) UpdateCodec(id int, name string, script string) error {
 	return c.repo.UpdateCodec(id, name, script)
 }
 
-func (c *simulatorController) DeleteCodec(id string) error {
+func (c *simulatorController) DeleteCodec(id int) error {
 	return c.repo.DeleteCodec(id)
 }
 
-func (c *simulatorController) GetDevicesUsingCodec(codecID string) []string {
+func (c *simulatorController) GetDevicesUsingCodec(codecID int) []string {
 	return c.repo.GetDevicesUsingCodec(codecID)
 }
 
@@ -197,27 +197,27 @@ func (c *simulatorController) GetIntegrations() []*integration.Integration {
 	return c.repo.GetIntegrations()
 }
 
-func (c *simulatorController) GetIntegration(id string) (*integration.Integration, error) {
+func (c *simulatorController) GetIntegration(id int) (*integration.Integration, error) {
 	return c.repo.GetIntegration(id)
 }
 
-func (c *simulatorController) AddIntegration(name string, intType integration.IntegrationType, url, apiKey, tenantID, appID string) (string, error) {
+func (c *simulatorController) AddIntegration(name string, intType integration.IntegrationType, url, apiKey, tenantID, appID string) (int, error) {
 	return c.repo.AddIntegration(name, intType, url, apiKey, tenantID, appID)
 }
 
-func (c *simulatorController) UpdateIntegration(id, name, url, apiKey, tenantID, appID string, enabled bool) error {
+func (c *simulatorController) UpdateIntegration(id int, name, url, apiKey, tenantID, appID string, enabled bool) error {
 	return c.repo.UpdateIntegration(id, name, url, apiKey, tenantID, appID, enabled)
 }
 
-func (c *simulatorController) DeleteIntegration(id string) error {
+func (c *simulatorController) DeleteIntegration(id int) error {
 	return c.repo.DeleteIntegration(id)
 }
 
-func (c *simulatorController) TestIntegrationConnection(id string) error {
+func (c *simulatorController) TestIntegrationConnection(id int) error {
 	return c.repo.TestIntegrationConnection(id)
 }
 
-func (c *simulatorController) GetDeviceProfiles(id string) ([]chirpstack.DeviceProfile, error) {
+func (c *simulatorController) GetDeviceProfiles(id int) ([]chirpstack.DeviceProfile, error) {
 	return c.repo.GetDeviceProfiles(id)
 }
 
@@ -231,11 +231,11 @@ func (c *simulatorController) GetTemplates() []*template.DeviceTemplate {
 	return c.repo.GetTemplates()
 }
 
-func (c *simulatorController) GetTemplate(id string) (*template.DeviceTemplate, error) {
+func (c *simulatorController) GetTemplate(id int) (*template.DeviceTemplate, error) {
 	return c.repo.GetTemplate(id)
 }
 
-func (c *simulatorController) AddTemplate(tmpl *template.DeviceTemplate) (string, error) {
+func (c *simulatorController) AddTemplate(tmpl *template.DeviceTemplate) (int, error) {
 	return c.repo.AddTemplate(tmpl)
 }
 
@@ -243,10 +243,10 @@ func (c *simulatorController) UpdateTemplate(tmpl *template.DeviceTemplate) erro
 	return c.repo.UpdateTemplate(tmpl)
 }
 
-func (c *simulatorController) DeleteTemplate(id string) error {
+func (c *simulatorController) DeleteTemplate(id int) error {
 	return c.repo.DeleteTemplate(id)
 }
 
-func (c *simulatorController) CreateDevicesFromTemplate(templateID string, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
+func (c *simulatorController) CreateDevicesFromTemplate(templateID int, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
 	return c.repo.CreateDevicesFromTemplate(templateID, count, namePrefix, baseLat, baseLng, baseAlt, spreadMeters)
 }
