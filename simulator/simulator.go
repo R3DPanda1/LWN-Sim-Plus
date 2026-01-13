@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/codes"
-	"github.com/R3DPanda1/LWN-Sim-Plus/integration"
-	"github.com/R3DPanda1/LWN-Sim-Plus/integration/chirpstack"
 	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
-	"github.com/R3DPanda1/LWN-Sim-Plus/template"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration/chirpstack"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/template"
 	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
 	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
 	mfw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder/models"
