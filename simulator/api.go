@@ -52,15 +52,15 @@ func GetInstance() *Simulator {
 	s.Console = c.Console{}
 
 	// Initialize codec manager (Phase 1-3 enhancement)
-	if dev.CodecManager == nil {
-		dev.CodecManager = codec.NewManager(codec.DefaultExecutorConfig())
+	if dev.Codecs == nil {
+		dev.Codecs = codec.NewRegistry(codec.DefaultExecutorConfig())
 
 		// Load codec library from disk
 		pathDir, err := util.GetPath()
 		codecLibLoaded := false
 		if err == nil {
 			codecLibPath := pathDir + "/codecs.json"
-			if err := dev.CodecManager.LoadCodecLibrary(codecLibPath); err != nil {
+			if err := dev.Codecs.Load(codecLibPath); err != nil {
 				shared.DebugPrint(fmt.Sprintf("Warning: %v", err))
 			} else {
 				shared.DebugPrint("Codec library loaded from disk")
@@ -69,48 +69,19 @@ func GetInstance() *Simulator {
 		}
 
 		// If no codecs loaded from disk, load defaults
-		if !codecLibLoaded || dev.CodecManager.GetCodecCount() == 0 {
-			dev.CodecManager.LoadDefaults()
+		if !codecLibLoaded || dev.Codecs.GetCodecCount() == 0 {
+			dev.Codecs.LoadDefaults()
 			shared.DebugPrint("Default codecs loaded")
 		}
 
 		shared.DebugPrint("Codec manager initialized")
 	}
 
-	// Initialize integration manager
-	s.IntegrationManager = integration.NewManager()
-	pathDir, err := util.GetPath()
-	if err == nil {
-		integrationPath := pathDir + "/integrations.json"
-		if err := s.IntegrationManager.Load(integrationPath); err != nil {
-			shared.DebugPrint(fmt.Sprintf("Warning: failed to load integrations: %v", err))
-		} else {
-			shared.DebugPrint("Integrations loaded from disk")
-		}
-	}
+	// Initialize integrations (direct map pattern like Devices/Gateways)
+	s.setupIntegrations()
 
-	// Initialize template manager
-	s.TemplateManager = template.NewManager()
-	templateLoaded := false
-	if pathDir != "" {
-		templatePath := pathDir + "/templates.json"
-		if err := s.TemplateManager.Load(templatePath); err != nil {
-			shared.DebugPrint(fmt.Sprintf("Warning: failed to load templates: %v", err))
-		} else {
-			shared.DebugPrint("Templates loaded from disk")
-			templateLoaded = true
-		}
-	}
-
-	// If no templates loaded from disk, load defaults
-	if !templateLoaded || s.TemplateManager.Count() == 0 {
-		// Create codec lookup function to link templates with their codecs
-		codecLookup := func(name string) string {
-			return dev.CodecManager.GetCodecIDByName(name)
-		}
-		s.TemplateManager.LoadDefaults(codecLookup)
-		shared.DebugPrint("Default templates loaded")
-	}
+	// Initialize templates (direct map pattern like Devices/Gateways)
+	s.setupTemplates()
 
 	return &s
 }
@@ -149,43 +120,19 @@ func (s *Simulator) Stop() {
 		s.Devices[id].TurnOFF()
 	}
 	s.Resources.ExitGroup.Wait()
+
+	// Save all state (includes integrations and templates now)
 	s.saveStatus()
 
-	// Save codec library
-	if dev.CodecManager != nil {
+	// Save codec library (codec uses its own registry)
+	if dev.Codecs != nil {
 		pathDir, err := util.GetPath()
 		if err == nil {
 			codecLibPath := pathDir + "/codecs.json"
-			if err := dev.CodecManager.SaveCodecLibrary(codecLibPath); err != nil {
+			if err := dev.Codecs.Save(codecLibPath); err != nil {
 				shared.DebugPrint(fmt.Sprintf("Warning: failed to save codec library: %v", err))
 			} else {
 				shared.DebugPrint("Codec library saved to disk")
-			}
-		}
-	}
-
-	// Save integrations
-	if s.IntegrationManager != nil {
-		pathDir, err := util.GetPath()
-		if err == nil {
-			integrationPath := pathDir + "/integrations.json"
-			if err := s.IntegrationManager.Save(integrationPath); err != nil {
-				shared.DebugPrint(fmt.Sprintf("Warning: failed to save integrations: %v", err))
-			} else {
-				shared.DebugPrint("Integrations saved to disk")
-			}
-		}
-	}
-
-	// Save templates
-	if s.TemplateManager != nil {
-		pathDir, err := util.GetPath()
-		if err == nil {
-			templatePath := pathDir + "/templates.json"
-			if err := s.TemplateManager.Save(templatePath); err != nil {
-				shared.DebugPrint(fmt.Sprintf("Warning: failed to save templates: %v", err))
-			} else {
-				shared.DebugPrint("Templates saved to disk")
 			}
 		}
 	}
@@ -388,14 +335,14 @@ func (s *Simulator) SetDevice(device *dev.Device, update bool) (int, int, error)
 	s.Print("Device Saved", nil, util.PrintOnlyConsole)
 
 	// Provision device to ChirpStack if integration is enabled (only for new devices)
-	if !update && device.Info.Configuration.IntegrationEnabled && device.Info.Configuration.IntegrationID != "" {
+	if !update && device.Info.Configuration.IntegrationEnabled {
 		devEUI := hex.EncodeToString(device.Info.DevEUI[:])
 
 		var err error
 		if device.Info.Configuration.SupportedOtaa {
 			// OTAA: provision with AppKey
 			appKey := hex.EncodeToString(device.Info.AppKey[:])
-			err = s.IntegrationManager.ProvisionDevice(
+			err = s.ProvisionDevice(
 				device.Info.Configuration.IntegrationID,
 				devEUI,
 				device.Info.Name,
@@ -407,7 +354,7 @@ func (s *Simulator) SetDevice(device *dev.Device, update bool) (int, int, error)
 			devAddr := hex.EncodeToString(device.Info.DevAddr[:])
 			nwkSKey := hex.EncodeToString(device.Info.NwkSKey[:])
 			appSKey := hex.EncodeToString(device.Info.AppSKey[:])
-			err = s.IntegrationManager.ProvisionDeviceABP(
+			err = s.ProvisionDeviceABP(
 				device.Info.Configuration.IntegrationID,
 				devEUI,
 				device.Info.Name,
@@ -455,9 +402,9 @@ func (s *Simulator) DeleteDevice(Id int) bool {
 
 	// Delete device from ChirpStack if integration was enabled for this specific device
 	device := s.Devices[Id]
-	if device.Info.Configuration.IntegrationEnabled && device.Info.Configuration.IntegrationID != "" {
+	if device.Info.Configuration.IntegrationEnabled {
 		devEUI := hex.EncodeToString(device.Info.DevEUI[:])
-		if err := s.IntegrationManager.DeleteDevice(device.Info.Configuration.IntegrationID, devEUI); err != nil {
+		if err := s.DeleteDeviceFromChirpStack(device.Info.Configuration.IntegrationID, devEUI); err != nil {
 			s.Print("ChirpStack deletion failed: "+err.Error(), nil, util.PrintOnlyConsole)
 		} else {
 			s.Print("Device deleted from ChirpStack", nil, util.PrintOnlyConsole)
@@ -579,23 +526,23 @@ func (s *Simulator) ToggleStateGateway(Id int) {
 
 // GetCodecs returns all available codec metadata
 func (s *Simulator) GetCodecs() []codec.CodecMetadata {
-	if dev.CodecManager == nil {
+	if dev.Codecs == nil {
 		return []codec.CodecMetadata{}
 	}
-	return dev.CodecManager.ListCodecs()
+	return dev.Codecs.ListCodecs()
 }
 
 // GetCodec returns a specific codec by ID
-func (s *Simulator) GetCodec(id string) (*codec.Codec, error) {
-	if dev.CodecManager == nil {
-		return nil, errors.New("codec manager not initialized")
+func (s *Simulator) GetCodec(id int) (*codec.Codec, error) {
+	if dev.Codecs == nil {
+		return nil, errors.New("codec registry not initialized")
 	}
-	return dev.CodecManager.GetCodec(id)
+	return dev.Codecs.GetCodec(id)
 }
 
 // GetDevicesUsingCodec returns a list of device EUIs using the specified codec
 // Also counts templates that use this codec
-func (s *Simulator) GetDevicesUsingCodec(codecID string) []string {
+func (s *Simulator) GetDevicesUsingCodec(codecID int) []string {
 	devicesUsingCodec := []string{}
 
 	// Check devices
@@ -606,9 +553,9 @@ func (s *Simulator) GetDevicesUsingCodec(codecID string) []string {
 	}
 
 	// Check templates
-	for _, tmpl := range s.TemplateManager.List() {
+	for _, tmpl := range s.Templates {
 		if tmpl.UseCodec && tmpl.CodecID == codecID {
-			devicesUsingCodec = append(devicesUsingCodec, "template:"+tmpl.ID)
+			devicesUsingCodec = append(devicesUsingCodec, fmt.Sprintf("template:%d", tmpl.ID))
 		}
 	}
 
@@ -617,11 +564,11 @@ func (s *Simulator) GetDevicesUsingCodec(codecID string) []string {
 
 // AddCodec adds a custom codec
 func (s *Simulator) AddCodec(c *codec.Codec) error {
-	if dev.CodecManager == nil {
-		return errors.New("codec manager not initialized")
+	if dev.Codecs == nil {
+		return errors.New("codec registry not initialized")
 	}
 
-	if err := dev.CodecManager.AddCodec(c); err != nil {
+	if err := dev.Codecs.AddCodec(c); err != nil {
 		return err
 	}
 
@@ -631,12 +578,12 @@ func (s *Simulator) AddCodec(c *codec.Codec) error {
 }
 
 // UpdateCodec updates an existing codec
-func (s *Simulator) UpdateCodec(id string, name string, script string) error {
-	if dev.CodecManager == nil {
-		return errors.New("codec manager not initialized")
+func (s *Simulator) UpdateCodec(id int, name string, script string) error {
+	if dev.Codecs == nil {
+		return errors.New("codec registry not initialized")
 	}
 
-	if err := dev.CodecManager.UpdateCodec(id, name, script); err != nil {
+	if err := dev.Codecs.UpdateCodec(id, name, script); err != nil {
 		return err
 	}
 
@@ -646,9 +593,9 @@ func (s *Simulator) UpdateCodec(id string, name string, script string) error {
 }
 
 // DeleteCodec removes a codec by ID
-func (s *Simulator) DeleteCodec(id string) error {
-	if dev.CodecManager == nil {
-		return errors.New("codec manager not initialized")
+func (s *Simulator) DeleteCodec(id int) error {
+	if dev.Codecs == nil {
+		return errors.New("codec registry not initialized")
 	}
 
 	// Check if any devices or templates are using this codec
@@ -676,7 +623,7 @@ func (s *Simulator) DeleteCodec(id string) error {
 		return fmt.Errorf("cannot delete codec: used by %s", strings.Join(parts, " and "))
 	}
 
-	if err := dev.CodecManager.RemoveCodec(id); err != nil {
+	if err := dev.Codecs.RemoveCodec(id); err != nil {
 		return err
 	}
 
@@ -687,67 +634,110 @@ func (s *Simulator) DeleteCodec(id string) error {
 
 // saveCodecLibrary saves the codec library to disk
 func (s *Simulator) saveCodecLibrary() {
-	s.saveToFile("codecs.json", func(path string) error {
-		if dev.CodecManager != nil {
-			return dev.CodecManager.SaveCodecLibrary(path)
+	pathDir, err := util.GetPath()
+	if err == nil && dev.Codecs != nil {
+		codecLibPath := pathDir + "/codecs.json"
+		if err := dev.Codecs.Save(codecLibPath); err != nil {
+			shared.DebugPrint(fmt.Sprintf("Warning: failed to save codec library: %v", err))
 		}
-		return nil
-	})
+	}
 }
 
 // ==================== Integration Management ====================
 
-// GetIntegrations returns all integrations (without API keys)
+// GetIntegrations returns all integrations (without API keys for security)
 func (s *Simulator) GetIntegrations() []*integration.Integration {
-	if s.IntegrationManager == nil {
+	if s.Integrations == nil {
 		return []*integration.Integration{}
 	}
-	return s.IntegrationManager.List()
+	result := make([]*integration.Integration, 0, len(s.Integrations))
+	for _, i := range s.Integrations {
+		result = append(result, i.PublicCopy())
+	}
+	return result
 }
 
 // GetIntegration returns a specific integration by ID
-func (s *Simulator) GetIntegration(id string) (*integration.Integration, error) {
-	if s.IntegrationManager == nil {
-		return nil, errors.New("integration manager not initialized")
+func (s *Simulator) GetIntegration(id int) (*integration.Integration, error) {
+	if s.Integrations == nil {
+		return nil, integration.ErrIntegrationNotFound
 	}
-	return s.IntegrationManager.Get(id)
+	integ, exists := s.Integrations[id]
+	if !exists {
+		return nil, integration.ErrIntegrationNotFound
+	}
+	return integ.Clone(), nil
 }
 
 // AddIntegration adds a new integration
-func (s *Simulator) AddIntegration(name string, intType integration.IntegrationType, url, apiKey, tenantID, appID string) (string, error) {
-	if s.IntegrationManager == nil {
-		return "", errors.New("integration manager not initialized")
+func (s *Simulator) AddIntegration(name string, intType integration.IntegrationType, url, apiKey, tenantID, appID string) (int, error) {
+	if s.Integrations == nil {
+		s.Integrations = make(map[int]*integration.Integration)
+	}
+	if s.IntegrationClients == nil {
+		s.IntegrationClients = make(map[int]*chirpstack.Client)
 	}
 
 	integ := integration.NewIntegration(name, intType, url, apiKey, tenantID, appID)
-	if err := s.IntegrationManager.Add(integ); err != nil {
-		return "", err
+	if err := integ.Validate(); err != nil {
+		return 0, err
+	}
+
+	integ.ID = s.NextIDIntegration
+	s.NextIDIntegration++
+
+	s.Integrations[integ.ID] = integ
+
+	// Create ChirpStack client
+	if intType == integration.IntegrationTypeChirpStack {
+		s.IntegrationClients[integ.ID] = chirpstack.NewClient(integ.URL, integ.APIKey)
 	}
 
 	// Save to disk
-	s.saveIntegrationLibrary()
+	s.saveStatus()
 	return integ.ID, nil
 }
 
 // UpdateIntegration updates an existing integration
-func (s *Simulator) UpdateIntegration(id, name, url, apiKey, tenantID, appID string, enabled bool) error {
-	if s.IntegrationManager == nil {
-		return errors.New("integration manager not initialized")
+func (s *Simulator) UpdateIntegration(id int, name, url, apiKey, tenantID, appID string, enabled bool) error {
+	if s.Integrations == nil {
+		return integration.ErrIntegrationNotFound
 	}
 
-	if err := s.IntegrationManager.Update(id, name, url, apiKey, tenantID, appID, enabled); err != nil {
+	existing, exists := s.Integrations[id]
+	if !exists {
+		return integration.ErrIntegrationNotFound
+	}
+
+	existing.Name = name
+	existing.URL = url
+	existing.APIKey = apiKey
+	existing.TenantID = tenantID
+	existing.ApplicationID = appID
+	existing.Enabled = enabled
+
+	if err := existing.Validate(); err != nil {
 		return err
 	}
 
+	// Update ChirpStack client
+	if existing.Type == integration.IntegrationTypeChirpStack {
+		s.IntegrationClients[id] = chirpstack.NewClient(existing.URL, existing.APIKey)
+	}
+
 	// Save to disk
-	s.saveIntegrationLibrary()
+	s.saveStatus()
 	return nil
 }
 
 // DeleteIntegration removes an integration by ID
-func (s *Simulator) DeleteIntegration(id string) error {
-	if s.IntegrationManager == nil {
-		return errors.New("integration manager not initialized")
+func (s *Simulator) DeleteIntegration(id int) error {
+	if s.Integrations == nil {
+		return integration.ErrIntegrationNotFound
+	}
+
+	if _, exists := s.Integrations[id]; !exists {
+		return integration.ErrIntegrationNotFound
 	}
 
 	// Check if any devices are using this integration
@@ -756,33 +746,54 @@ func (s *Simulator) DeleteIntegration(id string) error {
 		return fmt.Errorf("cannot delete integration: used by %d device(s)", len(devicesUsingIntegration))
 	}
 
-	if err := s.IntegrationManager.Remove(id); err != nil {
-		return err
-	}
+	delete(s.Integrations, id)
+	delete(s.IntegrationClients, id)
 
 	// Save to disk
-	s.saveIntegrationLibrary()
+	s.saveStatus()
 	return nil
 }
 
 // TestIntegrationConnection tests connection to an integration
-func (s *Simulator) TestIntegrationConnection(id string) error {
-	if s.IntegrationManager == nil {
-		return errors.New("integration manager not initialized")
+func (s *Simulator) TestIntegrationConnection(id int) error {
+	if s.Integrations == nil {
+		return integration.ErrIntegrationNotFound
 	}
-	return s.IntegrationManager.TestConnection(id)
+
+	integ, exists := s.Integrations[id]
+	if !exists {
+		return integration.ErrIntegrationNotFound
+	}
+
+	client, exists := s.IntegrationClients[id]
+	if !exists {
+		return errors.New("client not initialized for this integration")
+	}
+
+	return client.TestConnection(integ.TenantID)
 }
 
 // GetDeviceProfiles returns device profiles for an integration
-func (s *Simulator) GetDeviceProfiles(id string) ([]chirpstack.DeviceProfile, error) {
-	if s.IntegrationManager == nil {
-		return nil, errors.New("integration manager not initialized")
+func (s *Simulator) GetDeviceProfiles(id int) ([]chirpstack.DeviceProfile, error) {
+	if s.Integrations == nil {
+		return nil, integration.ErrIntegrationNotFound
 	}
-	return s.IntegrationManager.GetDeviceProfiles(id)
+
+	integ, exists := s.Integrations[id]
+	if !exists {
+		return nil, integration.ErrIntegrationNotFound
+	}
+
+	client, exists := s.IntegrationClients[id]
+	if !exists {
+		return nil, errors.New("client not initialized for this integration")
+	}
+
+	return client.ListDeviceProfiles(integ.TenantID, 100)
 }
 
 // GetDevicesUsingIntegration returns a list of device EUIs using the specified integration
-func (s *Simulator) GetDevicesUsingIntegration(integrationID string) []string {
+func (s *Simulator) GetDevicesUsingIntegration(integrationID int) []string {
 	devicesUsingIntegration := []string{}
 	for _, device := range s.Devices {
 		if device.Info.Configuration.IntegrationID == integrationID {
@@ -792,117 +803,215 @@ func (s *Simulator) GetDevicesUsingIntegration(integrationID string) []string {
 	return devicesUsingIntegration
 }
 
-// saveIntegrationLibrary saves integrations to disk
-func (s *Simulator) saveIntegrationLibrary() {
-	s.saveToFile("integrations.json", func(path string) error {
-		if s.IntegrationManager != nil {
-			return s.IntegrationManager.Save(path)
-		}
-		return nil
-	})
+// ProvisionDevice provisions a device to ChirpStack using OTAA
+func (s *Simulator) ProvisionDevice(integrationID int, devEUI, name, deviceProfileID, appKey string) error {
+	if s.Integrations == nil {
+		return integration.ErrIntegrationNotFound
+	}
+
+	integ, exists := s.Integrations[integrationID]
+	if !exists {
+		return integration.ErrIntegrationNotFound
+	}
+
+	if !integ.Enabled {
+		return errors.New("integration is disabled")
+	}
+
+	client, exists := s.IntegrationClients[integrationID]
+	if !exists {
+		return errors.New("client not initialized for this integration")
+	}
+
+	// Create device
+	device := &chirpstack.Device{
+		DevEUI:          devEUI,
+		Name:            name,
+		ApplicationID:   integ.ApplicationID,
+		DeviceProfileID: deviceProfileID,
+	}
+
+	if err := client.CreateDevice(device); err != nil {
+		return fmt.Errorf("failed to create device: %w", err)
+	}
+
+	// Set device keys
+	if err := client.SetDeviceKeys(devEUI, appKey); err != nil {
+		// Rollback: delete the device
+		_ = client.DeleteDevice(devEUI)
+		return fmt.Errorf("failed to set device keys: %w", err)
+	}
+
+	return nil
 }
 
-// saveToFile is a generic helper for saving data to JSON files
-func (s *Simulator) saveToFile(filename string, saveFn func(string) error) {
-	pathDir, err := util.GetPath()
-	if err == nil {
-		fullPath := pathDir + "/" + filename
-		if err := saveFn(fullPath); err != nil {
-			shared.DebugPrint(fmt.Sprintf("Warning: failed to save %s: %v", filename, err))
-		}
+// ProvisionDeviceABP provisions a device to ChirpStack using ABP
+func (s *Simulator) ProvisionDeviceABP(integrationID int, devEUI, name, deviceProfileID, devAddr, nwkSKey, appSKey string) error {
+	if s.Integrations == nil {
+		return integration.ErrIntegrationNotFound
 	}
+
+	integ, exists := s.Integrations[integrationID]
+	if !exists {
+		return integration.ErrIntegrationNotFound
+	}
+
+	if !integ.Enabled {
+		return errors.New("integration is disabled")
+	}
+
+	client, exists := s.IntegrationClients[integrationID]
+	if !exists {
+		return errors.New("client not initialized for this integration")
+	}
+
+	// Create device
+	device := &chirpstack.Device{
+		DevEUI:          devEUI,
+		Name:            name,
+		ApplicationID:   integ.ApplicationID,
+		DeviceProfileID: deviceProfileID,
+		SkipFcntCheck:   true,
+	}
+
+	if err := client.CreateDevice(device); err != nil {
+		return fmt.Errorf("failed to create device: %w", err)
+	}
+
+	// Activate device with ABP keys
+	if err := client.ActivateDeviceABP(devEUI, devAddr, nwkSKey, appSKey); err != nil {
+		// Rollback: delete the device
+		_ = client.DeleteDevice(devEUI)
+		return fmt.Errorf("failed to activate device (ABP): %w", err)
+	}
+
+	return nil
+}
+
+// DeleteDeviceFromChirpStack removes a device from ChirpStack
+func (s *Simulator) DeleteDeviceFromChirpStack(integrationID int, devEUI string) error {
+	if s.Integrations == nil {
+		return nil // Silently skip
+	}
+
+	integ, exists := s.Integrations[integrationID]
+	if !exists {
+		return nil // Silently skip
+	}
+
+	if !integ.Enabled {
+		return nil // Silently skip
+	}
+
+	client, exists := s.IntegrationClients[integrationID]
+	if !exists {
+		return nil // Silently skip
+	}
+
+	return client.DeleteDevice(devEUI)
 }
 
 // ==================== Template Management ====================
 
 // GetTemplates returns all templates
 func (s *Simulator) GetTemplates() []*template.DeviceTemplate {
-	if s.TemplateManager == nil {
+	if s.Templates == nil {
 		return []*template.DeviceTemplate{}
 	}
-	return s.TemplateManager.List()
+	result := make([]*template.DeviceTemplate, 0, len(s.Templates))
+	for _, t := range s.Templates {
+		result = append(result, t.Clone())
+	}
+	return result
 }
 
 // GetTemplate returns a specific template by ID
-func (s *Simulator) GetTemplate(id string) (*template.DeviceTemplate, error) {
-	if s.TemplateManager == nil {
-		return nil, errors.New("template manager not initialized")
+func (s *Simulator) GetTemplate(id int) (*template.DeviceTemplate, error) {
+	if s.Templates == nil {
+		return nil, template.ErrTemplateNotFound
 	}
-	return s.TemplateManager.Get(id)
+	tmpl, exists := s.Templates[id]
+	if !exists {
+		return nil, template.ErrTemplateNotFound
+	}
+	return tmpl.Clone(), nil
 }
 
 // AddTemplate adds a new template
-func (s *Simulator) AddTemplate(tmpl *template.DeviceTemplate) (string, error) {
-	if s.TemplateManager == nil {
-		return "", errors.New("template manager not initialized")
+func (s *Simulator) AddTemplate(tmpl *template.DeviceTemplate) (int, error) {
+	if s.Templates == nil {
+		s.Templates = make(map[int]*template.DeviceTemplate)
 	}
 
-	// Generate ID if not set
-	if tmpl.ID == "" {
-		tmpl.RegenerateID()
+	if err := tmpl.Validate(); err != nil {
+		return 0, err
 	}
 
-	if err := s.TemplateManager.Add(tmpl); err != nil {
-		return "", err
+	// Assign ID if not set
+	if tmpl.ID == 0 {
+		tmpl.ID = s.NextIDTemplate
+		s.NextIDTemplate++
+	} else if tmpl.ID >= s.NextIDTemplate {
+		s.NextIDTemplate = tmpl.ID + 1
 	}
+
+	s.Templates[tmpl.ID] = tmpl
 
 	// Save to disk
-	s.saveTemplateLibrary()
+	s.saveStatus()
 	return tmpl.ID, nil
 }
 
 // UpdateTemplate updates an existing template
 func (s *Simulator) UpdateTemplate(tmpl *template.DeviceTemplate) error {
-	if s.TemplateManager == nil {
-		return errors.New("template manager not initialized")
+	if s.Templates == nil {
+		return template.ErrTemplateNotFound
 	}
 
-	if err := s.TemplateManager.Update(tmpl); err != nil {
+	if _, exists := s.Templates[tmpl.ID]; !exists {
+		return template.ErrTemplateNotFound
+	}
+
+	if err := tmpl.Validate(); err != nil {
 		return err
 	}
 
+	s.Templates[tmpl.ID] = tmpl
+
 	// Save to disk
-	s.saveTemplateLibrary()
+	s.saveStatus()
 	return nil
 }
 
 // DeleteTemplate removes a template by ID
-func (s *Simulator) DeleteTemplate(id string) error {
-	if s.TemplateManager == nil {
-		return errors.New("template manager not initialized")
+func (s *Simulator) DeleteTemplate(id int) error {
+	if s.Templates == nil {
+		return template.ErrTemplateNotFound
 	}
 
-	if err := s.TemplateManager.Remove(id); err != nil {
-		return err
+	if _, exists := s.Templates[id]; !exists {
+		return template.ErrTemplateNotFound
 	}
+
+	delete(s.Templates, id)
 
 	// Save to disk
-	s.saveTemplateLibrary()
+	s.saveStatus()
 	return nil
-}
-
-// saveTemplateLibrary saves templates to disk
-func (s *Simulator) saveTemplateLibrary() {
-	s.saveToFile("templates.json", func(path string) error {
-		if s.TemplateManager != nil {
-			return s.TemplateManager.Save(path)
-		}
-		return nil
-	})
 }
 
 // ==================== Bulk Device Creation ====================
 
 // CreateDevicesFromTemplate creates multiple devices from a template
-func (s *Simulator) CreateDevicesFromTemplate(templateID string, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
-	if s.TemplateManager == nil {
-		return nil, errors.New("template manager not initialized")
+func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
+	if s.Templates == nil {
+		return nil, template.ErrTemplateNotFound
 	}
 
 	// Get template
-	tmpl, err := s.TemplateManager.Get(templateID)
-	if err != nil {
-		return nil, fmt.Errorf("template not found: %w", err)
+	tmpl, exists := s.Templates[templateID]
+	if !exists {
+		return nil, template.ErrTemplateNotFound
 	}
 
 	// Seed random number generator

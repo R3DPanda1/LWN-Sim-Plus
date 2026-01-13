@@ -1,8 +1,6 @@
 package integration
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -22,7 +20,7 @@ const (
 
 // Integration represents a network server integration configuration
 type Integration struct {
-	ID            string          `json:"id"`
+	ID            int             `json:"id"`
 	Name          string          `json:"name"`
 	Type          IntegrationType `json:"type"`
 	URL           string          `json:"url"`
@@ -32,9 +30,9 @@ type Integration struct {
 	Enabled       bool            `json:"enabled"`
 }
 
-// NewIntegration creates a new integration with auto-generated ID
+// NewIntegration creates a new integration (ID must be set by the registry)
 func NewIntegration(name string, intType IntegrationType, url, apiKey, tenantID, appID string) *Integration {
-	i := &Integration{
+	return &Integration{
 		Name:          name,
 		Type:          intType,
 		URL:           normalizeURL(url),
@@ -43,14 +41,6 @@ func NewIntegration(name string, intType IntegrationType, url, apiKey, tenantID,
 		ApplicationID: appID,
 		Enabled:       true,
 	}
-	i.ID = i.generateID()
-	return i
-}
-
-// generateID creates a unique ID based on name and type
-func (i *Integration) generateID() string {
-	hash := sha256.Sum256([]byte(i.Name + string(i.Type) + i.URL))
-	return hex.EncodeToString(hash[:])[:16]
 }
 
 // Validate checks if the integration has all required fields

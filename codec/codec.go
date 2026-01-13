@@ -1,8 +1,6 @@
 package codec
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,31 +17,23 @@ var (
 // Codec represents a JavaScript codec for encoding/decoding device payloads
 // Compatible with ChirpStack codec format
 type Codec struct {
-	ID     string `json:"id"`     // Unique identifier (hash of script)
+	ID     int    `json:"id"`     // Unique identifier (sequential)
 	Name   string `json:"name"`   // Human-readable name
 	Script string `json:"script"` // JavaScript code
 }
 
 // CodecMetadata holds metadata about a codec without the script
 type CodecMetadata struct {
-	ID   string `json:"id"`
+	ID   int    `json:"id"`
 	Name string `json:"name"`
 }
 
-// NewCodec creates a new codec with auto-generated ID
+// NewCodec creates a new codec (ID must be set by the registry)
 func NewCodec(name, script string) *Codec {
-	codec := &Codec{
+	return &Codec{
 		Name:   name,
 		Script: script,
 	}
-	codec.ID = codec.generateID()
-	return codec
-}
-
-// generateID creates a unique ID based on script hash
-func (c *Codec) generateID() string {
-	hash := sha256.Sum256([]byte(c.Script + c.Name))
-	return hex.EncodeToString(hash[:])[:16] // Use first 16 chars
 }
 
 // Validate checks if the codec is valid
@@ -85,27 +75,35 @@ func (c *Codec) Clone() *Codec {
 
 // CodecLibrary manages a collection of codecs
 type CodecLibrary struct {
-	codecs map[string]*Codec // ID -> Codec
+	codecs map[int]*Codec // ID -> Codec
+	nextID int            // Next ID to assign
 }
 
 // NewCodecLibrary creates a new codec library
 func NewCodecLibrary() *CodecLibrary {
 	return &CodecLibrary{
-		codecs: make(map[string]*Codec),
+		codecs: make(map[int]*Codec),
+		nextID: 1,
 	}
 }
 
-// Add adds a codec to the library
+// Add adds a codec to the library with the next available ID
 func (cl *CodecLibrary) Add(codec *Codec) error {
 	if err := codec.Validate(); err != nil {
 		return err
+	}
+	if codec.ID == 0 {
+		codec.ID = cl.nextID
+		cl.nextID++
+	} else if codec.ID >= cl.nextID {
+		cl.nextID = codec.ID + 1
 	}
 	cl.codecs[codec.ID] = codec
 	return nil
 }
 
 // Update updates an existing codec by ID, preserving the original ID
-func (cl *CodecLibrary) Update(id string, name string, script string) error {
+func (cl *CodecLibrary) Update(id int, name string, script string) error {
 	// Check if codec exists
 	if _, exists := cl.codecs[id]; !exists {
 		return ErrCodecNotFound
@@ -129,7 +127,7 @@ func (cl *CodecLibrary) Update(id string, name string, script string) error {
 }
 
 // Get retrieves a codec by ID
-func (cl *CodecLibrary) Get(id string) (*Codec, error) {
+func (cl *CodecLibrary) Get(id int) (*Codec, error) {
 	codec, exists := cl.codecs[id]
 	if !exists {
 		return nil, ErrCodecNotFound
@@ -138,7 +136,7 @@ func (cl *CodecLibrary) Get(id string) (*Codec, error) {
 }
 
 // Remove removes a codec from the library
-func (cl *CodecLibrary) Remove(id string) error {
+func (cl *CodecLibrary) Remove(id int) error {
 	if _, exists := cl.codecs[id]; !exists {
 		return ErrCodecNotFound
 	}
@@ -162,20 +160,31 @@ func (cl *CodecLibrary) Count() int {
 
 // Clear removes all codecs
 func (cl *CodecLibrary) Clear() {
-	cl.codecs = make(map[string]*Codec)
+	cl.codecs = make(map[int]*Codec)
+	cl.nextID = 1
 }
 
-// LoadDefaults loads default example codecs
+// GetNextID returns the next ID that will be assigned
+func (cl *CodecLibrary) GetNextID() int {
+	return cl.nextID
+}
+
+// SetNextID sets the next ID to assign
+func (cl *CodecLibrary) SetNextID(id int) {
+	cl.nextID = id
+}
+
+// LoadDefaults loads default example codecs with sequential IDs
 func (cl *CodecLibrary) LoadDefaults() {
-	// Milesight AM319 Environmental Sensor Codec
+	// Milesight AM319 Environmental Sensor Codec (ID: 1)
 	am319Codec := NewCodec("Milesight AM319", CreateAM319Codec())
 	cl.Add(am319Codec)
 
-	// Enginko MCF-LW13IO I/O Controller Codec
+	// Enginko MCF-LW13IO I/O Controller Codec (ID: 2)
 	mcflw13ioCodec := NewCodec("Enginko MCF-LW13IO", CreateMCFLW13IOCodec())
 	cl.Add(mcflw13ioCodec)
 
-	// Eastron SDM230 Energy Meter Codec
+	// Eastron SDM230 Energy Meter Codec (ID: 3)
 	sdm230Codec := NewCodec("Eastron SDM230", CreateSDM230Codec())
 	cl.Add(sdm230Codec)
 }
@@ -199,10 +208,18 @@ func (cl *CodecLibrary) FromJSON(data []byte) error {
 
 	// Clear existing codecs and add new ones
 	cl.Clear()
+	maxID := 0
 	for _, codec := range codecs {
+		if codec.ID > maxID {
+			maxID = codec.ID
+		}
 		if err := cl.Add(codec); err != nil {
 			return fmt.Errorf("failed to add codec %s: %w", codec.Name, err)
 		}
+	}
+	// Set nextID to be one more than the highest ID found
+	if maxID >= cl.nextID {
+		cl.nextID = maxID + 1
 	}
 
 	return nil

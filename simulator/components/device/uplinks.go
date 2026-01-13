@@ -53,7 +53,7 @@ func (d *Device) CreateUplink() [][]byte {
 			mtype = d.Info.Status.MType
 
 			// Check if codec is enabled and configured
-			if d.Info.Configuration.UseCodec && d.Info.Configuration.CodecID != "" {
+			if d.Info.Configuration.UseCodec && d.Info.Configuration.CodecID != 0 {
 				// Generate payload using codec
 				payload = d.GenerateCodecPayload()
 			} else {
