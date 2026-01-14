@@ -47,10 +47,98 @@ window.InitializeMonacoEditor = function() {
 
     // Load Monaco Editor
     require(['vs/editor/editor.main'], function() {
+        // Custom function type definitions for intellisense
+        const customFunctionDefs = `
+            /**
+             * Called to generate a device uplink.
+             * Must return an object with fPort and bytes.
+             * @returns {{fPort: number, bytes: number[]}}
+             */
+            declare function OnUplink(): {fPort: number, bytes: number[]};
+
+            /**
+             * Called when a downlink is received for the device.
+             * @param bytes The downlink payload bytes.
+             * @param fPort The downlink fPort.
+             */
+            declare function OnDownlink(bytes: number[], fPort: number): void;
+
+            /**
+             * Get a persistent state variable by key.
+             * Can store any JSON-serializable value.
+             * @param key The key of the state variable.
+             * @returns {any} The value of the state variable.
+             */
+            declare function getState(key: string): any;
+
+            /**
+             * Set a persistent state variable.
+             * Value can be string, number, object, or array.
+             * @param key The key of the state variable.
+             * @param value The value to store.
+             */
+            declare function setState(key: string, value: any): void;
+
+            /**
+            * Get the current device send interval in seconds.
+            * @returns {number} The send interval in seconds.
+            */
+            declare function getSendInterval(): number;
+
+            /**
+             * Set the device send interval in seconds.
+             * Use to dynamically adjust uplink frequency.
+             * @param seconds The new send interval in seconds.
+             */
+            declare function setSendInterval(seconds: number): void;
+
+            /**
+             * Convert a hex string to a byte array.
+             * Example: hexToBytes("48656C6C6F") returns [72, 101, 108, 108, 111]
+             * @param hexString The hex string to convert.
+             * @returns {number[]} The resulting byte array.
+             */
+            declare function hexToBytes(hexString: string): number[];
+
+            /**
+             * Convert a base64 string to a byte array.
+             * Example: base64ToBytes("SGVsbG8=") returns [72, 101, 108, 108, 111]
+             * @param b64String The base64 string to convert.
+             * @returns {number[]} The resulting byte array.
+             */
+            declare function base64ToBytes(b64String: string): number[];
+
+            /**
+             * Log a debug message to the simulator console.
+             * Useful for troubleshooting codec logic.
+             * @param message The message to log. It can be any object.
+             */
+            declare function log(message: any): void;
+        `;
+
+        // Add the custom function definitions to the JavaScript language service
+        monaco.languages.typescript.javascriptDefaults.addExtraLib(customFunctionDefs, 'custom-lib.d.ts');
+
+
         // Register custom autocomplete provider for helper functions
         monaco.languages.registerCompletionItemProvider('javascript', {
             provideCompletionItems: function(model, position) {
                 var suggestions = [
+                    {
+                        label: 'OnUplink',
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertText: 'OnUplink()',
+                        documentation: 'Called to generate a device uplink. Must return an object with fPort and bytes.',
+                        detail: '() => { fPort: number, bytes: number[] }'
+                    },
+                    {
+                        label: 'OnDownlink',
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertText: 'OnDownlink(${1:bytes}, ${2:fPort})',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Called when a downlink is received for the device.',
+                        detail: '(bytes: number[], fPort: number) => void'
+                    },
                     {
                         label: 'getState',
                         kind: monaco.languages.CompletionItemKind.Function,
@@ -88,7 +176,7 @@ window.InitializeMonacoEditor = function() {
                         insertText: 'hexToBytes(${1:hexString})',
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                         documentation: 'Convert a hex string to byte array. Example: hexToBytes("48656C6C6F") returns [72, 101, 108, 108, 111]',
-                        detail: '(hexString: string) => byte[]'
+                        detail: '(hexString: string) => number[]'
                     },
                     {
                         label: 'base64ToBytes',
@@ -96,7 +184,7 @@ window.InitializeMonacoEditor = function() {
                         insertText: 'base64ToBytes(${1:b64String})',
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                         documentation: 'Convert a base64 string to byte array. Example: base64ToBytes("SGVsbG8=") returns [72, 101, 108, 108, 111]',
-                        detail: '(b64String: string) => byte[]'
+                        detail: '(b64String: string) => number[]'
                     },
                     {
                         label: 'log',
@@ -104,7 +192,7 @@ window.InitializeMonacoEditor = function() {
                         insertText: 'log(${1:message})',
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                         documentation: 'Log a debug message to the simulator console. Useful for troubleshooting codec logic.',
-                        detail: '(message: string) => void'
+                        detail: '(message: any) => void'
                     },
                     // Add template suggestions for common codec patterns
                     {
