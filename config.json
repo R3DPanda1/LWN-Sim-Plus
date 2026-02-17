@@ -4,5 +4,9 @@
     "metricsPort":8003,
     "configDirname":"lwnsimulator",
     "autoStart": false,
-    "verbose": true
+    "verbose": true,
+    "logging": {
+        "level": "info",
+        "json": false
+    }
 }

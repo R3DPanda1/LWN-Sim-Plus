@@ -40,4 +40,15 @@ const (
 	EventIntegrationDeleted = "integration-deleted"
 	// EventIntegrationUpdated represents the event emitted when an integration is updated.
 	EventIntegrationUpdated = "integration-updated"
+
+	// Event stream subscription events
+	EventStreamDeviceEvents  = "stream-device-events"
+	EventStopDeviceEvents    = "stop-device-events"
+	EventStreamGatewayEvents = "stream-gateway-events"
+	EventStopGatewayEvents   = "stop-gateway-events"
+
+	// Outgoing event stream events
+	EventDeviceEvent  = "device-event"
+	EventGatewayEvent = "gateway-event"
+	EventSystemEvent  = "system-event"
 )

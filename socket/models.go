@@ -33,6 +33,12 @@ type NewLocation struct {
 	Altitude  int32   `json:"altitude"`  // Altitude is the height above sea level.
 }
 
+// StreamRequest is used by clients to subscribe/unsubscribe to device or gateway event streams.
+type StreamRequest struct {
+	DevEUI     string `json:"devEUI"`
+	GatewayMAC string `json:"gatewayMAC"`
+}
+
 // MacCommand represents a MAC command to be sent to a device in the network.
 type MacCommand struct {
 	Id          int    `json:"id"`          // Id is the unique identifier of the MAC command.

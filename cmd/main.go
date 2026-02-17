@@ -1,15 +1,18 @@
 package main
 
 import (
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	cnt "github.com/R3DPanda1/LWN-Sim-Plus/controllers"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	repo "github.com/R3DPanda1/LWN-Sim-Plus/repositories"
 	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/logging"
 	ws "github.com/R3DPanda1/LWN-Sim-Plus/webserver"
 )
 
@@ -20,6 +23,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	logging.Setup(cfg.Logging)
+	slog.Info("simulator starting", "version", shared.Version)
+
 	// Check if the verbose flag is set to true, and if so, enable verbose logging.
 	if cfg.Verbose {
 		shared.Verbose = true
@@ -29,20 +36,20 @@ func main() {
 	simulatorRepository := repo.NewSimulatorRepository()
 	simulatorController := cnt.NewSimulatorController(simulatorRepository)
 	simulatorController.GetInstance()
-	log.Printf("LWN Simulator (%s) is ready to start...\n", shared.Version)
+	slog.Info("simulator ready", "version", shared.Version)
 	// Start the metrics server.
 	go startMetrics(cfg)
 	// If the autoStart flag is set to true, start the simulator automatically.
 	if cfg.AutoStart {
-		log.Println("Auto-starting the simulation")
+		slog.Info("auto-starting simulation")
 		simulatorController.Run()
 	} else {
-		log.Println("Autostart not enabled")
+		slog.Info("autostart not enabled")
 	}
 	// Start the web server and serve WebUI
 	WebServer := ws.NewWebServer(cfg, simulatorController)
 	WebServer.Run()
-	log.Println("webUI online")
+	slog.Info("webUI online")
 }
 
 // Prometheus metrics server
@@ -50,6 +57,6 @@ func startMetrics(cfg *models.ServerConfig) {
 	http.Handle("/metrics", promhttp.Handler())
 	err := http.ListenAndServe(cfg.Address+":"+strconv.Itoa(cfg.MetricsPort), nil)
 	if err != nil {
-		log.Println("[Metrics] [ERROR]:", err.Error())
+		slog.Error("metrics server failed", "error", err)
 	}
 }

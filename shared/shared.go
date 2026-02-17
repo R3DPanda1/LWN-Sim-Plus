@@ -1,6 +1,6 @@
 package shared
 
-import "log"
+import "log/slog"
 
 // Verbose flag
 var Verbose bool = false
@@ -10,6 +10,6 @@ const Version = "1.0.3"
 
 func DebugPrint(msg string) {
 	if Verbose {
-		log.Printf("[DEBUG]: %s", msg)
+		slog.Debug(msg)
 	}
 }

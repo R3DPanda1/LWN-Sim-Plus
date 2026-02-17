@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 
 	cnt "github.com/R3DPanda1/LWN-Sim-Plus/controllers"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
@@ -15,6 +16,7 @@ import (
 	rp "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters"
 	mrp "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters/models_rp"
 	gw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	"github.com/R3DPanda1/LWN-Sim-Plus/socket"
 	_ "github.com/R3DPanda1/LWN-Sim-Plus/webserver/statik"
 	"github.com/brocaar/lorawan"
@@ -23,6 +25,12 @@ import (
 	socketio "github.com/googollee/go-socket.io"
 	"github.com/rakyll/statik/fs"
 )
+
+// connSubscriptions holds the active event stream unsubscribe functions for a single socket connection.
+type connSubscriptions struct {
+	mu    sync.Mutex
+	funcs []func()
+}
 
 // WebServer represents a web server configuration including address, port, router setup, and server socket.
 type WebServer struct {
@@ -36,6 +44,8 @@ type WebServer struct {
 var (
 	simulatorController cnt.SimulatorController // simulatorController is an instance of the cSimulatorController interface for managing simulator operations.
 	configuration       *models.ServerConfig    // configuration is a pointer to models.ServerConfig struct which holds the server's configuration settings.
+	// socketSubscriptions tracks active event stream unsubscribe functions per socket connection.
+	socketSubscriptions sync.Map // map[string][]func() keyed by socket ID
 )
 
 // NewWebServer creates a new web server instance with the given configuration and simulator controller.
@@ -136,7 +146,7 @@ func newServerSocket() *socketio.Server {
 		return nil
 	})
 	serverSocket.OnDisconnect("/", func(s socketio.Conn, reason string) {
-		// Remove the socket from the list of connected sockets
+		cleanupSocketSubscriptions(s.ID())
 		serverSocket.Remove(s.ID())
 		_ = s.Close()
 	})
@@ -170,7 +180,78 @@ func newServerSocket() *socketio.Server {
 	serverSocket.OnEvent("/", socket.EventChangeLocation, func(s socketio.Conn, info socket.NewLocation) bool {
 		return simulatorController.ChangeLocation(info)
 	})
+
+	// Event stream subscriptions
+	serverSocket.OnEvent("/", socket.EventStreamDeviceEvents, func(s socketio.Conn, req socket.StreamRequest) {
+		broker := simulatorController.GetEventBroker()
+		if broker == nil {
+			return
+		}
+		topic := events.DeviceTopic(req.DevEUI)
+		ch, history, unsub := broker.Subscribe(topic)
+		addSocketSubscription(s.ID(), unsub)
+
+		// Send history first
+		for _, evt := range history {
+			s.Emit(socket.EventDeviceEvent, evt)
+		}
+
+		// Forward live events
+		go func() {
+			for evt := range ch {
+				s.Emit(socket.EventDeviceEvent, evt)
+			}
+		}()
+	})
+	serverSocket.OnEvent("/", socket.EventStopDeviceEvents, func(s socketio.Conn, req socket.StreamRequest) {
+		cleanupSocketSubscriptions(s.ID())
+	})
+	serverSocket.OnEvent("/", socket.EventStreamGatewayEvents, func(s socketio.Conn, req socket.StreamRequest) {
+		broker := simulatorController.GetEventBroker()
+		if broker == nil {
+			return
+		}
+		topic := events.GatewayTopic(req.GatewayMAC)
+		ch, history, unsub := broker.Subscribe(topic)
+		addSocketSubscription(s.ID(), unsub)
+
+		for _, evt := range history {
+			s.Emit(socket.EventGatewayEvent, evt)
+		}
+
+		go func() {
+			for evt := range ch {
+				s.Emit(socket.EventGatewayEvent, evt)
+			}
+		}()
+	})
+	serverSocket.OnEvent("/", socket.EventStopGatewayEvents, func(s socketio.Conn, req socket.StreamRequest) {
+		cleanupSocketSubscriptions(s.ID())
+	})
+
 	return serverSocket
+}
+
+func addSocketSubscription(socketID string, unsub func()) {
+	val, _ := socketSubscriptions.LoadOrStore(socketID, &connSubscriptions{})
+	entry := val.(*connSubscriptions)
+	entry.mu.Lock()
+	entry.funcs = append(entry.funcs, unsub)
+	entry.mu.Unlock()
+}
+
+func cleanupSocketSubscriptions(socketID string) {
+	val, ok := socketSubscriptions.LoadAndDelete(socketID)
+	if !ok {
+		return
+	}
+	entry := val.(*connSubscriptions)
+	entry.mu.Lock()
+	for _, fn := range entry.funcs {
+		fn()
+	}
+	entry.funcs = nil
+	entry.mu.Unlock()
 }
 
 // Run starts the web server and listens on the given address and port.

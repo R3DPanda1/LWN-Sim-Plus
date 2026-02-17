@@ -17,6 +17,7 @@ import (
 	mfw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder/models"
 	gw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway"
 	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	res "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/R3DPanda1/LWN-Sim-Plus/socket"
@@ -45,10 +46,13 @@ type Simulator struct {
 	IntegrationClients map[int]*chirpstack.Client       `json:"-"` // ChirpStack clients for each integration
 	// Template management (like Devices/Gateways pattern)
 	Templates map[int]*template.DeviceTemplate `json:"-"` // A collection of device templates
+
+	EventBroker *events.EventBroker `json:"-"`
 }
 
 // setup loads and initializes the simulator maps for gateways and devices. It also initializes the console
 func (s *Simulator) setup() {
+	s.EventBroker = events.NewEventBroker(100)
 	s.setupGateways()
 	s.setupDevices()
 	s.SetupConsole()

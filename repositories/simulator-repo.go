@@ -10,6 +10,7 @@ import (
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration/chirpstack"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/template"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	e "github.com/R3DPanda1/LWN-Sim-Plus/socket"
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator"
@@ -67,6 +68,9 @@ type SimulatorRepository interface {
 	UpdateTemplate(*template.DeviceTemplate) error                                                 // Update a template
 	DeleteTemplate(int) error                                                                      // Delete a template
 	CreateDevicesFromTemplate(int, int, string, float64, float64, int32, float64) ([]int, error)   // Bulk create devices from template
+
+	// Event broker
+	GetEventBroker() *events.EventBroker
 }
 
 // simulatorRepository repository struct
@@ -274,4 +278,8 @@ func (s *simulatorRepository) DeleteTemplate(id int) error {
 
 func (s *simulatorRepository) CreateDevicesFromTemplate(templateID int, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
 	return s.sim.CreateDevicesFromTemplate(templateID, count, namePrefix, baseLat, baseLng, baseAlt, spreadMeters)
+}
+
+func (s *simulatorRepository) GetEventBroker() *events.EventBroker {
+	return s.sim.EventBroker
 }
