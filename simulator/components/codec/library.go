@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -103,7 +104,6 @@ func InjectConversionHelpers(vm *goja.Runtime) error {
 type DeviceInterface interface {
 	GetSendInterval() time.Duration
 	SetSendInterval(time.Duration)
-	Print(content string, err error, printType int)
 }
 
 // InjectDeviceHelpers injects device configuration helper functions into the JavaScript VM
@@ -133,15 +133,14 @@ func InjectDeviceHelpers(vm *goja.Runtime, device DeviceInterface) error {
 		return goja.Undefined()
 	})
 
-	// log(message) - Logs message to device console
-	// Note: PrintBoth = 2 in util/const.go (iota starts after MAXFCNTGAP)
+	// log(message) - Logs message from codec
 	vm.Set("log", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 1 {
 			return goja.Undefined()
 		}
 
 		message := call.Argument(0).String()
-		device.Print("[CODEC] "+message, nil, 2) // printType 2 = PrintBoth
+		slog.Debug("[CODEC] "+message, "component", "codec")
 		return goja.Undefined()
 	})
 

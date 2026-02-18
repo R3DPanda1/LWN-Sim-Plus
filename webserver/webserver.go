@@ -142,7 +142,6 @@ func newServerSocket() *socketio.Server {
 	serverSocket.OnConnect("/", func(s socketio.Conn) error {
 		log.Println("[WS]: Socket connected")
 		s.SetContext("")
-		simulatorController.AddWebSocket(&s)
 		return nil
 	})
 	serverSocket.OnDisconnect("/", func(s socketio.Conn, reason string) {
@@ -429,9 +428,6 @@ func addCodec(c *gin.Context) {
 		return
 	}
 
-	// Emit WebSocket event
-	simulatorController.EmitCodecEvent(socket.EventCodecAdded, newCodec.Metadata())
-
 	c.JSON(http.StatusOK, gin.H{"status": "Codec added successfully", "id": newCodec.ID})
 }
 
@@ -460,17 +456,6 @@ func updateCodec(c *gin.Context) {
 		return
 	}
 
-	// Get updated codec for metadata
-	updatedCodec, err := simulatorController.GetCodec(codecData.ID)
-	if err != nil {
-		// Still return success but without metadata
-		c.JSON(http.StatusOK, gin.H{"status": "Codec updated successfully", "id": codecData.ID})
-		return
-	}
-
-	// Emit WebSocket event
-	simulatorController.EmitCodecEvent(socket.EventCodecUpdated, updatedCodec.Metadata())
-
 	c.JSON(http.StatusOK, gin.H{"status": "Codec updated successfully", "id": codecData.ID})
 }
 
@@ -489,9 +474,6 @@ func deleteCodec(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "Failed to delete codec", "error": err.Error()})
 		return
 	}
-
-	// Emit WebSocket event
-	simulatorController.EmitCodecEvent(socket.EventCodecDeleted, gin.H{"id": reqData.ID})
 
 	c.JSON(http.StatusOK, gin.H{"status": "Codec deleted successfully"})
 }
@@ -557,7 +539,6 @@ func addIntegration(c *gin.Context) {
 		return
 	}
 
-	simulatorController.EmitIntegrationEvent(socket.EventIntegrationAdded, gin.H{"id": id, "name": data.Name})
 	c.JSON(http.StatusOK, gin.H{"id": id})
 }
 
@@ -588,7 +569,6 @@ func updateIntegration(c *gin.Context) {
 		return
 	}
 
-	simulatorController.EmitIntegrationEvent(socket.EventIntegrationUpdated, gin.H{"id": *data.ID, "name": data.Name})
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
@@ -608,7 +588,6 @@ func deleteIntegration(c *gin.Context) {
 		return
 	}
 
-	simulatorController.EmitIntegrationEvent(socket.EventIntegrationDeleted, gin.H{"id": data.ID})
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 

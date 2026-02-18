@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"time"
+	"log/slog"
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/codes"
 	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
@@ -16,11 +16,9 @@ import (
 	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
 	mfw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder/models"
 	gw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway"
-	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	res "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
-	"github.com/R3DPanda1/LWN-Sim-Plus/socket"
 	"github.com/brocaar/lorawan"
 )
 
@@ -40,7 +38,6 @@ type Simulator struct {
 	NextIDCodec           int                 `json:"nextIDCodec"`       // Next codec ID
 	BridgeAddress         string              `json:"bridgeAddress"`     // Bridge address used to connect to a network
 	Resources             res.Resources       `json:"-"`                 // Resources used for managing the simulator
-	Console               c.Console           `json:"-"`                 // Console instance, used for logging in the web terminal
 	// Integration management (like Devices/Gateways pattern)
 	Integrations       map[int]*integration.Integration `json:"-"` // A collection of integrations
 	IntegrationClients map[int]*chirpstack.Client       `json:"-"` // ChirpStack clients for each integration
@@ -50,13 +47,16 @@ type Simulator struct {
 	EventBroker *events.EventBroker `json:"-"`
 }
 
-// setup loads and initializes the simulator maps for gateways and devices. It also initializes the console
+// setup loads and initializes the simulator maps for gateways and devices
 func (s *Simulator) setup() {
 	s.EventBroker = events.NewEventBroker(100)
 	s.setupGateways()
 	s.setupDevices()
-	s.SetupConsole()
-	s.Print("SETUP OK!", nil, util.PrintBoth)
+	slog.Info("simulator setup complete", "component", "simulator")
+	s.EventBroker.PublishSystemEvent(events.SystemEvent{
+		Type:    events.SysEventSetup,
+		Message: "Simulator setup complete",
+	})
 }
 
 // setupGateways initializes the gateways by setting their state to Stopped and adding them to the ActiveGateways map if they are active
@@ -67,7 +67,7 @@ func (s *Simulator) setupGateways() {
 			s.ActiveGateways[g.Id] = g.Id
 		}
 	}
-	s.Print("Setup gateways OK!", nil, util.PrintOnlySocket)
+	slog.Debug("gateways setup complete", "component", "simulator", "count", len(s.Gateways), "active", len(s.ActiveGateways))
 }
 
 // setupDevices initializes the devices by setting their state to Stopped and adding them to the ActiveDevices map if they are active
@@ -78,17 +78,7 @@ func (s *Simulator) setupDevices() {
 			s.ActiveDevices[d.Id] = d.Id
 		}
 	}
-	s.Print("Setup devices OK!", nil, util.PrintOnlySocket)
-}
-
-// SetupConsole attach the simulator console to devices and gateways
-func (s *Simulator) SetupConsole() {
-	for _, d := range s.Devices {
-		s.Devices[d.Id].SetConsole(&s.Console)
-	}
-	for _, g := range s.Gateways {
-		s.Gateways[g.Id].SetConsole(&s.Console)
-	}
+	slog.Debug("devices setup complete", "component", "simulator", "count", len(s.Devices), "active", len(s.ActiveDevices))
 }
 
 // loadData retrieves the simulator configuration, devices, gateways, integrations, and templates from JSON files
@@ -262,7 +252,6 @@ func (s *Simulator) saveStatus() {
 	s.saveComponent(path, &s.Integrations)
 	path = pathDir + "/templates.json"
 	s.saveComponent(path, &s.Templates)
-	s.Print("Status saved", nil, util.PrintOnlyConsole)
 }
 
 // turnONDevice activates a device by adding it to the Forwarder and turning it on
@@ -274,8 +263,8 @@ func (s *Simulator) turnONDevice(Id int) {
 	}
 	s.Forwarder.AddDevice(infoDev)
 	s.Devices[Id].Setup(&s.Resources, &s.Forwarder)
+	s.Devices[Id].EventBroker = s.EventBroker
 	s.Devices[Id].TurnON()
-	s.Console.PrintSocket(socket.EventResponseCommand, s.Devices[Id].Info.Name+" Turn ON")
 }
 
 // turnOFFDevice deactivates a device by removing it from the Forwarder and turning it off
@@ -287,16 +276,6 @@ func (s *Simulator) turnOFFDevice(Id int) {
 	s.Resources.ExitGroup.Wait()
 	delete(s.ActiveDevices, Id)
 	s.ComponentsInactiveTmp--
-	status := socket.NewStatusDev{
-		DevEUI:   s.Devices[Id].Info.DevEUI,
-		DevAddr:  s.Devices[Id].Info.DevAddr,
-		NwkSKey:  string(s.Devices[Id].Info.NwkSKey[:]),
-		AppSKey:  string(s.Devices[Id].Info.AppSKey[:]),
-		FCntDown: s.Devices[Id].Info.Status.FCntDown,
-		FCnt:     s.Devices[Id].Info.Status.DataUplink.FCnt,
-	}
-	s.Console.PrintSocket(socket.EventSaveStatus, status)
-	s.Console.PrintSocket(socket.EventResponseCommand, s.Devices[Id].Info.Name+" Turn OFF")
 }
 
 // turnONGateway activates a gateway by adding it to the Forwarder and turning it on
@@ -308,8 +287,8 @@ func (s *Simulator) turnONGateway(Id int) {
 	}
 	s.Forwarder.AddGateway(infoGw)
 	s.Gateways[Id].Setup(&s.BridgeAddress, &s.Resources, &s.Forwarder)
+	s.Gateways[Id].EventBroker = s.EventBroker
 	s.Gateways[Id].TurnON()
-	s.Console.PrintSocket(socket.EventResponseCommand, s.Gateways[Id].Info.Name+" Turn ON")
 }
 
 // turnOFFGateway deactivates a gateway by removing it from the Forwarder and turning it off
@@ -326,7 +305,6 @@ func (s *Simulator) turnOFFGateway(Id int) {
 		Location:   s.Gateways[Id].Info.Location,
 	}
 	s.Forwarder.DeleteGateway(infoGw)
-	s.Console.PrintSocket(socket.EventResponseCommand, s.Gateways[Id].Info.Name+" Turn OFF")
 }
 
 // reset removes all devices and gateways from the ActiveDevices and ActiveGateways maps
@@ -334,36 +312,6 @@ func (s *Simulator) reset() {
 	shared.DebugPrint("Resetting simulator")
 	clear(s.ActiveDevices)
 	clear(s.ActiveGateways)
-	s.Print("Reset", nil, util.PrintOnlyConsole)
+	slog.Debug("simulator reset", "component", "simulator")
 }
 
-// Print logs messages to the console and the web terminal based on the printType
-func (s *Simulator) Print(content string, err error, printType int) {
-	// Get current time as a timestamp
-	now := time.Now().Format(time.Stamp)
-	message := ""
-	messageLog := ""
-	event := socket.EventLog
-	if err == nil {
-		message = fmt.Sprintf("[ %s ] [SIM]: %s", now, content)
-		messageLog = fmt.Sprintf("[SIM]: %s", content)
-	} else {
-		message = fmt.Sprintf("[ %s ] [SIM] [ERROR]: %s", now, err)
-		messageLog = fmt.Sprintf("[SIM] [ERROR]: %s", err)
-		event = socket.EventError
-	}
-	// Create a new ConsoleLog struct
-	data := socket.ConsoleLog{
-		Name: "SIM",
-		Msg:  message,
-	}
-	switch printType {
-	case util.PrintOnlySocket:
-		s.Console.PrintSocket(event, data)
-	case util.PrintOnlyConsole:
-		s.Console.PrintLog(messageLog)
-	default: // util.PrintBoth
-		s.Console.PrintSocket(event, data)
-		s.Console.PrintLog(messageLog)
-	}
-}

@@ -5,12 +5,10 @@ const (
 	ConnectedPowerSource = 0
 
 	MAXFCNTGAP = uint32(16384)
+)
 
-	PrintBoth = iota
-	PrintOnlySocket
-	PrintOnlyConsole
-
-	Stopped
+const (
+	Stopped = iota
 	Running
 
 	Normal

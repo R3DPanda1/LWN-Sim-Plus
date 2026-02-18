@@ -1,9 +1,11 @@
 package device
 
 import (
+	"log/slog"
 	"math/rand"
 	"time"
 
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 
 	act "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/activation"
@@ -31,35 +33,42 @@ func (d *Device) OtaaActivation() {
 
 		d.SendJoinRequest()
 
-		d.Print("Open RXs", nil, util.PrintBoth)
+		slog.Debug("opening receive windows", "component", "device", "dev_eui", d.Info.DevEUI, "phase", "otaa")
+		d.emitEvent(events.EventStatus, map[string]string{"status": "opening receive windows"})
 
 		phy := d.Class.ReceiveWindows(JOINACCEPTDELAY1, JOINACCEPTDELAY2)
 		if phy != nil {
 
-			d.Print("Downlink received", nil, util.PrintBoth)
+			slog.Debug("downlink received during join", "component", "device", "dev_eui", d.Info.DevEUI)
+			d.emitEvent(events.EventDownlink, map[string]string{"status": "downlink received"})
 
 			_, err := d.ProcessDownlink(*phy)
 			if err != nil {
-				d.Print("", err, util.PrintBoth)
+				slog.Error("join accept processing failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+				d.emitErrorEvent(err)
 
 				timerAckTimeout := time.NewTimer(d.Info.Configuration.AckTimeout)
 				<-timerAckTimeout.C
 
-				d.Print("ACK Timeout", nil, util.PrintBoth)
+				slog.Debug("ack timeout during join", "component", "device", "dev_eui", d.Info.DevEUI)
+				d.emitEvent(events.EventStatus, map[string]string{"status": "ack timeout"})
 			}
 		} else {
-			d.Print("None downlink received", nil, util.PrintBoth)
+			slog.Debug("no downlink received during join", "component", "device", "dev_eui", d.Info.DevEUI)
+			d.emitEvent(events.EventStatus, map[string]string{"status": "no downlink received"})
 		}
 
 		if d.Info.Status.Joined {
 
-			d.Print("Joined", nil, util.PrintBoth)
+			slog.Info("device joined", "component", "device", "dev_eui", d.Info.DevEUI)
+			d.emitEvent(events.EventJoin, map[string]string{"status": "joined"})
 			d.Info.Status.Mode = util.Normal
 
 			return
 		}
 
-		d.Print("Unjoined", nil, util.PrintBoth)
+		slog.Debug("device unjoined", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventStatus, map[string]string{"status": "unjoined"})
 
 	}
 
@@ -88,7 +97,8 @@ func (d *Device) CreateJoinRequest() []byte {
 
 	if err := phy.SetUplinkJoinMIC(d.Info.AppKey); err != nil {
 
-		d.Print("", err, util.PrintBoth)
+		slog.Error("failed to set join MIC", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(err)
 
 		return []byte{}
 	}
@@ -96,7 +106,8 @@ func (d *Device) CreateJoinRequest() []byte {
 	bytes, err := phy.MarshalBinary()
 	if err != nil {
 
-		d.Print("", err, util.PrintBoth)
+		slog.Error("failed to marshal join request", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(err)
 
 		return []byte{}
 	}
@@ -126,7 +137,8 @@ func (d *Device) ProcessJoinAccept(JoinAccPayload *lorawan.JoinAcceptPayload) (*
 	//cflist
 	if JoinAccPayload.CFList != nil {
 
-		d.Print("Apply CFList", nil, util.PrintBoth)
+		slog.Debug("applying CFList", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventStatus, map[string]string{"status": "applying CFList"})
 
 		cflist, err := JoinAccPayload.CFList.Payload.MarshalBinary()
 		if err != nil {

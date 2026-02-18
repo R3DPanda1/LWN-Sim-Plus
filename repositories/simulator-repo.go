@@ -1,7 +1,7 @@
 package repositories
 
 import (
-	"errors"
+	"log/slog"
 
 	"github.com/brocaar/lorawan"
 
@@ -17,7 +17,6 @@ import (
 	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
 	gw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
-	socketio "github.com/googollee/go-socket.io"
 )
 
 // SimulatorRepository is the interface that defines the methods that the simulator repository must implement.
@@ -26,7 +25,6 @@ type SimulatorRepository interface {
 	Stop() bool                                // Stop the simulator
 	Status() bool                              // Get the status of the simulator
 	GetInstance()                              // Get the instance of the simulator
-	AddWebSocket(*socketio.Conn)               // Add a websocket connection
 	SaveBridgeAddress(models.AddressIP) error  // Save the bridge address
 	GetBridgeAddress() models.AddressIP        // Get the bridge address
 	GetGateways() []gw.Gateway                 // Get the gateways
@@ -49,7 +47,6 @@ type SimulatorRepository interface {
 	UpdateCodec(int, string, string) error   // Update an existing codec by ID
 	DeleteCodec(int) error                   // Delete a codec by ID
 	GetDevicesUsingCodec(int) []string       // Get devices using a specific codec
-	EmitCodecEvent(string, interface{})      // Emit a WebSocket event for codec operations
 
 	// Integration management
 	GetIntegrations() []*integration.Integration                                                    // Get all integrations
@@ -59,7 +56,6 @@ type SimulatorRepository interface {
 	DeleteIntegration(int) error                                                                    // Delete an integration
 	TestIntegrationConnection(int) error                                                            // Test connection to an integration
 	GetDeviceProfiles(int) ([]chirpstack.DeviceProfile, error)                                      // Get device profiles from ChirpStack
-	EmitIntegrationEvent(string, interface{})                                                       // Emit a WebSocket event for integration operations
 
 	// Template management
 	GetTemplates() []*template.DeviceTemplate                                                      // Get all templates
@@ -90,15 +86,11 @@ func (s *simulatorRepository) GetInstance() {
 	s.sim = simulator.GetInstance()
 }
 
-func (s *simulatorRepository) AddWebSocket(socket *socketio.Conn) {
-	s.sim.AddWebSocket(socket)
-}
-
-// Run If the simulator is stopped, it starts it and returns True, otherwise it prints an error message and returns False.
+// Run If the simulator is stopped, it starts it and returns True, otherwise returns False.
 func (s *simulatorRepository) Run() bool {
 	switch s.sim.State {
 	case util.Running:
-		s.sim.Print("", errors.New("Already run"), util.PrintOnlyConsole)
+		slog.Warn("simulator already running", "component", "simulator")
 		return false
 	default: // State = util.Stopped
 		s.sim.Run()
@@ -106,11 +98,11 @@ func (s *simulatorRepository) Run() bool {
 	return true
 }
 
-// Stop If the simulator is running, it stops it and returns True, otherwise it prints an error message and returns False.
+// Stop If the simulator is running, it stops it and returns True, otherwise returns False.
 func (s *simulatorRepository) Stop() bool {
 	switch s.sim.State {
 	case util.Stopped:
-		s.sim.Print("", errors.New("Already Stopped"), util.PrintOnlyConsole)
+		slog.Warn("simulator already stopped", "component", "simulator")
 		return false
 	default: //running
 		s.sim.Stop()
@@ -216,10 +208,6 @@ func (s *simulatorRepository) GetDevicesUsingCodec(codecID int) []string {
 	return s.sim.GetDevicesUsingCodec(codecID)
 }
 
-func (s *simulatorRepository) EmitCodecEvent(eventName string, data interface{}) {
-	s.sim.Console.PrintSocket(eventName, data)
-}
-
 // --- Integration management methods ---
 
 func (s *simulatorRepository) GetIntegrations() []*integration.Integration {
@@ -248,10 +236,6 @@ func (s *simulatorRepository) TestIntegrationConnection(id int) error {
 
 func (s *simulatorRepository) GetDeviceProfiles(id int) ([]chirpstack.DeviceProfile, error) {
 	return s.sim.GetDeviceProfiles(id)
-}
-
-func (s *simulatorRepository) EmitIntegrationEvent(eventName string, data interface{}) {
-	s.sim.Console.PrintSocket(eventName, data)
 }
 
 // --- Template management methods ---

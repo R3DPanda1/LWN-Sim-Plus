@@ -1,6 +1,9 @@
 package device
 
 import (
+	"log/slog"
+
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 
 	act "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/activation"
@@ -69,7 +72,8 @@ func (d *Device) ProcessDownlink(phy lorawan.PHYPayload) (*dl.InformationDownlin
 
 	msg := d.Info.Status.DataUplink.ADR.Reset()
 	if msg != "" {
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("adr reset", "component", "device", "dev_eui", d.Info.DevEUI, "msg", msg)
+		d.emitEvent(events.EventStatus, map[string]string{"status": msg})
 	}
 
 	d.Info.Status.DataUplink.AckMacCommand.CleanFOptsDLChannelAns()
@@ -109,6 +113,7 @@ func (d *Device) decodeDownlinkWithCodec(payload *dl.InformationDownlink, phy *l
 	)
 
 	if err != nil {
-		d.Print("Codec OnDownlink failed: "+err.Error(), err, util.PrintBoth)
+		slog.Error("codec OnDownlink failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(err)
 	}
 }

@@ -13,7 +13,6 @@ import (
 	gw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway"
 	e "github.com/R3DPanda1/LWN-Sim-Plus/socket"
 	"github.com/brocaar/lorawan"
-	socketio "github.com/googollee/go-socket.io"
 )
 
 // SimulatorController is the interface that defines the methods that the simulator controller must implement.
@@ -22,7 +21,6 @@ type SimulatorController interface {
 	Stop() bool                                // Stop the simulator
 	Status() bool                              // Get the status of the simulator
 	GetInstance()                              // Get the instance of the simulator repository
-	AddWebSocket(*socketio.Conn)               // Add a websocket connection
 	SaveBridgeAddress(models.AddressIP) error  // Save the bridge address
 	GetBridgeAddress() models.AddressIP        // Get the bridge address
 	GetGateways() []gw.Gateway                 // Get the gateways
@@ -45,7 +43,6 @@ type SimulatorController interface {
 	UpdateCodec(int, string, string) error   // Update an existing codec by ID
 	DeleteCodec(int) error                   // Delete a codec by ID
 	GetDevicesUsingCodec(int) []string       // Get devices using a specific codec
-	EmitCodecEvent(string, interface{})      // Emit a WebSocket event for codec operations
 
 	// Integration management
 	GetIntegrations() []*integration.Integration                                                    // Get all integrations
@@ -55,7 +52,6 @@ type SimulatorController interface {
 	DeleteIntegration(int) error                                                                    // Delete an integration
 	TestIntegrationConnection(int) error                                                            // Test connection to an integration
 	GetDeviceProfiles(int) ([]chirpstack.DeviceProfile, error)                                      // Get device profiles from ChirpStack
-	EmitIntegrationEvent(string, interface{})                                                       // Emit a WebSocket event for integration operations
 
 	// Template management
 	GetTemplates() []*template.DeviceTemplate                                                      // Get all templates
@@ -86,9 +82,6 @@ func NewSimulatorController(repo repo.SimulatorRepository) SimulatorController {
 
 func (c *simulatorController) GetInstance() {
 	c.repo.GetInstance()
-}
-func (c *simulatorController) AddWebSocket(socket *socketio.Conn) {
-	c.repo.AddWebSocket(socket)
 }
 
 func (c *simulatorController) Run() bool {
@@ -191,10 +184,6 @@ func (c *simulatorController) GetDevicesUsingCodec(codecID int) []string {
 	return c.repo.GetDevicesUsingCodec(codecID)
 }
 
-func (c *simulatorController) EmitCodecEvent(eventName string, data interface{}) {
-	c.repo.EmitCodecEvent(eventName, data)
-}
-
 // --- Integration management methods ---
 
 func (c *simulatorController) GetIntegrations() []*integration.Integration {
@@ -223,10 +212,6 @@ func (c *simulatorController) TestIntegrationConnection(id int) error {
 
 func (c *simulatorController) GetDeviceProfiles(id int) ([]chirpstack.DeviceProfile, error) {
 	return c.repo.GetDeviceProfiles(id)
-}
-
-func (c *simulatorController) EmitIntegrationEvent(eventName string, data interface{}) {
-	c.repo.EmitIntegrationEvent(eventName, data)
 }
 
 // --- Template management methods ---

@@ -1,6 +1,7 @@
 package device
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/codec"
@@ -34,12 +35,12 @@ func (d *Device) SetSendInterval(interval time.Duration) {
 func (d *Device) GenerateCodecPayload() lorawan.Payload {
 	// Safety check
 	if Codecs == nil {
-		d.Print("Codec registry not initialized, using static payload", nil, 1)
+		slog.Debug("codec registry not initialized, using static payload", "component", "device", "dev_eui", d.Info.DevEUI)
 		return d.Info.Status.Payload
 	}
 
 	if d.Info.Configuration.CodecID == 0 {
-		d.Print("No codec ID configured, using static payload", nil, 1)
+		slog.Debug("no codec ID configured, using static payload", "component", "device", "dev_eui", d.Info.DevEUI)
 		return d.Info.Status.Payload
 	}
 
@@ -54,7 +55,8 @@ func (d *Device) GenerateCodecPayload() lorawan.Payload {
 	)
 
 	if err != nil {
-		d.Print("Codec execution failed: "+err.Error()+", using static payload", err, 1)
+		slog.Error("codec execution failed", "component", "device", "dev_eui", d.Info.DevEUI, "codec_id", d.Info.Configuration.CodecID, "error", err)
+		d.emitErrorEvent(err)
 		return d.Info.Status.Payload
 	}
 

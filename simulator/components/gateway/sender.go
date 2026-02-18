@@ -3,14 +3,14 @@ package gateway
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	pkt "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/packets"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/udp"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-
-	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 )
 
 var (
@@ -26,7 +26,6 @@ var (
 
 func (g *Gateway) SenderVirtual() {
 
-	defer g.Print("Sender Turn OFF", nil, util.PrintOnlyConsole)
 
 	go g.KeepAlive()
 
@@ -43,17 +42,20 @@ func (g *Gateway) SenderVirtual() {
 
 		packet, err := g.createPacket(rxpk)
 		if err != nil {
-			g.Print("", err, util.PrintBoth)
+			slog.Error("failed to create packet", "component", "gateway", "gateway_mac", g.Info.MACAddress, "error", err)
+			g.emitErrorEvent(err)
 		}
 
 		_, err = udp.SendDataUDP(g.Info.Connection, packet)
 		if err != nil {
 
 			msg := fmt.Sprintf("Unable to send data to %v, it may be off", *g.Info.BridgeAddress)
-			g.Print("", errors.New(msg), util.PrintBoth)
+			slog.Error("unable to send data", "component", "gateway", "gateway_mac", g.Info.MACAddress, "bridge", *g.Info.BridgeAddress)
+			g.emitErrorEvent(errors.New(msg))
 
 		} else {
-			g.Print("PUSH DATA send", nil, util.PrintBoth)
+			slog.Debug("push data sent", "component", "gateway", "gateway_mac", g.Info.MACAddress)
+			g.emitEvent(events.GwEventPushData, nil)
 			pushDataCounter.Inc()
 		}
 
@@ -63,7 +65,6 @@ func (g *Gateway) SenderVirtual() {
 
 func (g *Gateway) SenderReal() {
 
-	defer g.Print("Sender Turn OFF", nil, util.PrintOnlyConsole)
 
 	for {
 
@@ -78,19 +79,20 @@ func (g *Gateway) SenderReal() {
 
 		packet, err := g.createPacket(rxpk)
 		if err != nil {
-			g.Print("", err, util.PrintBoth)
+			slog.Error("failed to create packet", "component", "gateway", "gateway_mac", g.Info.MACAddress, "error", err)
+			g.emitErrorEvent(err)
 		}
 
 		_, err = udp.SendDataUDP(g.Info.Connection, packet)
 		if err != nil {
 
 			msg := fmt.Sprintf("Unable to send data to %v, it may be off", *g.Info.BridgeAddress)
-			g.Print("", errors.New(msg), util.PrintBoth)
+			slog.Error("unable to send data", "component", "gateway", "gateway_mac", g.Info.MACAddress, "bridge", *g.Info.BridgeAddress)
+			g.emitErrorEvent(errors.New(msg))
 
 		} else {
-			msg := fmt.Sprintf("Forward PUSH DATA to %v:%v", g.Info.AddrIP, g.Info.Port)
-			g.Print(msg, nil, util.PrintBoth)
-
+			slog.Debug("push data forwarded", "component", "gateway", "gateway_mac", g.Info.MACAddress, "addr", g.Info.AddrIP, "port", g.Info.Port)
+			g.emitEvent(events.GwEventPushData, map[string]string{"addr": g.Info.AddrIP, "port": g.Info.Port})
 			pushDataCounter.Inc()
 		}
 
@@ -145,9 +147,10 @@ func (g *Gateway) KeepAlive() {
 
 			err := g.sendPullData()
 			if err != nil {
-				g.Print("", err, util.PrintBoth)
+				slog.Error("failed to send pull data", "component", "gateway", "gateway_mac", g.Info.MACAddress, "error", err)
+				g.emitErrorEvent(err)
 			} else {
-				g.Print("PULL DATA send", nil, util.PrintBoth)
+				slog.Debug("pull data sent", "component", "gateway", "gateway_mac", g.Info.MACAddress)
 				pullDataCounter.Inc()
 			}
 

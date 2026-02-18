@@ -3,16 +3,17 @@ package device
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"math/rand"
 	"time"
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
 	mac "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/macCommands"
 	rp "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters"
-	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/brocaar/lorawan"
 )
 
@@ -30,7 +31,8 @@ func (d *Device) newMACComands(CmdS []lorawan.Payload) {
 	if nCommand > 15 {
 
 		msg := fmt.Sprintf("Insert %d MACCommands(max 15)", nCommand)
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Warn("too many MAC commands", "component", "device", "dev_eui", d.Info.DevEUI, "count", nCommand)
+		d.emitEvent(events.EventMacCommand, map[string]string{"status": msg})
 
 		return
 	}
@@ -56,13 +58,15 @@ func (d *Device) ExecuteMACCommand(downlink dl.InformationDownlink) {
 		msg = "Execute MAC Commands"
 	}
 
-	d.Print(msg, nil, util.PrintBoth)
+	slog.Debug(msg, "component", "device", "dev_eui", d.Info.DevEUI, "count", len(downlink.FOptsReceived))
+	d.emitEvent(events.EventMacCommand, map[string]string{"status": msg})
 
 	for _, cmd := range downlink.FOptsReceived {
 
 		cid, payloadBytes, err := mac.ParseMACCommand(cmd, false)
 		if err != nil {
-			d.Print("", err, util.PrintBoth)
+			slog.Error("failed to parse MAC command", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+			d.emitErrorEvent(err)
 			return
 		}
 
@@ -108,12 +112,13 @@ func (d *Device) executeLinkCheckAns(payload []byte) {
 	c := lorawan.LinkCheckAnsPayload{}
 	err := c.UnmarshalBinary(payload)
 	if err != nil {
-		d.Print("", err, util.PrintBoth)
+		slog.Error("LinkCheckAns unmarshal failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(err)
 		return
 	}
 
-	msg := fmt.Sprintf("LinkCheckAns | Margin[%v], GwCnt[%v] |", c.Margin, c.GwCnt)
-	d.Print(msg, nil, util.PrintBoth)
+	slog.Debug("LinkCheckAns received", "component", "device", "dev_eui", d.Info.DevEUI, "margin", c.Margin, "gw_cnt", c.GwCnt)
+	d.emitEvent(events.EventMacCommand, map[string]string{"command": "LinkCheckAns", "margin": fmt.Sprintf("%v", c.Margin), "gw_cnt": fmt.Sprintf("%v", c.GwCnt)})
 
 }
 
@@ -134,7 +139,8 @@ func (d *Device) executeLinkADRReq(commands [][]byte) {
 		err := c.UnmarshalBinary(cmd)
 		if err != nil {
 
-			d.Print("", err, util.PrintBoth)
+			slog.Error("LinkADRReq unmarshal failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+			d.emitErrorEvent(err)
 			return
 
 		}
@@ -145,13 +151,13 @@ func (d *Device) executeLinkADRReq(commands [][]byte) {
 		if len(errs) != 0 {
 
 			for _, err := range errs {
-				msg := PrintMACCommand("LinkADRReq", err.Error())
-				d.Print(msg, nil, util.PrintBoth)
+		slog.Warn("LinkADRReq error", "component", "device", "dev_eui", d.Info.DevEUI, "error", err.Error())
+				d.emitEvent(events.EventMacCommand, map[string]string{"command": "LinkADRReq", "status": err.Error()})
 			}
 
 		} else {
-			msg := PrintMACCommand("LinkADRReq", "Command is valid")
-			d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("LinkADRReq valid", "component", "device", "dev_eui", d.Info.DevEUI)
+			d.emitEvent(events.EventMacCommand, map[string]string{"command": "LinkADRReq", "status": "valid"})
 
 			DataRate = int(c.DataRate)
 			TXPower = c.TXPower
@@ -179,28 +185,28 @@ func (d *Device) executeLinkADRReq(commands [][]byte) {
 	if result {
 
 		d.Info.Status.DataRate = uint8(DataRate)
-		msg := fmt.Sprintf("Set new Datarate: %v", d.Info.Status.DataRate)
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("LinkADRReq set datarate", "component", "device", "dev_eui", d.Info.DevEUI, "data_rate", d.Info.Status.DataRate)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "LinkADRReq", "data_rate": fmt.Sprintf("%v", d.Info.Status.DataRate)})
 
 		d.Info.Status.TXPower = TXPower
-		msg = fmt.Sprintf("Set TX Power: %v", TXPower)
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("LinkADRReq set tx power", "component", "device", "dev_eui", d.Info.DevEUI, "tx_power", TXPower)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "LinkADRReq", "tx_power": fmt.Sprintf("%v", TXPower)})
 
 		d.Info.Configuration.NbRepUnconfirmedDataUp = NbRep
-		msg = fmt.Sprintf("Set Nb Repetition UnconfirmedDataUp: %v", NbRep)
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("LinkADRReq set nb rep", "component", "device", "dev_eui", d.Info.DevEUI, "nb_rep", NbRep)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "LinkADRReq", "nb_rep": fmt.Sprintf("%v", NbRep)})
 
 		d.Info.Configuration.Channels = channels
-		msg = fmt.Sprintf("Configuration of channels is changed")
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("LinkADRReq channels updated", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "LinkADRReq", "status": "channels updated"})
 
-		msg = PrintMACCommand("LinkADRReq", "Executed successfully")
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("LinkADRReq executed", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "LinkADRReq", "status": "executed"})
 
 	} else {
 
-		msg := PrintMACCommand("LinkADRReq", "Command refused")
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Warn("LinkADRReq refused", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "LinkADRReq", "status": "refused"})
 
 	}
 
@@ -215,7 +221,8 @@ func (d *Device) executeDutyCycleReq(payload []byte) {
 
 		msg := fmt.Sprintf("UnmarshalBinary %v", err)
 		errs := errors.New(msg)
-		d.Print("", errs, util.PrintBoth)
+		slog.Error("DutyCycleReq unmarshal failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(errs)
 
 		return
 	}
@@ -223,9 +230,8 @@ func (d *Device) executeDutyCycleReq(payload []byte) {
 	//invia i dati all'interfaccia
 	aggregatedDC := 1 / math.Pow(2, float64(c.MaxDCycle))
 
-	cont := fmt.Sprintf("Aggregated duty cycle is %v", aggregatedDC)
-	msg := PrintMACCommand("DutyCycleReq", cont)
-	d.Print(msg, nil, util.PrintBoth)
+	slog.Debug("DutyCycleReq executed", "component", "device", "dev_eui", d.Info.DevEUI, "duty_cycle", aggregatedDC)
+	d.emitEvent(events.EventMacCommand, map[string]string{"command": "DutyCycleReq", "duty_cycle": fmt.Sprintf("%v", aggregatedDC)})
 
 	//ack
 	response := []lorawan.Payload{
@@ -245,7 +251,8 @@ func (d *Device) executeRXParamSetupReq(payload []byte) {
 	c := lorawan.RXParamSetupReqPayload{}
 	err := c.UnmarshalBinary(payload)
 	if err != nil {
-		d.Print("", err, util.PrintBoth)
+		slog.Error("RXParamSetupReq unmarshal failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(err)
 		return
 	}
 
@@ -253,8 +260,8 @@ func (d *Device) executeRXParamSetupReq(payload []byte) {
 	RX1DROffsetACK := false
 
 	if err = d.Info.Configuration.Region.RX1DROffsetSupported(c.DLSettings.RX1DROffset); err != nil {
-		msg := PrintMACCommand("RXParamSetupReq", err.Error())
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Warn("RXParamSetupReq RX1DROffset unsupported", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "RXParamSetupReq", "status": err.Error()})
 	} else {
 		RX1DROffsetACK = true
 	}
@@ -262,16 +269,16 @@ func (d *Device) executeRXParamSetupReq(payload []byte) {
 	//RX[1]
 	ChannelACK := false
 	if err = d.isSupportedFrequency(c.Frequency); err != nil {
-		msg := PrintMACCommand("RXParamSetupReq", err.Error())
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Warn("RXParamSetupReq frequency unsupported", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "RXParamSetupReq", "status": err.Error()})
 	} else {
 		ChannelACK = true
 	}
 
 	RX2DataRateACK := false
 	if err = d.isSupportedDR(c.DLSettings.RX2DataRate); err != nil {
-		msg := PrintMACCommand("RXParamSetupReq", err.Error())
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Warn("RXParamSetupReq RX2 data rate unsupported", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "RXParamSetupReq", "status": err.Error()})
 	} else {
 		RX2DataRateACK = true
 	}
@@ -282,12 +289,12 @@ func (d *Device) executeRXParamSetupReq(payload []byte) {
 		d.Info.RX[1].SetListeningFrequency(c.Frequency)             //Channel Frequency RX2
 		d.Info.RX[1].DataRate = c.DLSettings.RX2DataRate            //RX2DataRate
 
-		msg := PrintMACCommand("RXParamSetupReq", "Executed successfully")
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("RXParamSetupReq executed", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "RXParamSetupReq", "status": "executed"})
 
 	} else {
-		msg := PrintMACCommand("RXParamSetupReq", "Command refused")
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Warn("RXParamSetupReq refused", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "RXParamSetupReq", "status": "refused"})
 	}
 
 	//ack
@@ -331,8 +338,8 @@ func (d *Device) executeDevStatusReq() {
 		},
 	}
 
-	msg := PrintMACCommand("DevStatusReq", "Executed successfully")
-	d.Print(msg, nil, util.PrintBoth)
+	slog.Debug("DevStatusReq executed", "component", "device", "dev_eui", d.Info.DevEUI, "battery", d.Info.Status.Battery, "margin", margin)
+	d.emitEvent(events.EventMacCommand, map[string]string{"command": "DevStatusReq", "status": "executed"})
 
 	d.newMACComands(response)
 }
@@ -342,8 +349,8 @@ func (d *Device) executeNewChannelReq(payload []byte) {
 	switch d.Info.Configuration.Region.GetCode() {
 	case rp.Code_Us915, rp.Code_Au915:
 
-		msg := PrintMACCommand("NewChannelReq", "It's not implemented in this region")
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("NewChannelReq not implemented in region", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "NewChannelReq", "status": "not implemented in region"})
 
 		return
 
@@ -354,7 +361,8 @@ func (d *Device) executeNewChannelReq(payload []byte) {
 
 	if err != nil {
 
-		d.Print("", err, util.PrintBoth)
+		slog.Error("NewChannelReq unmarshal failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(err)
 		return
 
 	}
@@ -362,13 +370,13 @@ func (d *Device) executeNewChannelReq(payload []byte) {
 	DataRateOK, FreqOK := d.setChannel(c.ChIndex, c.Freq, c.MinDR, c.MaxDR)
 	if DataRateOK && FreqOK {
 
-		msg := PrintMACCommand("NewChannelReq", "Executed successfully")
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("NewChannelReq executed", "component", "device", "dev_eui", d.Info.DevEUI, "ch_index", c.ChIndex)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "NewChannelReq", "status": "executed"})
 
 	} else {
 
-		msg := PrintMACCommand("NewChannelReq", "Command refused")
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Warn("NewChannelReq refused", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "NewChannelReq", "status": "refused"})
 
 	}
 
@@ -395,7 +403,8 @@ func (d *Device) executeRXTimingSetupReq(payload []byte) {
 	err := c.UnmarshalBinary(payload)
 	if err != nil {
 
-		d.Print("", err, util.PrintBoth)
+		slog.Error("RXTimingSetupReq unmarshal failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(err)
 		return
 
 	}
@@ -407,8 +416,8 @@ func (d *Device) executeRXTimingSetupReq(payload []byte) {
 
 	d.Info.RX[0].Delay = time.Duration(delay) * time.Second
 
-	msg := PrintMACCommand("RXTimingSetupReq", "Executed successfully")
-	d.Print(msg, nil, util.PrintBoth)
+	slog.Debug("RXTimingSetupReq executed", "component", "device", "dev_eui", d.Info.DevEUI, "delay", delay)
+	d.emitEvent(events.EventMacCommand, map[string]string{"command": "RXTimingSetupReq", "status": "executed"})
 	//ack
 	response := []lorawan.Payload{
 		&lorawan.MACCommand{
@@ -425,8 +434,8 @@ func (d *Device) executeDLChannelReq(payload []byte) {
 	switch d.Info.Configuration.Region.GetCode() {
 	case rp.Code_Us915, rp.Code_Au915:
 
-		msg := PrintMACCommand("DLChannelReq", "Is not implemented in this region")
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("DLChannelReq not implemented in region", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "DLChannelReq", "status": "not implemented in region"})
 
 		return
 	}
@@ -438,7 +447,8 @@ func (d *Device) executeDLChannelReq(payload []byte) {
 
 		msg := fmt.Sprintf("UnmarshalBinary %v", err)
 		errs := errors.New(msg)
-		d.Print("", errs, util.PrintBoth)
+		slog.Error("DLChannelReq unmarshal failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(errs)
 
 		return
 	}
@@ -454,13 +464,13 @@ func (d *Device) executeDLChannelReq(payload []byte) {
 	//ack
 	if FreqUpExists && FreqOk {
 
-		msg := PrintMACCommand("DLChannelReq", "Executed successfully")
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("DLChannelReq executed", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "DLChannelReq", "status": "executed"})
 
 	} else {
 
-		msg := PrintMACCommand("DLChannelReq", "Command refused")
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Warn("DLChannelReq refused", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "DLChannelReq", "status": "refused"})
 
 	}
 
@@ -484,15 +494,14 @@ func (d *Device) executeDeviceTimeAns(payload []byte) {
 	err := c.UnmarshalBinary(payload)
 	if err != nil {
 
-		d.Print("", err, util.PrintBoth)
+		slog.Error("DeviceTimeAns unmarshal failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(err)
 		return
 
 	}
 
-	content := fmt.Sprintf("TimeSinceGPSEpoch[%v]", c.TimeSinceGPSEpoch)
-
-	msg := PrintMACCommand("DeviceTimeAns", content)
-	d.Print(msg, nil, util.PrintBoth)
+	slog.Debug("DeviceTimeAns received", "component", "device", "dev_eui", d.Info.DevEUI, "time_since_gps_epoch", c.TimeSinceGPSEpoch)
+	d.emitEvent(events.EventMacCommand, map[string]string{"command": "DeviceTimeAns", "time": fmt.Sprintf("%v", c.TimeSinceGPSEpoch)})
 
 }
 
@@ -501,8 +510,8 @@ func (d *Device) executeTXParamSetupReq(payload []byte) {
 	switch d.Info.Configuration.Region.GetCode() {
 	case rp.Code_Au915, rp.Code_As923:
 	default:
-		msg := PrintMACCommand("TXParamSetupReq", "Is not implemented in this region")
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("TXParamSetupReq not implemented in region", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventMacCommand, map[string]string{"command": "TXParamSetupReq", "status": "not implemented in region"})
 		return
 	}
 
@@ -511,7 +520,8 @@ func (d *Device) executeTXParamSetupReq(payload []byte) {
 	err := c.UnmarshalBinary(payload)
 	if err != nil {
 
-		d.Print("", err, util.PrintBoth)
+		slog.Error("TXParamSetupReq unmarshal failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(err)
 		return
 
 	}
@@ -526,8 +536,8 @@ func (d *Device) executeTXParamSetupReq(payload []byte) {
 		},
 	}
 
-	msg := PrintMACCommand("TXParamSetupReq", "Executed successfully")
-	d.Print(msg, nil, util.PrintBoth)
+	slog.Debug("TXParamSetupReq executed", "component", "device", "dev_eui", d.Info.DevEUI)
+	d.emitEvent(events.EventMacCommand, map[string]string{"command": "TXParamSetupReq", "status": "executed"})
 
 	d.newMACComands(response)
 }
@@ -554,7 +564,8 @@ func (d *Device) executeBeaconFreqReq(payload []byte) {
 
 	err := command.UnmarshalBinary(payload)
 	if err != nil {
-		d.Print("", err, util.PrintBoth)
+		slog.Error("BeaconFreqReq unmarshal failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(err)
 
 		return
 	}
@@ -593,7 +604,8 @@ func (d *Device) executePingSlotChannelReq(payload []byte) {
 	err := c.UnmarshalBinary(payload)
 	if err != nil {
 
-		d.Print("", err, util.PrintBoth)
+		slog.Error("PingSlotChannelReq unmarshal failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(err)
 		return
 
 	}

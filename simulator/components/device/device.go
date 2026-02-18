@@ -2,16 +2,16 @@ package device
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
-	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	res "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/models"
-	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
-	"github.com/R3DPanda1/LWN-Sim-Plus/socket"
 )
 
 type Device struct {
@@ -23,7 +23,7 @@ type Device struct {
 	Class           classes.Class            `json:"-"`
 	Resources       *res.Resources           `json:"-"`
 	Mutex           sync.Mutex               `json:"-"`
-	Console         c.Console                `json:"-"`
+	EventBroker     *events.EventBroker      `json:"-"`
 }
 
 // *******************Intern func*******************/
@@ -52,11 +52,13 @@ func (d *Device) Run() {
 			// Interval was changed via downlink, reset the ticker
 			ticker.Stop()
 			ticker = time.NewTicker(d.Info.Configuration.SendInterval)
-			d.Print(fmt.Sprintf("Send interval updated to %v", d.Info.Configuration.SendInterval), nil, util.PrintBoth)
+			slog.Debug("send interval updated", "component", "device", "dev_eui", d.Info.DevEUI, "interval", d.Info.Configuration.SendInterval)
+			d.emitEvent(events.EventStatus, map[string]string{"status": fmt.Sprintf("send interval updated to %v", d.Info.Configuration.SendInterval)})
 			continue
 
 		case <-d.Exit:
-			d.Print("Turn OFF", nil, util.PrintBoth)
+			slog.Debug("device turned off", "component", "device", "dev_eui", d.Info.DevEUI)
+			d.emitEvent(events.EventStatus, map[string]string{"status": "turned off"})
 			return
 		}
 
@@ -104,36 +106,46 @@ func (d *Device) modeToString() string {
 	}
 }
 
-func (d *Device) Print(content string, err error, printType int) {
-
-	now := time.Now()
-	message := ""
-	messageLog := ""
-	event := socket.EventDev
-	class := d.Class.ToString()
-	mode := d.modeToString()
-
-	if err == nil {
-		message = fmt.Sprintf("[ %s ] DEV[%s] |%s| {%s}: %s", now.Format(time.Stamp), d.Info.Name, mode, class, content)
-		messageLog = fmt.Sprintf("DEV[%s] |%s| {%s}: %s", d.Info.Name, mode, class, content)
-	} else {
-		message = fmt.Sprintf("[ %s ] DEV[%s] |%s| {%s} [ERROR]: %s", now.Format(time.Stamp), d.Info.Name, mode, class, err)
-		messageLog = fmt.Sprintf("DEV[%s] |%s| {%s} [ERROR]: %s", d.Info.Name, mode, class, err)
-		event = socket.EventError
+func (d *Device) emitEvent(eventType string, extra map[string]string) {
+	if d.EventBroker == nil {
+		return
 	}
+	d.EventBroker.PublishDeviceEvent(d.Info.DevEUI.String(), events.DeviceEvent{
+		DevEUI:  d.Info.DevEUI.String(),
+		DevName: d.Info.Name,
+		Type:    eventType,
+		Class:   d.Class.ToString(),
+		Extra:   extra,
+	})
+}
 
-	data := socket.ConsoleLog{
-		Name: d.Info.Name,
-		Msg:  message,
+func (d *Device) emitUplinkEvent(fCnt uint32, fPort uint8, dr int, freq uint32, payload string, gwID string) {
+	if d.EventBroker == nil {
+		return
 	}
+	d.EventBroker.PublishDeviceEvent(d.Info.DevEUI.String(), events.DeviceEvent{
+		DevEUI:    d.Info.DevEUI.String(),
+		DevName:   d.Info.Name,
+		Type:      events.EventUp,
+		FCnt:      &fCnt,
+		FPort:     &fPort,
+		DR:        &dr,
+		Frequency: &freq,
+		Payload:   payload,
+		Class:     d.Class.ToString(),
+		GatewayID: gwID,
+	})
+}
 
-	switch printType {
-	case util.PrintBoth:
-		d.Console.PrintSocket(event, data)
-		d.Console.PrintLog(messageLog)
-	case util.PrintOnlySocket:
-		d.Console.PrintSocket(event, data)
-	case util.PrintOnlyConsole:
-		d.Console.PrintLog(messageLog)
+func (d *Device) emitErrorEvent(err error) {
+	if d.EventBroker == nil {
+		return
 	}
+	d.EventBroker.PublishDeviceEvent(d.Info.DevEUI.String(), events.DeviceEvent{
+		DevEUI:  d.Info.DevEUI.String(),
+		DevName: d.Info.Name,
+		Type:    events.EventError,
+		Class:   d.Class.ToString(),
+		Extra:   map[string]string{"error": err.Error()},
+	})
 }

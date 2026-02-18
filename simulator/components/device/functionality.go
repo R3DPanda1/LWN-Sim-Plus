@@ -2,6 +2,7 @@ package device
 
 import (
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features/adr"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
 	rp "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
@@ -47,21 +49,25 @@ func (d *Device) Execute() {
 		data := d.SetInfo(uplinks[i], false)
 		d.Class.SendData(data)
 
-		d.Print("Uplink sent", nil, util.PrintBoth)
+		slog.Debug("uplink sent", "component", "device", "dev_eui", d.Info.DevEUI, "class", d.Class.ToString())
+		d.emitEvent(events.EventUp, map[string]string{"status": "uplink sent"})
 		uplinkCounter.Inc()
 	}
 
-	d.Print("Open RXs", nil, util.PrintBoth)
+	slog.Debug("opening receive windows", "component", "device", "dev_eui", d.Info.DevEUI)
+	d.emitEvent(events.EventStatus, map[string]string{"status": "opening receive windows"})
 	phy := d.Class.ReceiveWindows(0, 0)
 
 	if phy != nil {
 
-		d.Print("Downlink Received", nil, util.PrintBoth)
+		slog.Debug("downlink received", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventDownlink, map[string]string{"status": "downlink received"})
 		downlinkCounter.Inc()
 
 		downlink, err = d.ProcessDownlink(*phy)
 		if err != nil {
-			d.Print("", err, util.PrintBoth)
+			slog.Error("downlink processing failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+			d.emitErrorEvent(err)
 			return
 		}
 
@@ -77,12 +83,14 @@ func (d *Device) Execute() {
 
 	} else {
 
-		d.Print("None downlinks Received", nil, util.PrintBoth)
+		slog.Debug("no downlinks received", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventStatus, map[string]string{"status": "no downlinks received"})
 
 		timerAckTimeout := time.NewTimer(d.Info.Configuration.AckTimeout)
 		<-timerAckTimeout.C
 
-		d.Print("ACK Timeout", nil, util.PrintBoth)
+		slog.Debug("ack timeout", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventStatus, map[string]string{"status": "ack timeout"})
 		ackTimeoutCounter.Inc()
 	}
 
@@ -102,7 +110,8 @@ func (d *Device) Execute() {
 		err := d.Class.RetransmissionCData(downlink)
 		if err != nil {
 
-			d.Print("", err, util.PrintBoth)
+			slog.Error("confirmed retransmission failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+			d.emitErrorEvent(err)
 
 			d.UnJoined()
 
@@ -118,7 +127,8 @@ func (d *Device) Execute() {
 
 		err := d.Class.RetransmissionUnCData(downlink)
 		if err != nil {
-			d.Print("", err, util.PrintBoth)
+			slog.Error("unconfirmed retransmission failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+			d.emitErrorEvent(err)
 		}
 	}
 
@@ -137,11 +147,13 @@ func (d *Device) FPendingProcedure(downlink *dl.InformationDownlink) {
 
 		if downlink.FPending {
 
-			d.Print("Fpending set", nil, util.PrintBoth)
+			slog.Debug("fpending set", "component", "device", "dev_eui", d.Info.DevEUI)
+			d.emitEvent(events.EventStatus, map[string]string{"status": "fpending set"})
 
 			if startProcedure == 0 {
 				d.Info.Status.Mode = util.FPending
-				d.Print("Start FPending procedure", nil, util.PrintBoth)
+				slog.Debug("start fpending procedure", "component", "device", "dev_eui", d.Info.DevEUI)
+				d.emitEvent(events.EventStatus, map[string]string{"status": "start fpending procedure"})
 				startProcedure = 1
 			}
 
@@ -150,7 +162,8 @@ func (d *Device) FPendingProcedure(downlink *dl.InformationDownlink) {
 			}
 			//ack sent in resolveDownlinks ergo open Receive Windows
 
-			d.Print("Open RXs", nil, util.PrintBoth)
+			slog.Debug("opening receive windows", "component", "device", "dev_eui", d.Info.DevEUI)
+			d.emitEvent(events.EventStatus, map[string]string{"status": "opening receive windows"})
 			phy := d.Class.ReceiveWindows(0, 0)
 
 			if !d.CanExecute() { //stop
@@ -159,12 +172,14 @@ func (d *Device) FPendingProcedure(downlink *dl.InformationDownlink) {
 
 			if phy != nil {
 
-				d.Print("Downlink Received", nil, util.PrintBoth)
+				slog.Debug("downlink received", "component", "device", "dev_eui", d.Info.DevEUI)
+				d.emitEvent(events.EventDownlink, map[string]string{"status": "downlink received"})
 				downlinkCounter.Inc()
 
 				downlink, err = d.ProcessDownlink(*phy)
 				if err != nil {
-					d.Print("", err, util.PrintBoth)
+					slog.Error("downlink processing failed", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+					d.emitErrorEvent(err)
 
 				}
 
@@ -178,12 +193,14 @@ func (d *Device) FPendingProcedure(downlink *dl.InformationDownlink) {
 
 				downlink = nil
 
-				d.Print("None downlinks Received", nil, util.PrintBoth)
+				slog.Debug("no downlinks received", "component", "device", "dev_eui", d.Info.DevEUI)
+				d.emitEvent(events.EventStatus, map[string]string{"status": "no downlinks received"})
 
 				timerAckTimeout := time.NewTimer(d.Info.Configuration.AckTimeout)
 				<-timerAckTimeout.C
 
-				d.Print("ACK Timeout", nil, util.PrintBoth)
+				slog.Debug("ack timeout", "component", "device", "dev_eui", d.Info.DevEUI)
+				d.emitEvent(events.EventStatus, map[string]string{"status": "ack timeout"})
 				ackTimeoutCounter.Inc()
 
 			}
@@ -191,14 +208,16 @@ func (d *Device) FPendingProcedure(downlink *dl.InformationDownlink) {
 			d.ADRProcedure()
 
 		} else {
-			d.Print("Fpending unset", nil, util.PrintBoth)
+			slog.Debug("fpending unset", "component", "device", "dev_eui", d.Info.DevEUI)
+			d.emitEvent(events.EventStatus, map[string]string{"status": "fpending unset"})
 			break
 		}
 
 	}
 
 	if startProcedure == 1 {
-		d.Print("FPending procedure finished", nil, util.PrintBoth)
+		slog.Debug("fpending procedure finished", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventStatus, map[string]string{"status": "fpending procedure finished"})
 	}
 
 	d.Info.Status.Mode = util.Normal
@@ -216,7 +235,8 @@ func (d *Device) ADRProcedure() {
 		break
 
 	case adr.CodeADRFlagReqSet:
-		d.Print("SET ADRACKReq flag", nil, util.PrintBoth)
+		slog.Debug("set ADRACKReq flag", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventStatus, map[string]string{"status": "set ADRACKReq flag"})
 		break
 
 	case adr.CodeUnjoined:
@@ -226,7 +246,8 @@ func (d *Device) ADRProcedure() {
 
 			msg := d.Info.Status.DataUplink.ADR.Reset()
 			if msg != "" {
-				d.Print(msg, nil, util.PrintBoth)
+				slog.Debug("adr reset", "component", "device", "dev_eui", d.Info.DevEUI, "msg", msg)
+				d.emitEvent(events.EventStatus, map[string]string{"status": msg})
 			}
 
 		}
@@ -271,7 +292,8 @@ func (d *Device) SwitchChannel() {
 			random = indexGroup + 64
 
 			msg := fmt.Sprintf("Switch channel from %v to %v", d.Info.Status.IndexchannelActive, random)
-			d.Print(msg, nil, util.PrintBoth)
+			slog.Debug("switch channel", "component", "device", "dev_eui", d.Info.DevEUI, "from", d.Info.Status.IndexchannelActive, "to", random)
+			d.emitEvent(events.EventStatus, map[string]string{"status": msg})
 
 			d.Info.Status.IndexchannelActive = uint16(random)
 			return
@@ -313,7 +335,8 @@ func (d *Device) SwitchChannel() {
 						d.Info.Status.IndexchannelActive = uint16(random)
 
 						msg := fmt.Sprintf("Switch channel from %v to %v", oldindex, random)
-						d.Print(msg, nil, util.PrintBoth)
+						slog.Debug("switch channel", "component", "device", "dev_eui", d.Info.DevEUI, "from", oldindex, "to", random)
+						d.emitEvent(events.EventStatus, map[string]string{"status": msg})
 
 						d.Info.Status.InfoChannelsUS915.ListChannelsLastPass[indexGroup] = random // lo fa anche se region non è US_915 (no problem)
 
@@ -336,7 +359,8 @@ func (d *Device) SwitchChannel() {
 		var msg string
 		oldindex := d.Info.Status.IndexchannelActive
 
-		d.Print("No channels available", nil, util.PrintBoth)
+		slog.Warn("no channels available", "component", "device", "dev_eui", d.Info.DevEUI)
+		d.emitEvent(events.EventStatus, map[string]string{"status": "no channels available"})
 
 		if regionCode == rp.Code_Us915 {
 
@@ -345,7 +369,8 @@ func (d *Device) SwitchChannel() {
 			d.Info.Configuration.Channels[d.Info.Status.IndexchannelActive].EnableUplink = true
 
 			msg = fmt.Sprintf("Channel %v enabled to send uplinks", d.Info.Status.IndexchannelActive)
-			d.Print(msg, nil, util.PrintBoth)
+			slog.Debug("channel enabled for uplinks", "component", "device", "dev_eui", d.Info.DevEUI, "channel", d.Info.Status.IndexchannelActive)
+			d.emitEvent(events.EventStatus, map[string]string{"status": msg})
 
 		} else {
 			d.Info.Status.IndexchannelActive = uint16(0)
@@ -358,7 +383,8 @@ func (d *Device) SwitchChannel() {
 			msg = fmt.Sprintf("Switch channel from %v to %v with DataRate %v", oldindex, d.Info.Status.IndexchannelActive, d.Info.Status.DataRate)
 		}
 
-		d.Print(msg, nil, util.PrintBoth)
+		slog.Debug("channel update", "component", "device", "dev_eui", d.Info.DevEUI, "channel", d.Info.Status.IndexchannelActive, "data_rate", d.Info.Status.DataRate)
+		d.emitEvent(events.EventStatus, map[string]string{"status": msg})
 
 		return
 	}
@@ -389,12 +415,14 @@ func (d *Device) SwitchClass(class int) {
 		go d.DownlinkReceivedRX2ClassC()
 
 	default:
-		d.Print("Class not Supported", nil, util.PrintBoth)
+		slog.Warn("class not supported", "component", "device", "dev_eui", d.Info.DevEUI, "class", class)
+		d.emitEvent(events.EventError, map[string]string{"error": "class not supported"})
 
 	}
 
 	msg := fmt.Sprintf("Switch in class %v", d.Class.ToString())
-	d.Print(msg, nil, util.PrintBoth)
+	slog.Debug("switched class", "component", "device", "dev_eui", d.Info.DevEUI, "class", d.Class.ToString())
+	d.emitEvent(events.EventStatus, map[string]string{"status": msg})
 
 }
 

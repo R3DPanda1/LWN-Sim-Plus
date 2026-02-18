@@ -3,8 +3,10 @@ package device
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features/channels"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 )
@@ -64,7 +66,8 @@ func (d *Device) setChannel(index uint8, freq uint32, minDR uint8, maxDR uint8) 
 
 	if int(index) < d.Info.Configuration.Region.GetNbReservedChannels() {
 
-		d.Print("Can't modify a reserved channel", nil, util.PrintBoth)
+		slog.Warn("cannot modify reserved channel", "component", "device", "dev_eui", d.Info.DevEUI, "index", index)
+		d.emitEvent(events.EventStatus, map[string]string{"status": "cannot modify reserved channel"})
 		return false, false
 
 	}
@@ -100,7 +103,8 @@ func (d *Device) setChannel(index uint8, freq uint32, minDR uint8, maxDR uint8) 
 	}
 
 	msg := fmt.Sprintf("Set Channel[%v] { F[%v], MinDR[%v], MaxDR[%v] } ", index, freq, minDR, maxDR)
-	d.Print(msg, nil, util.PrintBoth)
+	slog.Debug("channel set", "component", "device", "dev_eui", d.Info.DevEUI, "index", index, "freq", freq, "min_dr", minDR, "max_dr", maxDR)
+	d.emitEvent(events.EventStatus, map[string]string{"status": msg})
 
 	return DRok, Fok
 }

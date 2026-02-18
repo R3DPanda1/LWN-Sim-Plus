@@ -2,12 +2,13 @@ package device
 
 import (
 	"errors"
+	"log/slog"
 	"sync"
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	mup "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/uplink/models"
 	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
-	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
 	res "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/brocaar/lorawan"
@@ -64,12 +65,8 @@ func (d *Device) Setup(Resources *res.Resources, forwarder *f.Forwarder) {
 	d.Class = classes.GetClass(classes.ClassA)
 	d.Class.Setup(&d.Info)
 
-	d.Print("Setup OK!", nil, util.PrintOnlyConsole)
+	slog.Debug("device setup complete", "component", "device", "dev_eui", d.Info.DevEUI, "name", d.Info.Name)
 
-}
-
-func (d *Device) SetConsole(console *c.Console) {
-	d.Console = *console
 }
 
 func (d *Device) TurnOFF() {
@@ -96,7 +93,8 @@ func (d *Device) TurnON() {
 
 	go d.Run()
 
-	d.Print("Turn ON", nil, util.PrintBoth)
+	slog.Info("device turned on", "component", "device", "dev_eui", d.Info.DevEUI, "name", d.Info.Name)
+	d.emitEvent(events.EventStatus, map[string]string{"status": "turned on"})
 }
 
 func (d *Device) IsOn() bool {

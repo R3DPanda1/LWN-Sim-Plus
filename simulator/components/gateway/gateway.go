@@ -1,16 +1,12 @@
 package gateway
 
 import (
-	"fmt"
-	"time"
-
 	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway/models"
-	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	res "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/buffer"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
-	"github.com/R3DPanda1/LWN-Sim-Plus/socket"
 )
 
 type Gateway struct {
@@ -24,8 +20,8 @@ type Gateway struct {
 
 	Stat models.Stat `json:"-"`
 
-	BufferUplink buffer.BufferUplink `json:"-"`
-	Console      c.Console           `json:"-"`
+	BufferUplink buffer.BufferUplink  `json:"-"`
+	EventBroker  *events.EventBroker  `json:"-"`
 }
 
 func (g *Gateway) CanExecute() bool {
@@ -38,34 +34,26 @@ func (g *Gateway) CanExecute() bool {
 
 }
 
-func (g *Gateway) Print(content string, err error, printType int) {
-
-	now := time.Now()
-	message := ""
-	messageLog := ""
-	event := socket.EventGw
-
-	if err == nil {
-		message = fmt.Sprintf("[ %s ] GW[%s]: %s", now.Format(time.Stamp), g.Info.Name, content)
-		messageLog = fmt.Sprintf("GW[%s]: %s", g.Info.Name, content)
-	} else {
-		message = fmt.Sprintf("[ %s ] GW[%s] [ERROR]: %s", now.Format(time.Stamp), g.Info.Name, err)
-		messageLog = fmt.Sprintf("GW[%s] [ERROR]: %s", g.Info.Name, err)
-		event = socket.EventError
+func (g *Gateway) emitEvent(eventType string, extra map[string]string) {
+	if g.EventBroker == nil {
+		return
 	}
+	g.EventBroker.PublishGatewayEvent(g.Info.MACAddress.String(), events.GatewayEvent{
+		GatewayMAC: g.Info.MACAddress.String(),
+		GwName:     g.Info.Name,
+		Type:       eventType,
+		Extra:      extra,
+	})
+}
 
-	data := socket.ConsoleLog{
-		Name: g.Info.Name,
-		Msg:  message,
+func (g *Gateway) emitErrorEvent(err error) {
+	if g.EventBroker == nil {
+		return
 	}
-
-	switch printType {
-	case util.PrintBoth:
-		g.Console.PrintSocket(event, data)
-		g.Console.PrintLog(messageLog)
-	case util.PrintOnlySocket:
-		g.Console.PrintSocket(event, data)
-	case util.PrintOnlyConsole:
-		g.Console.PrintLog(messageLog)
-	}
+	g.EventBroker.PublishGatewayEvent(g.Info.MACAddress.String(), events.GatewayEvent{
+		GatewayMAC: g.Info.MACAddress.String(),
+		GwName:     g.Info.Name,
+		Type:       events.GwEventError,
+		Extra:      map[string]string{"error": err.Error()},
+	})
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"math"
 	mrand "math/rand"
 	"strings"
@@ -29,11 +30,10 @@ import (
 	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
 	mfw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder/models"
 	gw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway"
-	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/location"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/R3DPanda1/LWN-Sim-Plus/socket"
-	socketio "github.com/googollee/go-socket.io"
 )
 
 func GetInstance() *Simulator {
@@ -48,9 +48,6 @@ func GetInstance() *Simulator {
 	s.ActiveGateways = make(map[int]int)
 	// Init Forwarder
 	s.Forwarder = *f.Setup()
-	// Attach console
-	s.Console = c.Console{}
-
 	// Initialize codec manager (Phase 1-3 enhancement)
 	if dev.Codecs == nil {
 		dev.Codecs = codec.NewRegistry(codec.DefaultExecutorConfig())
@@ -86,18 +83,16 @@ func GetInstance() *Simulator {
 	return &s
 }
 
-func (s *Simulator) AddWebSocket(WebSocket *socketio.Conn) {
-	s.Console.SetupWebSocket(WebSocket)
-	s.Resources.AddWebSocket(WebSocket)
-	s.SetupConsole()
-}
-
 // Run starts the simulation environment
 func (s *Simulator) Run() {
 	shared.DebugPrint("Executing Run")
 	s.State = util.Running
 	s.setup()
-	s.Print("START", nil, util.PrintBoth)
+	slog.Info("simulator started", "component", "simulator")
+	s.EventBroker.PublishSystemEvent(events.SystemEvent{
+		Type:    events.SysEventStarted,
+		Message: "Simulator started",
+	})
 	shared.DebugPrint("Turning ON active components")
 	for _, id := range s.ActiveGateways {
 		s.turnONGateway(id)
@@ -138,7 +133,11 @@ func (s *Simulator) Stop() {
 	}
 
 	s.Forwarder.Reset()
-	s.Print("STOPPED", nil, util.PrintBoth)
+	slog.Info("simulator stopped", "component", "simulator")
+	s.EventBroker.PublishSystemEvent(events.SystemEvent{
+		Type:    events.SysEventStopped,
+		Message: "Simulator stopped",
+	})
 	s.reset()
 }
 
@@ -152,7 +151,7 @@ func (s *Simulator) SaveBridgeAddress(remoteAddr models.AddressIP) error {
 	}
 	path := pathDir + "/simulator.json"
 	s.saveComponent(path, &s)
-	s.Print("Gateway Bridge Address saved", nil, util.PrintOnlyConsole)
+	slog.Info("bridge address saved", "component", "simulator", "bridge", s.BridgeAddress)
 	return nil
 }
 
@@ -194,7 +193,7 @@ func (s *Simulator) SetGateway(gateway *gw.Gateway, update bool) (int, int, erro
 	emptyAddr := lorawan.EUI64{0, 0, 0, 0, 0, 0, 0, 0}
 	// Check if the MAC address is valid
 	if gateway.Info.MACAddress == emptyAddr {
-		s.Print("Error: MAC Address invalid", nil, util.PrintOnlyConsole)
+		slog.Warn("invalid gateway MAC address", "component", "simulator")
 		return codes.CodeErrorAddress, -1, errors.New("Error: MAC Address invalid")
 	}
 	// If the gateway is new, assign a new ID
@@ -208,13 +207,11 @@ func (s *Simulator) SetGateway(gateway *gw.Gateway, update bool) (int, int, erro
 	// Check if the name is already used
 	code, err := s.searchName(gateway.Info.Name, gateway.Id, true)
 	if err != nil {
-		s.Print("Name already used", nil, util.PrintOnlyConsole)
 		return code, -1, err
 	}
 	// Check if the name is already used
 	code, err = s.searchAddress(gateway.Info.MACAddress, gateway.Id, true)
 	if err != nil {
-		s.Print("DevEUI already used", nil, util.PrintOnlyConsole)
 		return code, -1, err
 	}
 	if !gateway.Info.TypeGateway {
@@ -237,7 +234,7 @@ func (s *Simulator) SetGateway(gateway *gw.Gateway, update bool) (int, int, erro
 	path = pathDir + "/simulator.json"
 	s.saveComponent(path, &s)
 
-	s.Print("Gateway Saved", nil, util.PrintOnlyConsole)
+	slog.Info("gateway saved", "component", "simulator", "gateway_id", gateway.Id, "name", gateway.Info.Name)
 
 	if gateway.Info.Active {
 
@@ -275,7 +272,7 @@ func (s *Simulator) DeleteGateway(Id int) bool {
 	path := pathDir + "/gateways.json"
 	s.saveComponent(path, &s.Gateways)
 
-	s.Print("Gateway Deleted", nil, util.PrintOnlyConsole)
+	slog.Info("gateway deleted", "component", "simulator", "gateway_id", Id)
 
 	return true
 }
@@ -286,7 +283,7 @@ func (s *Simulator) SetDevice(device *dev.Device, update bool) (int, int, error)
 
 	if device.Info.DevEUI == emptyAddr {
 
-		s.Print("DevEUI invalid", nil, util.PrintOnlyConsole)
+		slog.Warn("invalid device DevEUI", "component", "simulator")
 		return codes.CodeErrorAddress, -1, errors.New("Error: DevEUI invalid")
 
 	}
@@ -307,7 +304,6 @@ func (s *Simulator) SetDevice(device *dev.Device, update bool) (int, int, error)
 	code, err := s.searchName(device.Info.Name, device.Id, false)
 	if err != nil {
 
-		s.Print("Name already used", nil, util.PrintOnlyConsole)
 		return code, -1, err
 
 	}
@@ -315,7 +311,6 @@ func (s *Simulator) SetDevice(device *dev.Device, update bool) (int, int, error)
 	code, err = s.searchAddress(device.Info.DevEUI, device.Id, false)
 	if err != nil {
 
-		s.Print("DevEUI already used", nil, util.PrintOnlyConsole)
 		return code, -1, err
 
 	}
@@ -332,7 +327,7 @@ func (s *Simulator) SetDevice(device *dev.Device, update bool) (int, int, error)
 	path = pathDir + "/simulator.json"
 	s.saveComponent(path, &s)
 
-	s.Print("Device Saved", nil, util.PrintOnlyConsole)
+	slog.Info("device saved", "component", "simulator", "device_id", device.Id, "name", device.Info.Name)
 
 	// Provision device to ChirpStack if integration is enabled (only for new devices)
 	if !update && device.Info.Configuration.IntegrationEnabled {
@@ -366,13 +361,6 @@ func (s *Simulator) SetDevice(device *dev.Device, update bool) (int, int, error)
 		}
 
 		if err != nil {
-			s.Print("ChirpStack provisioning failed: "+err.Error(), nil, util.PrintOnlyConsole)
-		} else {
-			activationType := "OTAA"
-			if !device.Info.Configuration.SupportedOtaa {
-				activationType = "ABP"
-			}
-			s.Print(fmt.Sprintf("Device provisioned to ChirpStack (%s)", activationType), nil, util.PrintOnlyConsole)
 		}
 	}
 
@@ -405,9 +393,7 @@ func (s *Simulator) DeleteDevice(Id int) bool {
 	if device.Info.Configuration.IntegrationEnabled {
 		devEUI := hex.EncodeToString(device.Info.DevEUI[:])
 		if err := s.DeleteDeviceFromChirpStack(device.Info.Configuration.IntegrationID, devEUI); err != nil {
-			s.Print("ChirpStack deletion failed: "+err.Error(), nil, util.PrintOnlyConsole)
 		} else {
-			s.Print("Device deleted from ChirpStack", nil, util.PrintOnlyConsole)
 		}
 	}
 
@@ -422,7 +408,7 @@ func (s *Simulator) DeleteDevice(Id int) bool {
 	path := pathDir + "/devices.json"
 	s.saveComponent(path, &s.Devices)
 
-	s.Print("Device Deleted", nil, util.PrintOnlyConsole)
+	slog.Info("device deleted", "component", "simulator", "device_id", Id)
 
 	return true
 }
@@ -440,15 +426,15 @@ func (s *Simulator) ToggleStateDevice(Id int) {
 func (s *Simulator) SendMACCommand(cid lorawan.CID, data socket.MacCommand) {
 
 	if !s.Devices[data.Id].IsOn() {
-		s.Console.PrintSocket(socket.EventResponseCommand, s.Devices[data.Id].Info.Name+" is turned off")
+		slog.Warn("device is turned off", "component", "simulator", "device", s.Devices[data.Id].Info.Name)
 		return
 	}
 
 	err := s.Devices[data.Id].SendMACCommand(cid, data.Periodicity)
 	if err != nil {
-		s.Console.PrintSocket(socket.EventResponseCommand, "Unable to send command: "+err.Error())
+		slog.Warn("unable to send MAC command", "component", "simulator", "error", err)
 	} else {
-		s.Console.PrintSocket(socket.EventResponseCommand, "MACCommand will be sent to the next uplink")
+		slog.Debug("MAC command queued", "component", "simulator", "device", s.Devices[data.Id].Info.Name)
 	}
 
 }
@@ -458,7 +444,7 @@ func (s *Simulator) ChangePayload(pl socket.NewPayload) (string, bool) {
 	devEUIstring := hex.EncodeToString(s.Devices[pl.Id].Info.DevEUI[:])
 
 	if !s.Devices[pl.Id].IsOn() {
-		s.Console.PrintSocket(socket.EventResponseCommand, s.Devices[pl.Id].Info.Name+" is turned off")
+		slog.Warn("device is turned off", "component", "simulator", "device", s.Devices[pl.Id].Info.Name)
 		return devEUIstring, false
 	}
 
@@ -473,7 +459,7 @@ func (s *Simulator) ChangePayload(pl socket.NewPayload) (string, bool) {
 
 	s.Devices[pl.Id].ChangePayload(MType, Payload)
 
-	s.Console.PrintSocket(socket.EventResponseCommand, s.Devices[pl.Id].Info.Name+": Payload changed")
+	slog.Debug("payload changed", "component", "simulator", "device", s.Devices[pl.Id].Info.Name)
 
 	return devEUIstring, true
 }
@@ -481,7 +467,7 @@ func (s *Simulator) ChangePayload(pl socket.NewPayload) (string, bool) {
 func (s *Simulator) SendUplink(pl socket.NewPayload) {
 
 	if !s.Devices[pl.Id].IsOn() {
-		s.Console.PrintSocket(socket.EventResponseCommand, s.Devices[pl.Id].Info.Name+" is turned off")
+		slog.Warn("device is turned off", "component", "simulator", "device", s.Devices[pl.Id].Info.Name)
 		return
 	}
 
@@ -492,7 +478,7 @@ func (s *Simulator) SendUplink(pl socket.NewPayload) {
 
 	s.Devices[pl.Id].NewUplink(MType, pl.Payload)
 
-	s.Console.PrintSocket(socket.EventResponseCommand, "Uplink queued")
+	slog.Debug("uplink queued", "component", "simulator", "device", s.Devices[pl.Id].Info.Name)
 }
 
 func (s *Simulator) ChangeLocation(l socket.NewLocation) bool {
@@ -1026,26 +1012,22 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePre
 		// Generate random DevEUI
 		devEUI, err := generateRandomEUI64()
 		if err != nil {
-			s.Print(fmt.Sprintf("Failed to generate DevEUI for %s: %v", name, err), nil, util.PrintOnlyConsole)
 			continue
 		}
 
 		// Generate ABP keys (NwkSKey, AppSKey, DevAddr) instead of OTAA AppKey
 		nwkSKey, err := generateRandomKey()
 		if err != nil {
-			s.Print(fmt.Sprintf("Failed to generate NwkSKey for %s: %v", name, err), nil, util.PrintOnlyConsole)
 			continue
 		}
 
 		appSKey, err := generateRandomKey()
 		if err != nil {
-			s.Print(fmt.Sprintf("Failed to generate AppSKey for %s: %v", name, err), nil, util.PrintOnlyConsole)
 			continue
 		}
 
 		devAddr, err := generateRandomDevAddr()
 		if err != nil {
-			s.Print(fmt.Sprintf("Failed to generate DevAddr for %s: %v", name, err), nil, util.PrintOnlyConsole)
 			continue
 		}
 
@@ -1056,14 +1038,12 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePre
 		device := s.createDeviceFromTemplate(tmpl, name, devEUI, nwkSKey, appSKey, devAddr, lat, lng, baseAlt)
 
 		// Add device
-		code, id, err := s.SetDevice(device, false)
+		_, id, err := s.SetDevice(device, false)
 		if err != nil {
-			s.Print(fmt.Sprintf("Failed to create device %s: %v (code: %d)", name, err, code), nil, util.PrintOnlyConsole)
 			continue
 		}
 
 		createdIDs = append(createdIDs, id)
-		s.Print(fmt.Sprintf("Created ABP device %s (ID: %d, DevAddr: %s)", name, id, hex.EncodeToString(devAddr[:])), nil, util.PrintOnlyConsole)
 	}
 
 	return createdIDs, nil

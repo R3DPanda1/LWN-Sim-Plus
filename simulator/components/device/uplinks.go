@@ -1,7 +1,10 @@
 package device
 
 import (
+	"log/slog"
+
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	up "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/uplink"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/brocaar/lorawan"
@@ -90,7 +93,8 @@ func (d *Device) CreateUplink() [][]byte {
 
 		frame, err := d.Info.Status.DataUplink.GetFrame(mtype, DataPayload[i], d.Info.DevAddr, d.Info.AppSKey, d.Info.NwkSKey, false)
 		if err != nil {
-			d.Print("", err, util.PrintBoth)
+			slog.Error("failed to create uplink frame", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+			d.emitErrorEvent(err)
 			continue
 		}
 
@@ -108,7 +112,8 @@ func (d *Device) CreateACK() []byte {
 
 	frame, err := d.Info.Status.DataUplink.GetFrame(lorawan.UnconfirmedDataUp, emptyPayload, d.Info.DevAddr, d.Info.AppSKey, d.Info.NwkSKey, true)
 	if err != nil {
-		d.Print("", err, util.PrintBoth)
+		slog.Error("failed to create ACK frame", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(err)
 		return []byte{}
 	}
 
@@ -122,7 +127,8 @@ func (d *Device) CreateEmptyFrame() []byte {
 
 	frame, err := d.Info.Status.DataUplink.GetFrame(lorawan.UnconfirmedDataUp, emptyPayload, d.Info.DevAddr, d.Info.AppSKey, d.Info.NwkSKey, false)
 	if err != nil {
-		d.Print("", err, util.PrintBoth)
+		slog.Error("failed to create empty frame", "component", "device", "dev_eui", d.Info.DevEUI, "error", err)
+		d.emitErrorEvent(err)
 		return []byte{}
 	}
 
@@ -137,7 +143,8 @@ func (d *Device) SendEmptyFrame() {
 
 	d.Class.SendData(info)
 
-	d.Print("Empty Frame sent", nil, util.PrintBoth)
+	slog.Debug("empty frame sent", "component", "device", "dev_eui", d.Info.DevEUI)
+	d.emitEvent(events.EventUp, map[string]string{"status": "empty frame sent"})
 }
 
 func (d *Device) SendAck() {
@@ -147,7 +154,8 @@ func (d *Device) SendAck() {
 
 	d.Class.SendData(info)
 
-	d.Print("ACK sent", nil, util.PrintBoth)
+	slog.Debug("ack sent", "component", "device", "dev_eui", d.Info.DevEUI)
+	d.emitEvent(events.EventAck, map[string]string{"status": "ack sent"})
 }
 
 func (d *Device) SendJoinRequest() {
@@ -156,5 +164,6 @@ func (d *Device) SendJoinRequest() {
 	info := d.SetInfo(JoinRequest, true)
 
 	d.Class.SendData(info)
-	d.Print("JOIN REQUEST sent", nil, util.PrintBoth)
+	slog.Debug("join request sent", "component", "device", "dev_eui", d.Info.DevEUI)
+	d.emitEvent(events.EventJoin, map[string]string{"status": "join request sent"})
 }

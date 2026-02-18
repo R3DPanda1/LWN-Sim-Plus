@@ -1,10 +1,11 @@
 package gateway
 
 import (
+	"log/slog"
 	"sync"
 
 	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
-	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	res "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/buffer"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/udp"
@@ -24,12 +25,8 @@ func (g *Gateway) Setup(BridgeAddress *string,
 	g.BufferUplink = buffer.BufferUplink{}
 	g.BufferUplink.Notify = sync.NewCond(&g.BufferUplink.Mutex)
 
-	g.Print("Setup OK!", nil, util.PrintOnlyConsole)
+	slog.Debug("gateway setup complete", "component", "gateway", "gateway_mac", g.Info.MACAddress, "name", g.Info.Name)
 
-}
-
-func (g *Gateway) SetConsole(console *c.Console) {
-	g.Console = *console
 }
 
 func (g *Gateway) TurnON() {
@@ -46,9 +43,11 @@ func (g *Gateway) TurnON() {
 	}
 
 	if err != nil {
-		g.Print("", err, util.PrintOnlyConsole)
+		slog.Error("gateway udp connection failed", "component", "gateway", "gateway_mac", g.Info.MACAddress, "error", err)
+		g.emitErrorEvent(err)
 	} else {
-		g.Print("UDP connection with "+g.Info.Connection.RemoteAddr().String(), nil, util.PrintOnlyConsole)
+		slog.Info("gateway connected", "component", "gateway", "gateway_mac", g.Info.MACAddress, "remote", g.Info.Connection.RemoteAddr().String())
+		g.emitEvent(events.GwEventConnected, map[string]string{"remote": g.Info.Connection.RemoteAddr().String()})
 	}
 
 	go g.Receiver()
@@ -59,7 +58,7 @@ func (g *Gateway) TurnON() {
 		go g.SenderVirtual()
 	}
 
-	g.Print("Turn ON", nil, util.PrintBoth)
+	slog.Info("gateway turned on", "component", "gateway", "gateway_mac", g.Info.MACAddress, "name", g.Info.Name)
 }
 
 func (g *Gateway) TurnOFF() {
