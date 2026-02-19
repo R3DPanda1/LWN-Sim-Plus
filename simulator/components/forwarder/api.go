@@ -2,6 +2,7 @@ package forwarder
 
 import (
 	"fmt"
+
 	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
 	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
 	m "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder/models"
@@ -10,157 +11,170 @@ import (
 	"github.com/brocaar/lorawan"
 )
 
-// Setup initializes the Forwarder by initializing the maps and returning a pointer to the Forwarder
 func Setup() *Forwarder {
 	shared.DebugPrint("Init new Forwarder instance")
-	f := Forwarder{
-		DevToGw:  make(map[lorawan.EUI64]map[lorawan.EUI64]*buffer.BufferUplink),            //1[devEUI] 2 [macAddress]
-		GwtoDev:  make(map[uint32]map[lorawan.EUI64]map[lorawan.EUI64]*dl.ReceivedDownlink), //1[fre1] 2 [macAddress] 3[devEUI]
-		Devices:  make(map[lorawan.EUI64]m.InfoDevice),
-		Gateways: make(map[lorawan.EUI64]m.InfoGateway),
+	shards := make([]*RoutingShard, DefaultNumShards)
+	for i := range shards {
+		shards[i] = newShard()
 	}
-	return &f
+	return &Forwarder{
+		shards:    shards,
+		numShards: DefaultNumShards,
+		gateways:  make(map[lorawan.EUI64]m.InfoGateway),
+	}
 }
 
-// AddDevice adds a device to the Forwarder and update the DevToGw map
 func (f *Forwarder) AddDevice(d m.InfoDevice) {
-	f.Mutex.Lock()
-	defer f.Mutex.Unlock()
+	s := f.getShard(d.DevEUI)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	shared.DebugPrint(fmt.Sprintf("Add device %v to Forwarder", d.DevEUI))
-	f.Devices[d.DevEUI] = d
+	s.devices[d.DevEUI] = d
 	inner := make(map[lorawan.EUI64]*buffer.BufferUplink)
-	f.DevToGw[d.DevEUI] = inner
-	for _, g := range f.Gateways {
+	s.devToGw[d.DevEUI] = inner
+
+	f.gwMu.RLock()
+	defer f.gwMu.RUnlock()
+
+	for _, g := range f.gateways {
 		if inRange(d, g) {
 			shared.DebugPrint(fmt.Sprintf("Adding communication link with %s", g.MACAddress))
-			f.DevToGw[d.DevEUI][g.MACAddress] = g.Buffer
+			s.devToGw[d.DevEUI][g.MACAddress] = g.Buffer
 		}
 	}
 }
 
-// AddGateway adds a gateway to the Forwarder and update the DevToGw map
 func (f *Forwarder) AddGateway(g m.InfoGateway) {
-	f.Mutex.Lock()
-	defer f.Mutex.Unlock()
+	f.gwMu.Lock()
 	shared.DebugPrint(fmt.Sprintf("Add/Update gateway %v to Forwarder", g.MACAddress))
-	f.Gateways[g.MACAddress] = g
-	for _, d := range f.Devices {
-		if inRange(d, g) {
-			shared.DebugPrint(fmt.Sprintf("Adding communication link with %s", d.DevEUI))
-			f.DevToGw[d.DevEUI][g.MACAddress] = g.Buffer
+	f.gateways[g.MACAddress] = g
+	f.gwMu.Unlock()
+
+	// Update device-to-gateway links across all shards
+	for _, s := range f.shards {
+		s.mu.Lock()
+		for _, d := range s.devices {
+			if inRange(d, g) {
+				shared.DebugPrint(fmt.Sprintf("Adding communication link with %s", d.DevEUI))
+				s.devToGw[d.DevEUI][g.MACAddress] = g.Buffer
+			}
 		}
+		s.mu.Unlock()
 	}
 }
 
-// DeleteDevice removes a device from the Forwarder and update the DevToGw map
 func (f *Forwarder) DeleteDevice(DevEUI lorawan.EUI64) {
-	f.Mutex.Lock()
-	defer f.Mutex.Unlock()
+	s := f.getShard(DevEUI)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	shared.DebugPrint(fmt.Sprintf("Delete device %v from Forwarder", DevEUI))
-	clear(f.DevToGw[DevEUI])
-	delete(f.DevToGw, DevEUI)
-	delete(f.Devices, DevEUI)
+	clear(s.devToGw[DevEUI])
+	delete(s.devToGw, DevEUI)
+	delete(s.devices, DevEUI)
 }
 
-// DeleteGateway removes a gateway from the Forwarder and update the DevToGw map
 func (f *Forwarder) DeleteGateway(g m.InfoGateway) {
-	f.Mutex.Lock()
-	defer f.Mutex.Unlock()
+	f.gwMu.Lock()
 	shared.DebugPrint(fmt.Sprintf("Delete gateway %v from Forwarder", g.MACAddress))
-	for _, d := range f.Devices {
-		shared.DebugPrint(fmt.Sprintf("Removing communication link with %s", d.DevEUI))
-		delete(f.DevToGw[d.DevEUI], g.MACAddress)
+	delete(f.gateways, g.MACAddress)
+	f.gwMu.Unlock()
+
+	// Remove gateway links from all shards
+	for _, s := range f.shards {
+		s.mu.Lock()
+		for _, d := range s.devices {
+			shared.DebugPrint(fmt.Sprintf("Removing communication link with %s", d.DevEUI))
+			delete(s.devToGw[d.DevEUI], g.MACAddress)
+		}
+		s.mu.Unlock()
 	}
-	delete(f.Gateways, g.MACAddress)
 }
 
-// UpdateDevice updates a device in the Forwarder
 func (f *Forwarder) UpdateDevice(d m.InfoDevice) {
 	f.AddDevice(d)
 }
 
 func (f *Forwarder) Register(freq uint32, devEUI lorawan.EUI64, rDownlink *dl.ReceivedDownlink) {
+	s := f.getShard(devEUI)
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	f.Mutex.Lock()
-
-	inner, ok := f.GwtoDev[freq]
+	inner, ok := s.gwtoDev[freq]
 	if !ok {
 		inner = make(map[lorawan.EUI64]map[lorawan.EUI64]*dl.ReceivedDownlink)
-		f.GwtoDev[freq] = inner
+		s.gwtoDev[freq] = inner
 	}
 
-	for key := range f.DevToGw[devEUI] {
-
-		inner, ok := f.GwtoDev[freq][key]
+	for key := range s.devToGw[devEUI] {
+		inner, ok := s.gwtoDev[freq][key]
 		if !ok {
 			inner = make(map[lorawan.EUI64]*dl.ReceivedDownlink)
-			f.GwtoDev[freq][key] = inner
+			s.gwtoDev[freq][key] = inner
 		}
-
 		rDownlink.Open()
-		f.GwtoDev[freq][key][devEUI] = rDownlink
-
+		s.gwtoDev[freq][key][devEUI] = rDownlink
+		_ = inner
 	}
-
-	f.Mutex.Unlock()
-
 }
 
 func (f *Forwarder) UnRegister(freq uint32, devEUI lorawan.EUI64) {
+	s := f.getShard(devEUI)
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	f.Mutex.Lock()
-
-	for key := range f.DevToGw[devEUI] {
-
-		_, ok := f.GwtoDev[freq][key][devEUI]
+	for key := range s.devToGw[devEUI] {
+		_, ok := s.gwtoDev[freq][key][devEUI]
 		if ok {
-
-			f.GwtoDev[freq][key][devEUI].Close()
-			delete(f.GwtoDev[freq][key], devEUI)
-
+			s.gwtoDev[freq][key][devEUI].Close()
+			delete(s.gwtoDev[freq][key], devEUI)
 		}
-
 	}
-
-	f.Mutex.Unlock()
-
 }
 
 func (f *Forwarder) Uplink(data pkt.RXPK, DevEUI lorawan.EUI64) {
-
-	f.Mutex.Lock()
+	s := f.getShard(DevEUI)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	rxpk := createPacket(data)
-
-	for _, up := range f.DevToGw[DevEUI] {
+	for _, up := range s.devToGw[DevEUI] {
 		up.Push(rxpk)
 	}
-
-	f.Mutex.Unlock()
-
 }
 
 func (f *Forwarder) Downlink(data *lorawan.PHYPayload, freq uint32, macAddress lorawan.EUI64) bool {
-
-	f.Mutex.Lock()
-	defer f.Mutex.Unlock()
-
 	anyDelivered := false
-	for _, dl := range f.GwtoDev[freq][macAddress] {
-		if dl.Push(data) {
-			anyDelivered = true
+
+	// A downlink from a gateway can target devices in any shard, so we
+	// need to check the gwtoDev map in every shard for this freq+gateway.
+	for _, s := range f.shards {
+		s.mu.RLock()
+		gwMap, ok := s.gwtoDev[freq][macAddress]
+		if ok {
+			for _, d := range gwMap {
+				if d.Push(data) {
+					anyDelivered = true
+				}
+			}
 		}
+		s.mu.RUnlock()
 	}
 
 	return anyDelivered
-
 }
 
-// Reset resets the Forwarder by creating a new instance of the Forwarder
 func (f *Forwarder) Reset() {
 	shared.DebugPrint("Reset Forwarder")
-	clear(f.DevToGw)
-	clear(f.GwtoDev)
-	clear(f.Devices)
-	clear(f.Gateways)
+	for _, s := range f.shards {
+		s.mu.Lock()
+		clear(s.devToGw)
+		clear(s.gwtoDev)
+		clear(s.devices)
+		s.mu.Unlock()
+	}
+	f.gwMu.Lock()
+	clear(f.gateways)
+	f.gwMu.Unlock()
 }
