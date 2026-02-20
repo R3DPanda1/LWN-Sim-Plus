@@ -119,9 +119,23 @@ body.sidebar-mini .main-sidebar .sidebar-menu > li.active > a {
     font-weight: 700;
 }
 
-#console-body{
+#system-log-body{
     background-color: var(--lightblack);
-    height: 300px;
+    height: 200px;
+}
+
+#device-events-body {
+    background-color: var(--lightblack);
+    max-height: 400px;
+}
+
+.device-event-row {
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.device-event-row:hover {
+    background-color: rgba(255,255,255,0.05);
 }
 
 .btn-sim{

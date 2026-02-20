@@ -49,6 +49,7 @@ var TurnMap = 0;
 var Gateways = new Map();
 var Devices = new Map();
 var AvailableCodecs = [];
+var currentDeviceSubscription = null;
 
 //socket
 var socket = io({
@@ -103,66 +104,44 @@ $(document).ready(function(){
         
     });
 
-    socket.on('console-sim',(data)=>{
-
-        var row = "<p class=\"text-break text-start bg-secondary m-0\">"+data.message+"</p>";
-        $('#console-body').append(row);
-
-        $('#console-body').animate({
-            scrollTop: $('#console-body').get(0).scrollHeight
-        }, 0);
-
+    // System events (auto-subscribed)
+    socket.on('system-event', function(event) {
+        var cls = event.isError ? 'text-white bg-danger' : 'bg-secondary';
+        var row = '<p class="text-break text-start ' + cls + ' m-0">' +
+                  '[' + new Date(event.time).toLocaleTimeString() + '] ' +
+                  event.type + ': ' + event.message + '</p>';
+        $('#system-log-body').append(row);
+        var el = document.getElementById('system-log-body');
+        if (el) el.scrollTop = el.scrollHeight;
     });
 
-    socket.on('console-error',(data)=>{
-      
-        var row = "<p class=\"text-break text-white bg-danger m-0\">"+data.message+"</p>";             
-        $('#console-body').append(row);
+    // Device events (subscribed per-device)
+    socket.on('device-event', function(event) {
+        var badgeClass = {
+            'up': 'badge-info', 'join': 'badge-success', 'downlink': 'badge-primary',
+            'ack': 'badge-secondary', 'mac_command': 'badge-warning',
+            'status': 'badge-light', 'error': 'badge-danger'
+        }[event.type] || 'badge-dark';
 
-        $('#console-body').animate({
-            scrollTop: $('#console-body').get(0).scrollHeight
-        }, 0);
+        var summary = event.type;
+        if (event.fCnt !== undefined && event.fCnt !== null) summary += ' FCnt=' + event.fCnt;
+        if (event.fPort !== undefined && event.fPort !== null) summary += ' FPort=' + event.fPort;
 
+        var row = '<div class="device-event-row mb-1 p-2 border-bottom">' +
+                  '<span class="badge ' + badgeClass + '">' + event.type + '</span> ' +
+                  '<small class="text-muted">' + new Date(event.time).toLocaleTimeString() + '</small> ' +
+                  '<span>' + summary + '</span>' +
+                  '<pre class="collapse mt-1 mb-0" style="font-size:11px">' +
+                  JSON.stringify(event, null, 2) + '</pre>' +
+                  '</div>';
+        $('#device-events-body').append(row);
+        var el = document.getElementById('device-events-body');
+        if (el) el.scrollTop = el.scrollHeight;
     });
 
-    socket.on('log-dev',(data)=>{
-
-        var classesP = $("[name=\""+data.name+"\"]").attr("class");//p
-        
-        $("span[data-name=\""+data.name+"\"]").attr("class");
-
-        var row;
-
-        if (classesP == undefined)
-            row = "<p class=\"text-break text-start text-info clickable me-1 mb-0\" name=\""+data.name+"\" data-name=\""+data.name+"\">"+data.message+"</p>";
-        else
-            row = "<p class=\""+classesP+"\" name=\""+data.name+"\" data-name=\""+data.name+"\">"+data.message+"</p>";
-    
-        $('#console-body').append(row);
-
-        $('#console-body').animate({
-            scrollTop: $('#console-body').get(0).scrollHeight
-        }, 0);
-
-    });
-
-    socket.on('log-gw',(data)=>{ 
-
-        var valueName = "gw-"+data.name;     
-        var classesP = $("[name="+valueName+"]").attr("class");//p
-        var row;
-
-        if (classesP == undefined)
-            row = "<p class=\"text-break clickable text-start text-warning me-1 mb-0\" data-name=\""+valueName+"\" name=\""+valueName+"\">"+data.message+"</p>";
-        else
-            row = "<p class=\""+classesP+"\" name="+valueName+" data-name=\""+valueName+"\">"+data.message+"</p>";
-    
-        $('#console-body').append(row);
-
-        $('#console-body').animate({
-            scrollTop: $('#console-body').get(0).scrollHeight
-        }, 0);
-
+    // Click device event row to expand/collapse JSON
+    $('#device-events-body').on('click', '.device-event-row', function() {
+        $(this).find('pre').toggleClass('show');
     });
 
     socket.on('save-status',(data)=>{
@@ -298,9 +277,11 @@ $(document).ready(function(){
     // ********************** sidebar *********************
     
     $("#sidebar a").on("click", function () {
-        
+
         if($(this).hasClass("has-dropdown"))
             return;
+
+        unsubscribeFromDevice();
 
         $(".main-content > div").removeClass("show active");
         $($(this).data("tab")).addClass("show active");
@@ -364,23 +345,12 @@ $(document).ready(function(){
     // ********************** home *********************
     
     $("#container-header-accordion").on("click", function(){
-        $("#console-body").toggleClass("show");
+        $("#system-log-body").toggleClass("show");
     });
 
     $(".btn-clean").on("click",function(){
-        $("#console-body").empty();
+        $("#system-log-body").empty();
         $(this).blur();
-    })
-
-    $("#console-body").on('click',"p",function(){
-    
-        var val = $(this).data("name");
-        if (val.includes("gw")){
-            $("[name=\""+val+"\"]").toggleClass("text-warning bg-warning");
-        }else{
-            $("[name=\""+val+"\"]").toggleClass("text-info bg-info");
-        }
-        
     });
 
     //click item list
@@ -2375,6 +2345,22 @@ function ChangeStateInputDevice(value,eui){
 
 }
 
+function subscribeToDevice(devEUI) {
+    if (currentDeviceSubscription) {
+        socket.emit('stop-device-events', { devEUI: currentDeviceSubscription });
+    }
+    currentDeviceSubscription = devEUI;
+    $('#device-events-body').empty();
+    socket.emit('stream-device-events', { devEUI: devEUI });
+}
+
+function unsubscribeFromDevice() {
+    if (currentDeviceSubscription) {
+        socket.emit('stop-device-events', { devEUI: currentDeviceSubscription });
+        currentDeviceSubscription = null;
+    }
+}
+
 function LoadDevice(dev){
 
     //general
@@ -2489,6 +2475,8 @@ function LoadDevice(dev){
 
     ChangeStateInputDevice(true,dev.info.devEUI);
 
+    // Subscribe to device events stream
+    subscribeToDevice(dev.info.devEUI);
 
     $("#devs").removeClass("show active");
     $("#add-dev").addClass("show active");
