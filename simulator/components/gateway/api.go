@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"log/slog"
-	"sync"
 
 	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
@@ -22,8 +21,7 @@ func (g *Gateway) Setup(BridgeAddress *string,
 	g.Resources = Resources
 	g.Forwarder = Forwarder
 
-	g.BufferUplink = buffer.BufferUplink{}
-	g.BufferUplink.Notify = sync.NewCond(&g.BufferUplink.Mutex)
+	g.BufferUplink = buffer.NewBufferUplink(0)
 
 	slog.Debug("gateway setup complete", "component", "gateway", "gateway_mac", g.Info.MACAddress, "name", g.Info.Name)
 

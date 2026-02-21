@@ -20,7 +20,7 @@ type Gateway struct {
 
 	Stat models.Stat `json:"-"`
 
-	BufferUplink buffer.BufferUplink  `json:"-"`
+	BufferUplink *buffer.BufferUplink `json:"-"`
 	EventBroker  *events.EventBroker  `json:"-"`
 }
 

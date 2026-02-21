@@ -1,60 +1,55 @@
 package buffer
 
 import (
-	"sync"
-
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/packets"
 )
 
+const DefaultBufferSize = 1000
+
 type BufferUplink struct {
-	Mutex   sync.Mutex
-	Uplinks []packets.RXPK
-	Notify  *sync.Cond
+	ch   chan packets.RXPK
+	done chan struct{}
 }
 
-func (p *BufferUplink) Push(pkt packets.RXPK) {
-
-	p.Mutex.Lock()
-
-	p.Uplinks = append(p.Uplinks, pkt) // push
-
-	if len(p.Uplinks) == 1 {
-		p.Notify.Broadcast()
+func NewBufferUplink(size int) *BufferUplink {
+	if size <= 0 {
+		size = DefaultBufferSize
 	}
-
-	p.Mutex.Unlock()
-
+	return &BufferUplink{
+		ch:   make(chan packets.RXPK, size),
+		done: make(chan struct{}),
+	}
 }
 
-func (p *BufferUplink) Pop() packets.RXPK {
-
-	var upl packets.RXPK
-
-	p.Mutex.Lock()
-	defer p.Mutex.Unlock()
-
-	if len(p.Uplinks) == 0 {
-		p.Notify.Wait()
-	}
-
-	switch len(p.Uplinks) {
-	case 0:
-		return packets.RXPK{}
-	case 1:
-		upl, p.Uplinks = p.Uplinks[0], p.Uplinks[:0] // pop
+func (bu *BufferUplink) Push(rxpk packets.RXPK) {
+	select {
+	case bu.ch <- rxpk:
 	default:
-		upl, p.Uplinks = p.Uplinks[0], p.Uplinks[1:]
-
+		// buffer full -- drop oldest, push new
+		select {
+		case <-bu.ch:
+		default:
+		}
+		bu.ch <- rxpk
 	}
-
-	return upl
-
 }
 
-func (p *BufferUplink) Signal() {
+func (bu *BufferUplink) Pop() (packets.RXPK, bool) {
+	select {
+	case rxpk := <-bu.ch:
+		return rxpk, true
+	case <-bu.done:
+		return packets.RXPK{}, false
+	}
+}
 
-	p.Mutex.Lock()
-	p.Notify.Broadcast()
-	p.Mutex.Unlock()
+func (bu *BufferUplink) Signal() {
+	select {
+	case bu.done <- struct{}{}:
+	default:
+	}
+}
 
+func (bu *BufferUplink) Close() {
+	close(bu.done)
 }
