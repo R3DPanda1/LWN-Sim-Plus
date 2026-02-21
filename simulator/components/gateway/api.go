@@ -1,8 +1,6 @@
 package gateway
 
 import (
-	"sync"
-
 	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
 	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
 	res "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources"
@@ -21,8 +19,7 @@ func (g *Gateway) Setup(BridgeAddress *string,
 	g.Resources = Resources
 	g.Forwarder = Forwarder
 
-	g.BufferUplink = buffer.BufferUplink{}
-	g.BufferUplink.Notify = sync.NewCond(&g.BufferUplink.Mutex)
+	g.BufferUplink = buffer.NewBufferUplink(0)
 
 	g.Print("Setup OK!", nil, util.PrintOnlyConsole)
 

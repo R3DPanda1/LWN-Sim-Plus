@@ -297,13 +297,13 @@ func (s *Simulator) turnOFFDevice(Id int) {
 
 // turnONGateway activates a gateway by adding it to the Forwarder and turning it on
 func (s *Simulator) turnONGateway(Id int) {
+	s.Gateways[Id].Setup(&s.BridgeAddress, &s.Resources, &s.Forwarder)
 	infoGw := mfw.InfoGateway{
 		MACAddress: s.Gateways[Id].Info.MACAddress,
-		Buffer:     &s.Gateways[Id].BufferUplink,
+		Buffer:     s.Gateways[Id].BufferUplink,
 		Location:   s.Gateways[Id].Info.Location,
 	}
 	s.Forwarder.AddGateway(infoGw)
-	s.Gateways[Id].Setup(&s.BridgeAddress, &s.Resources, &s.Forwarder)
 	s.Gateways[Id].TurnON()
 	s.Console.PrintSocket(socket.EventResponseCommand, s.Gateways[Id].Info.Name+" Turn ON")
 }
@@ -318,7 +318,7 @@ func (s *Simulator) turnOFFGateway(Id int) {
 	s.ComponentsInactiveTmp--
 	infoGw := mfw.InfoGateway{
 		MACAddress: s.Gateways[Id].Info.MACAddress,
-		Buffer:     &s.Gateways[Id].BufferUplink,
+		Buffer:     s.Gateways[Id].BufferUplink,
 		Location:   s.Gateways[Id].Info.Location,
 	}
 	s.Forwarder.DeleteGateway(infoGw)
