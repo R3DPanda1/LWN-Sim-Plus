@@ -32,9 +32,8 @@ func (g *Gateway) SenderVirtual() {
 
 	for {
 
-		rxpk := g.BufferUplink.Pop() //wait uplink
-
-		if !g.CanExecute() {
+		rxpk, ok := g.BufferUplink.Pop() //wait uplink
+		if !ok || !g.CanExecute() {
 			return
 		}
 
@@ -67,9 +66,8 @@ func (g *Gateway) SenderReal() {
 
 	for {
 
-		rxpk := g.BufferUplink.Pop() //wait uplink
-
-		if !g.CanExecute() {
+		rxpk, ok := g.BufferUplink.Pop() //wait uplink
+		if !ok || !g.CanExecute() {
 			return
 		}
 
