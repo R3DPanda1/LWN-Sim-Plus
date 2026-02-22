@@ -67,6 +67,9 @@ type SimulatorRepository interface {
 	UpdateTemplate(*template.DeviceTemplate) error                                                 // Update a template
 	DeleteTemplate(int) error                                                                      // Delete a template
 	CreateDevicesFromTemplate(int, int, string, float64, float64, int32, float64) ([]int, error)   // Bulk create devices from template
+
+	// Configuration
+	SetPerformance(models.PerformanceConfig)
 }
 
 // simulatorRepository repository struct
@@ -274,4 +277,8 @@ func (s *simulatorRepository) DeleteTemplate(id int) error {
 
 func (s *simulatorRepository) CreateDevicesFromTemplate(templateID int, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
 	return s.sim.CreateDevicesFromTemplate(templateID, count, namePrefix, baseLat, baseLng, baseAlt, spreadMeters)
+}
+
+func (s *simulatorRepository) SetPerformance(perf models.PerformanceConfig) {
+	s.sim.Performance = perf
 }

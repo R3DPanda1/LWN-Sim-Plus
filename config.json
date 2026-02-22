@@ -4,5 +4,12 @@
     "metricsPort":8003,
     "configDirname":"lwnsimulator",
     "autoStart": false,
-    "verbose": true
+    "verbose": true,
+    "performance": {
+        "forwarderShards": 16,
+        "uplinkBufferSize": 1000,
+        "workerCount": 100,
+        "schedulerResolution": "1s",
+        "workQueueSize": 10000
+    }
 }
