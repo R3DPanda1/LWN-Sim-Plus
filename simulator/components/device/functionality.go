@@ -5,30 +5,13 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features/adr"
 	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
 	rp "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/metrics"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/brocaar/lorawan"
-)
-
-var (
-	uplinkCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "device_uplink_sent_total",
-		Help: "The total number of uplinks sent",
-	})
-	downlinkCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "device_downlink_received_total",
-		Help: "The total number of downlinks received",
-	})
-	ackTimeoutCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "device_ack_timetou_total",
-		Help: "The total number of ACK timeouts",
-	})
 )
 
 func (d *Device) Execute() {
@@ -48,7 +31,7 @@ func (d *Device) Execute() {
 		d.Class.SendData(data)
 
 		d.Print("Uplink sent", nil, util.PrintBoth)
-		uplinkCounter.Inc()
+		metrics.UplinksTotal.Inc()
 	}
 
 	d.Print("Open RXs", nil, util.PrintBoth)
@@ -57,7 +40,7 @@ func (d *Device) Execute() {
 	if phy != nil {
 
 		d.Print("Downlink Received", nil, util.PrintBoth)
-		downlinkCounter.Inc()
+		metrics.DownlinksTotal.Inc()
 
 		downlink, err = d.ProcessDownlink(*phy)
 		if err != nil {
@@ -83,7 +66,6 @@ func (d *Device) Execute() {
 		<-timerAckTimeout.C
 
 		d.Print("ACK Timeout", nil, util.PrintBoth)
-		ackTimeoutCounter.Inc()
 	}
 
 	d.ADRProcedure()
@@ -160,7 +142,7 @@ func (d *Device) FPendingProcedure(downlink *dl.InformationDownlink) {
 			if phy != nil {
 
 				d.Print("Downlink Received", nil, util.PrintBoth)
-				downlinkCounter.Inc()
+				metrics.DownlinksTotal.Inc()
 
 				downlink, err = d.ProcessDownlink(*phy)
 				if err != nil {
@@ -184,7 +166,6 @@ func (d *Device) FPendingProcedure(downlink *dl.InformationDownlink) {
 				<-timerAckTimeout.C
 
 				d.Print("ACK Timeout", nil, util.PrintBoth)
-				ackTimeoutCounter.Inc()
 
 			}
 
