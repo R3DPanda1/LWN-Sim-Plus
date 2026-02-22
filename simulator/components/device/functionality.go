@@ -6,31 +6,14 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/features/adr"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
 	rp "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/regional_parameters"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/metrics"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/brocaar/lorawan"
-)
-
-var (
-	uplinkCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "device_uplink_sent_total",
-		Help: "The total number of uplinks sent",
-	})
-	downlinkCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "device_downlink_received_total",
-		Help: "The total number of downlinks received",
-	})
-	ackTimeoutCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "device_ack_timetou_total",
-		Help: "The total number of ACK timeouts",
-	})
 )
 
 func (d *Device) Execute() {
@@ -51,7 +34,7 @@ func (d *Device) Execute() {
 
 		slog.Debug("uplink sent", "component", "device", "dev_eui", d.Info.DevEUI, "class", d.Class.ToString())
 		d.emitEvent(events.EventUp, map[string]string{"status": "uplink sent"})
-		uplinkCounter.Inc()
+		metrics.UplinksTotal.Inc()
 	}
 
 	slog.Debug("opening receive windows", "component", "device", "dev_eui", d.Info.DevEUI)
@@ -62,7 +45,7 @@ func (d *Device) Execute() {
 
 		slog.Debug("downlink received", "component", "device", "dev_eui", d.Info.DevEUI)
 		d.emitEvent(events.EventDownlink, map[string]string{"status": "downlink received"})
-		downlinkCounter.Inc()
+		metrics.DownlinksTotal.Inc()
 
 		downlink, err = d.ProcessDownlink(*phy)
 		if err != nil {
@@ -91,7 +74,6 @@ func (d *Device) Execute() {
 
 		slog.Debug("ack timeout", "component", "device", "dev_eui", d.Info.DevEUI)
 		d.emitEvent(events.EventStatus, map[string]string{"status": "ack timeout"})
-		ackTimeoutCounter.Inc()
 	}
 
 	d.ADRProcedure()
@@ -174,7 +156,7 @@ func (d *Device) FPendingProcedure(downlink *dl.InformationDownlink) {
 
 				slog.Debug("downlink received", "component", "device", "dev_eui", d.Info.DevEUI)
 				d.emitEvent(events.EventDownlink, map[string]string{"status": "downlink received"})
-				downlinkCounter.Inc()
+				metrics.DownlinksTotal.Inc()
 
 				downlink, err = d.ProcessDownlink(*phy)
 				if err != nil {
@@ -201,7 +183,6 @@ func (d *Device) FPendingProcedure(downlink *dl.InformationDownlink) {
 
 				slog.Debug("ack timeout", "component", "device", "dev_eui", d.Info.DevEUI)
 				d.emitEvent(events.EventStatus, map[string]string{"status": "ack timeout"})
-				ackTimeoutCounter.Inc()
 
 			}
 

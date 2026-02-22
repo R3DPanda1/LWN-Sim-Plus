@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/metrics"
 )
 
 var eventCounter uint64
@@ -43,6 +45,8 @@ func (b *EventBroker) Subscribe(topic string) (ch <-chan interface{}, history []
 	b.subscribers[topic] = append(b.subscribers[topic], sub)
 	b.mu.Unlock()
 
+	metrics.EventSubscriptions.Inc()
+
 	history = b.store.GetHistory(topic)
 
 	unsubscribe = func() {
@@ -53,6 +57,7 @@ func (b *EventBroker) Subscribe(topic string) (ch <-chan interface{}, history []
 			if s == sub {
 				b.subscribers[topic] = append(subs[:i], subs[i+1:]...)
 				close(sub.ch)
+				metrics.EventSubscriptions.Dec()
 				break
 			}
 		}
@@ -84,6 +89,7 @@ func (b *EventBroker) PublishDeviceEvent(devEUI string, event DeviceEvent) {
 	if event.Time.IsZero() {
 		event.Time = time.Now()
 	}
+	metrics.EventsPublished.WithLabelValues(event.Type).Inc()
 	b.publish(DeviceTopic(devEUI), event)
 	if event.Type == EventError {
 		b.publish(ErrorsTopic, event)
@@ -97,6 +103,7 @@ func (b *EventBroker) PublishGatewayEvent(gwMAC string, event GatewayEvent) {
 	if event.Time.IsZero() {
 		event.Time = time.Now()
 	}
+	metrics.EventsPublished.WithLabelValues(event.Type).Inc()
 	b.publish(GatewayTopic(gwMAC), event)
 	if event.Type == GwEventError {
 		b.publish(ErrorsTopic, event)
@@ -110,6 +117,7 @@ func (b *EventBroker) PublishSystemEvent(event SystemEvent) {
 	if event.Time.IsZero() {
 		event.Time = time.Now()
 	}
+	metrics.EventsPublished.WithLabelValues(event.Type).Inc()
 	b.publish(SystemTopic, event)
 	if event.IsError {
 		b.publish(ErrorsTopic, event)
