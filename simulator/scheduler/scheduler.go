@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/metrics"
 )
 
 type Job struct {
@@ -39,6 +41,8 @@ func New(resolution time.Duration, numBuckets int, workerCount int, queueSize in
 	for i := range s.wheel {
 		s.wheel[i] = &bucket{}
 	}
+
+	metrics.WorkQueueCapacity.Set(float64(queueSize))
 
 	for i := 0; i < workerCount; i++ {
 		s.wg.Add(1)
@@ -112,6 +116,7 @@ func (s *Scheduler) tick() {
 					slog.Warn("work queue full, dropping job", "job_id", job.ID)
 				}
 			}
+			metrics.WorkQueueDepth.Set(float64(len(s.workQueue)))
 
 		case <-s.stopCh:
 			return
@@ -124,7 +129,9 @@ func (s *Scheduler) worker(id int) {
 	for {
 		select {
 		case job := <-s.workQueue:
+			start := time.Now()
 			job.Execute()
+			metrics.JobExecutionDuration.Observe(time.Since(start).Seconds())
 			// Re-schedule for next interval
 			s.Schedule(job)
 		case <-s.stopCh:
