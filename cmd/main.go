@@ -29,6 +29,7 @@ func main() {
 	simulatorRepository := repo.NewSimulatorRepository()
 	simulatorController := cnt.NewSimulatorController(simulatorRepository)
 	simulatorController.GetInstance()
+	simulatorController.SetPerformance(cfg.Performance)
 	log.Printf("LWN Simulator (%s) is ready to start...\n", shared.Version)
 	// Start the metrics server.
 	go startMetrics(cfg)

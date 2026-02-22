@@ -63,6 +63,9 @@ type SimulatorController interface {
 	UpdateTemplate(*template.DeviceTemplate) error                                                 // Update a template
 	DeleteTemplate(int) error                                                                      // Delete a template
 	CreateDevicesFromTemplate(int, int, string, float64, float64, int32, float64) ([]int, error)   // Bulk create devices from template
+
+	// Configuration
+	SetPerformance(models.PerformanceConfig)
 }
 
 // simulatorController controller struct
@@ -249,4 +252,8 @@ func (c *simulatorController) DeleteTemplate(id int) error {
 
 func (c *simulatorController) CreateDevicesFromTemplate(templateID int, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
 	return c.repo.CreateDevicesFromTemplate(templateID, count, namePrefix, baseLat, baseLng, baseAlt, spreadMeters)
+}
+
+func (c *simulatorController) SetPerformance(perf models.PerformanceConfig) {
+	c.repo.SetPerformance(perf)
 }

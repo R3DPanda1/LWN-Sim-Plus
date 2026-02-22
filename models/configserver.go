@@ -6,14 +6,24 @@ import (
 	"os"
 )
 
+// PerformanceConfig holds tuning parameters for the scheduler and forwarder.
+type PerformanceConfig struct {
+	ForwarderShards     int    `json:"forwarderShards"`
+	UplinkBufferSize    int    `json:"uplinkBufferSize"`
+	WorkerCount         int    `json:"workerCount"`
+	SchedulerResolution string `json:"schedulerResolution"`
+	WorkQueueSize       int    `json:"workQueueSize"`
+}
+
 // ServerConfig holds the configuration for the server including address, ports, and other settings.
 type ServerConfig struct {
-	Address       string `json:"address"`       // Address to bind to (e.g., "localhost")
-	Port          int    `json:"port"`          // Port to bind to (default is 8000)
-	MetricsPort   int    `json:"metricsPort"`   // Port to bind to for metrics (default is 8081)
-	ConfigDirname string `json:"configDirname"` // Directory name for configuration files
-	AutoStart     bool   `json:"autoStart"`     // Flag to automatically start the simulation when the server starts
-	Verbose       bool   `json:"verbose"`       // Flag to enable verbose logging
+	Address       string            `json:"address"`       // Address to bind to (e.g., "localhost")
+	Port          int               `json:"port"`          // Port to bind to (default is 8000)
+	MetricsPort   int               `json:"metricsPort"`   // Port to bind to for metrics (default is 8081)
+	ConfigDirname string            `json:"configDirname"` // Directory name for configuration files
+	AutoStart     bool              `json:"autoStart"`     // Flag to automatically start the simulation when the server starts
+	Verbose       bool              `json:"verbose"`       // Flag to enable verbose logging
+	Performance   PerformanceConfig `json:"performance"`
 }
 
 // GetConfigFile loads the configuration from the specified file path, parses it as JSON,
