@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/R3DPanda1/LWN-Sim-Plus/codes"
+	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration/chirpstack"
@@ -18,6 +19,7 @@ import (
 	gw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/events"
 	res "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/scheduler"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/brocaar/lorawan"
 )
@@ -44,7 +46,9 @@ type Simulator struct {
 	// Template management (like Devices/Gateways pattern)
 	Templates map[int]*template.DeviceTemplate `json:"-"` // A collection of device templates
 
-	EventBroker *events.EventBroker `json:"-"`
+	EventBroker *events.EventBroker        `json:"-"`
+	Scheduler   *scheduler.Scheduler       `json:"-"`
+	Performance models.PerformanceConfig   `json:"-"`
 }
 
 // setup loads and initializes the simulator maps for gateways and devices
@@ -254,7 +258,8 @@ func (s *Simulator) saveStatus() {
 	s.saveComponent(path, &s.Templates)
 }
 
-// turnONDevice activates a device by adding it to the Forwarder and turning it on
+// turnONDevice activates a device by adding it to the Forwarder and turning it on.
+// If the scheduler is active, the device is scheduled instead of spawning a goroutine.
 func (s *Simulator) turnONDevice(Id int) {
 	infoDev := mfw.InfoDevice{
 		DevEUI:   s.Devices[Id].Info.DevEUI,
@@ -264,18 +269,36 @@ func (s *Simulator) turnONDevice(Id int) {
 	s.Forwarder.AddDevice(infoDev)
 	s.Devices[Id].Setup(&s.Resources, &s.Forwarder)
 	s.Devices[Id].EventBroker = s.EventBroker
-	s.Devices[Id].TurnON()
+
+	if s.Scheduler != nil {
+		s.Devices[Id].State = util.Running
+		slog.Info("device scheduled", "component", "device", "dev_eui", s.Devices[Id].Info.DevEUI, "name", s.Devices[Id].Info.Name)
+		s.Scheduler.Schedule(&scheduler.Job{
+			ID:       s.Devices[Id].Id,
+			Interval: s.Devices[Id].Info.Configuration.SendInterval,
+			Execute:  s.Devices[Id].ExecuteOnce,
+		})
+	} else {
+		s.Devices[Id].TurnON()
+	}
 }
 
 // turnOFFDevice deactivates a device by removing it from the Forwarder and turning it off
 func (s *Simulator) turnOFFDevice(Id int) {
-	s.ComponentsInactiveTmp++
-	s.Resources.ExitGroup.Add(1)
-	s.Devices[Id].TurnOFF()
-	s.Forwarder.DeleteDevice(s.Devices[Id].Info.DevEUI)
-	s.Resources.ExitGroup.Wait()
-	delete(s.ActiveDevices, Id)
-	s.ComponentsInactiveTmp--
+	if s.Scheduler != nil {
+		s.Scheduler.Remove(Id)
+		s.Devices[Id].State = util.Stopped
+		s.Forwarder.DeleteDevice(s.Devices[Id].Info.DevEUI)
+		delete(s.ActiveDevices, Id)
+	} else {
+		s.ComponentsInactiveTmp++
+		s.Resources.ExitGroup.Add(1)
+		s.Devices[Id].TurnOFF()
+		s.Forwarder.DeleteDevice(s.Devices[Id].Info.DevEUI)
+		s.Resources.ExitGroup.Wait()
+		delete(s.ActiveDevices, Id)
+		s.ComponentsInactiveTmp--
+	}
 }
 
 // turnONGateway activates a gateway by adding it to the Forwarder and turning it on

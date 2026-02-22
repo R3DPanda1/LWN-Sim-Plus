@@ -8,5 +8,12 @@
     "logging": {
         "level": "info",
         "json": false
+    },
+    "performance": {
+        "forwarderShards": 16,
+        "uplinkBufferSize": 1000,
+        "workerCount": 100,
+        "schedulerResolution": "1s",
+        "workQueueSize": 10000
     }
 }

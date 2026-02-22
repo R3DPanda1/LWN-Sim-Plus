@@ -63,6 +63,9 @@ type SimulatorController interface {
 
 	// Event broker
 	GetEventBroker() *events.EventBroker
+
+	// Configuration
+	SetPerformance(models.PerformanceConfig)
 }
 
 // simulatorController controller struct
@@ -242,4 +245,8 @@ func (c *simulatorController) CreateDevicesFromTemplate(templateID int, count in
 
 func (c *simulatorController) GetEventBroker() *events.EventBroker {
 	return c.repo.GetEventBroker()
+}
+
+func (c *simulatorController) SetPerformance(perf models.PerformanceConfig) {
+	c.repo.SetPerformance(perf)
 }

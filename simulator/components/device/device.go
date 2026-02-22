@@ -84,6 +84,25 @@ func (d *Device) Run() {
 
 }
 
+// ExecuteOnce performs a single iteration of the device's main loop,
+// suitable for use with the time-wheel scheduler.
+func (d *Device) ExecuteOnce() {
+	if !d.CanExecute() {
+		return
+	}
+
+	if d.Info.Status.Joined {
+		if d.Info.Configuration.SupportedClassC {
+			d.SwitchClass(classes.ClassC)
+		} else if d.Info.Configuration.SupportedClassB {
+			d.SwitchClass(classes.ClassB)
+		}
+		d.Execute()
+	} else if d.Info.Configuration.SupportedOtaa {
+		d.OtaaActivation()
+	}
+}
+
 func (d *Device) modeToString() string {
 
 	switch d.Info.Status.Mode {
