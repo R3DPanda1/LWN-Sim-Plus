@@ -70,6 +70,7 @@ type SimulatorRepository interface {
 
 	// Configuration
 	SetPerformance(models.PerformanceConfig)
+	SetEvents(models.EventsConfig)
 }
 
 // simulatorRepository repository struct
@@ -273,4 +274,8 @@ func (s *simulatorRepository) GetEventBroker() *events.EventBroker {
 
 func (s *simulatorRepository) SetPerformance(perf models.PerformanceConfig) {
 	s.sim.Performance = perf
+}
+
+func (s *simulatorRepository) SetEvents(ev models.EventsConfig) {
+	s.sim.Events = ev
 }

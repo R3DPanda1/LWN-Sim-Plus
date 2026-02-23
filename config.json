@@ -15,5 +15,9 @@
         "workerCount": 100,
         "schedulerResolution": "1s",
         "workQueueSize": 10000
+    },
+    "events": {
+        "historyPerDevice": 100,
+        "historyPerGateway": 50
     }
 }

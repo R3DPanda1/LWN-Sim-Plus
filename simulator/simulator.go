@@ -49,11 +49,16 @@ type Simulator struct {
 	EventBroker *events.EventBroker        `json:"-"`
 	Scheduler   *scheduler.Scheduler       `json:"-"`
 	Performance models.PerformanceConfig   `json:"-"`
+	Events      models.EventsConfig        `json:"-"`
 }
 
 // setup loads and initializes the simulator maps for gateways and devices
 func (s *Simulator) setup() {
-	s.EventBroker = events.NewEventBroker(100)
+	historySize := s.Events.HistoryPerDevice
+	if historySize <= 0 {
+		historySize = 100
+	}
+	s.EventBroker = events.NewEventBroker(historySize)
 	s.setupGateways()
 	s.setupDevices()
 	slog.Info("simulator setup complete", "component", "simulator")

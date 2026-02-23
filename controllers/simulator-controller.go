@@ -66,6 +66,7 @@ type SimulatorController interface {
 
 	// Configuration
 	SetPerformance(models.PerformanceConfig)
+	SetEvents(models.EventsConfig)
 }
 
 // simulatorController controller struct
@@ -249,4 +250,8 @@ func (c *simulatorController) GetEventBroker() *events.EventBroker {
 
 func (c *simulatorController) SetPerformance(perf models.PerformanceConfig) {
 	c.repo.SetPerformance(perf)
+}
+
+func (c *simulatorController) SetEvents(ev models.EventsConfig) {
+	c.repo.SetEvents(ev)
 }

@@ -186,6 +186,54 @@ The simulator depends on a configuration file (`config.json`) which specifies so
 - `autoStart`: if true, the simulator will start automatically the simulation;
 - `verbose`: if true, the simulator will print more logs.
 
+### Logging
+
+```json
+{
+    "logging": {
+        "level": "info",
+        "json": false
+    }
+}
+```
+
+- `level`: Log verbosity - `trace`, `debug`, `info`, `warn`, `error`
+- `json`: Set to `true` for structured JSON output (useful for K8s/log aggregators)
+
+### Performance
+
+```json
+{
+    "performance": {
+        "forwarderShards": 16,
+        "uplinkBufferSize": 1000,
+        "workerCount": 100,
+        "schedulerResolution": "1s",
+        "workQueueSize": 10000
+    }
+}
+```
+
+- `forwarderShards`: Number of routing shards for the packet forwarder
+- `uplinkBufferSize`: Per-gateway uplink buffer capacity
+- `workerCount`: Number of worker goroutines for device execution (0 = legacy goroutine-per-device)
+- `schedulerResolution`: Time-wheel tick interval
+- `workQueueSize`: Maximum queued device jobs
+
+### Events
+
+```json
+{
+    "events": {
+        "historyPerDevice": 100,
+        "historyPerGateway": 50
+    }
+}
+```
+
+- `historyPerDevice`: Number of recent events kept per device
+- `historyPerGateway`: Number of recent events kept per gateway
+
 ## Tutorials
 
 More coming soon...

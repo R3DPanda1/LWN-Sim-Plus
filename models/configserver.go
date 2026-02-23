@@ -8,6 +8,12 @@ import (
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/logging"
 )
 
+// EventsConfig holds history retention settings for the event broker.
+type EventsConfig struct {
+	HistoryPerDevice  int `json:"historyPerDevice"`
+	HistoryPerGateway int `json:"historyPerGateway"`
+}
+
 // PerformanceConfig holds tuning parameters for the scheduler and forwarder.
 type PerformanceConfig struct {
 	ForwarderShards     int    `json:"forwarderShards"`
@@ -27,6 +33,7 @@ type ServerConfig struct {
 	Verbose       bool              `json:"verbose"`        // Flag to enable verbose logging
 	Logging       logging.Config    `json:"logging"`
 	Performance   PerformanceConfig `json:"performance"`
+	Events        EventsConfig      `json:"events"`
 }
 
 // GetConfigFile loads the configuration from the specified file path, parses it as JSON,

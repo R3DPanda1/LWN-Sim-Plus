@@ -37,6 +37,7 @@ func main() {
 	simulatorController := cnt.NewSimulatorController(simulatorRepository)
 	simulatorController.GetInstance()
 	simulatorController.SetPerformance(cfg.Performance)
+	simulatorController.SetEvents(cfg.Events)
 	slog.Info("simulator ready", "version", shared.Version)
 	// Start the metrics server.
 	go startMetrics(cfg)
