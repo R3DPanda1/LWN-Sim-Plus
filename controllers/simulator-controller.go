@@ -257,3 +257,4 @@ func (c *simulatorController) CreateDevicesFromTemplate(templateID int, count in
 func (c *simulatorController) SetPerformance(perf models.PerformanceConfig) {
 	c.repo.SetPerformance(perf)
 }
+
