@@ -106,13 +106,7 @@ $(document).ready(function(){
 
     // System events (auto-subscribed)
     socket.on('system-event', function(event) {
-        var cls = event.isError ? 'text-white bg-danger' : 'bg-secondary';
-        var row = '<p class="text-break text-start ' + cls + ' m-0">' +
-                  '[' + new Date(event.time).toLocaleTimeString() + '] ' +
-                  event.type + ': ' + event.message + '</p>';
-        $('#system-log-body').append(row);
-        var el = document.getElementById('system-log-body');
-        if (el) el.scrollTop = el.scrollHeight;
+        ConsoleRenderer.append('system-log-body', ConsoleRenderer.normalize(event, 'system'), { darkBg: true });
     });
 
     // Device events (subscribed per-device)
@@ -344,12 +338,8 @@ $(document).ready(function(){
 
     // ********************** home *********************
     
-    $("#container-header-accordion").on("click", function(){
-        $("#system-log-body").toggleClass("show");
-    });
-
-    $(".btn-clean").on("click",function(){
-        $("#system-log-body").empty();
+    $("#btn-clear-system-log").on("click", function(){
+        ConsoleRenderer.clear('system-log-body');
         $(this).blur();
     });
 

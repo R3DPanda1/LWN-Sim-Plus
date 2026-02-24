@@ -409,37 +409,17 @@ var CodecTestState = {
 
     // Add log entry
     addLog: function(message, type) {
-        type = type || 'info'; // 'info', 'error', 'warn'
-        var timestamp = new Date().toLocaleTimeString();
-        this.logs.push({
-            timestamp: timestamp,
-            message: message,
-            type: type
-        });
-        this.renderLogs();
+        type = type || 'info';
+        this.logs.push({ message: message, type: type });
+        ConsoleRenderer.append('output-console-logs', ConsoleRenderer.normalize({ message: message, type: type }, 'codec'), { darkBg: true });
     },
 
     // Render logs to console output
     renderLogs: function() {
-        var logsContainer = $("#output-console-logs");
-        logsContainer.empty();
-
-        if (this.logs.length === 0) {
-            logsContainer.html('<div class="text-muted">Console output will appear here...</div>');
-            return;
+        ConsoleRenderer.clear('output-console-logs', 'Console output will appear here...');
+        for (var i = 0; i < this.logs.length; i++) {
+            ConsoleRenderer.append('output-console-logs', ConsoleRenderer.normalize(this.logs[i], 'codec'), { darkBg: true });
         }
-
-        this.logs.forEach(function(log) {
-            var color = log.type === 'error' ? 'text-danger' :
-                        log.type === 'warn' ? 'text-warning' :
-                        'text-white';
-            var logLine = $('<div class="' + color + '"></div>');
-            logLine.text('[' + log.timestamp + '] ' + log.message);
-            logsContainer.append(logLine);
-        });
-
-        // Auto-scroll to bottom
-        logsContainer.scrollTop(logsContainer[0].scrollHeight);
     },
 
     // Render state viewer
@@ -460,7 +440,7 @@ var CodecTestState = {
     // Clear logs only
     clearLogs: function() {
         this.logs = [];
-        this.renderLogs();
+        ConsoleRenderer.clear('output-console-logs', 'Console output will appear here...');
     }
 };
 
