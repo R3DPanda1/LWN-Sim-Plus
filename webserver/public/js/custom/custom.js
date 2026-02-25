@@ -3084,13 +3084,12 @@ function Click_SaveDevice(){
                 case 1:// same name
 
                     $("[name=input-name-dev]").addClass("is-invalid");
-                    $("[name=input-devEUI]").siblings(".invalid-feedback").text(data.status);
+                    $("[name=input-name-dev]").siblings(".invalid-feedback").text(data.status);
 
                     return;
 
                 case 2:
 
-                    $("[name=input-name-dev]").addClass("is-invalid");
                     $("[name=input-devEUI]").addClass("is-invalid");
                     $("[name=input-devEUI]").siblings(".invalid-feedback").text(data.status);
 
