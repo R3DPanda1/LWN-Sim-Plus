@@ -1051,6 +1051,15 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePre
 		return nil, template.ErrTemplateNotFound
 	}
 
+	// Pre-check all generated names for collisions
+	for i := 1; i <= count; i++ {
+		name := fmt.Sprintf("%s-%d", namePrefix, i)
+		// Use a dummy ID (-1) so searchName won't skip any existing device
+		if _, err := s.searchName(name, -1, false); err != nil {
+			return nil, fmt.Errorf("name '%s' already exists", name)
+		}
+	}
+
 	// Seed random number generator
 	mrand.Seed(time.Now().UnixNano())
 
