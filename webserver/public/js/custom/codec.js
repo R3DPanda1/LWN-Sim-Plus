@@ -411,14 +411,14 @@ var CodecTestState = {
     addLog: function(message, type) {
         type = type || 'info';
         this.logs.push({ message: message, type: type });
-        ConsoleRenderer.append('output-console-logs', ConsoleRenderer.normalize({ message: message, type: type }, 'codec'), { darkBg: true });
+        ConsoleRenderer.append('output-console-logs', ConsoleRenderer.normalize({ message: message, type: type }, 'codec'));
     },
 
     // Render logs to console output
     renderLogs: function() {
         ConsoleRenderer.clear('output-console-logs', 'Console output will appear here...');
         for (var i = 0; i < this.logs.length; i++) {
-            ConsoleRenderer.append('output-console-logs', ConsoleRenderer.normalize(this.logs[i], 'codec'), { darkBg: true });
+            ConsoleRenderer.append('output-console-logs', ConsoleRenderer.normalize(this.logs[i], 'codec'));
         }
     },
 

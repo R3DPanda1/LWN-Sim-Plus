@@ -179,7 +179,7 @@
                                     </div>
                                 </div>
                                 <div class="card-body">
-                                    <div id="system-log-body" class="border rounded p-2 bg-dark text-white overflow-auto" style="height: 200px; font-size: 12px; font-family: monospace;">
+                                    <div id="system-log-body" class="console-body">
                                     </div>
                                 </div>
                             </div>
@@ -266,10 +266,6 @@
 
                                         <li class="nav-item">
                                             <a class="nav-link" id="device-integration-tab" data-toggle="tab" href="#device-integration" role="tab" aria-controls="device-integration" aria-selected="false">Integration</a>
-                                        </li>
-
-                                        <li class="nav-item">
-                                            <a class="nav-link" id="device-events-tab" data-toggle="pill" href="#tab-device-events">Events</a>
                                         </li>
 
                                     </ul>
@@ -1000,18 +996,6 @@
                                     </div>
                                 </div>
 
-                                <!--device events-->
-                                <div class="tab-pane fade" id="tab-device-events">
-                                    <div class="card">
-                                        <div class="card-header">
-                                            <h4>Device Events</h4>
-                                        </div>
-                                        <div class="card-body">
-                                            <div id="device-events-body" class="overflow-auto" style="max-height: 400px;"></div>
-                                        </div>
-                                    </div>
-                                </div>
-
                                 <!--buttons-->
                                 <div id="div-buttons-dev" data-addr="" class="card-footer bg-whitesmoke text-right">
                                     <button name="btn-delete-dev" class="btn btn-del hide" type="button">Delete</button>
@@ -1021,9 +1005,27 @@
 
                             </div>
                         </div>
-                        
+
+                        <!-- Device Events (always visible when editing a device) -->
+                        <div class="col-12 mt-3" id="device-events-container" style="display:none;">
+                            <div class="card">
+                                <div class="card-header bg-blue clickable p-0">
+                                    <div class="w-100 d-flex align-items-center align-self-stretch">
+                                        <div class="w-100 d-flex align-items-center align-self-stretch">
+                                            <h4 class="ml-4 w-100 text-white">Device Events</h4>
+                                        </div>
+                                        <button id="btn-clear-device-events" class="btn-clean btn pt-2 pb-2 mr-2"> <img src="img/white_delete.svg"> </button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div id="device-events-body" class="console-body">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
-                    
+
                 </div>
 
                 <!-- add devices from template -->
@@ -1429,7 +1431,7 @@
                                             </div>
                                         </div>
                                         <div class="card-body">
-                                            <div id="output-console-logs" class="border rounded p-2 bg-dark text-white" style="height: 300px; overflow-y: auto; font-size: 12px; font-family: monospace;">
+                                            <div id="output-console-logs" class="console-body">
                                                 <div class="text-muted">Console output will appear here...</div>
                                             </div>
                                         </div>

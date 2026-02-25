@@ -91,42 +91,32 @@ body.sidebar-mini .main-sidebar .sidebar-menu > li.active > a {
     background-color: var(--bluesea) !important;
 }
 
-#header-console{
-    color: white !important;
-}
-
 .clickable{
     cursor: pointer;
 }
 
-.accordion-console .accordion-console-header[aria-expanded="true"]{
-    background-color: var(--bluesea);
-    color: white;
+.console-body {
+    height: 300px;
+    font-size: 13px;
+    font-family: "Nunito", "Segoe UI", arial;
+    background-color: #e3eaef;
+    color: #34395e;
+    border: 1px solid #e4e6fc;
+    border-radius: .25rem;
+    padding: .5rem;
+    overflow-y: auto;
 }
 
-.accordion-console .accordion-header-console{
-    background-color: var(--bluesea);
-    cursor: pointer;
-    transition: all .5s;
-    padding: 10px 15px;
-}
+.console-body .badge-info    { background-color: #0D47A1; }
+.console-body .badge-success { background-color: #00796b; }
+.console-body .badge-primary { background-color: #5c6bc0; }
+.console-body .badge-secondary { background-color: #607d8b; color: #fff; }
+.console-body .badge-warning { background-color: #e65100; color: #fff; }
+.console-body .badge-danger  { background-color: #c62828; }
+.console-body .badge-light   { background-color: #455a64; color: #fff; }
 
-.accordion-console .accordion-header-console h4{
-    color: white;
-    line-height: 1;
-    margin: 0;
-    font-size: 14px;
-    font-weight: 700;
-}
-
-#system-log-body{
-    background-color: var(--lightblack);
-    height: 200px;
-}
-
-#device-events-body {
-    background-color: var(--lightblack);
-    max-height: 400px;
+.console-body .console-time {
+    color: #546e7a;
 }
 
 .device-event-row {
@@ -135,7 +125,7 @@ body.sidebar-mini .main-sidebar .sidebar-menu > li.active > a {
 }
 
 .device-event-row:hover {
-    background-color: rgba(255,255,255,0.05);
+    background-color: rgba(0,0,0,0.03);
 }
 
 .btn-sim{
@@ -283,14 +273,7 @@ body.sidebar-mini .main-sidebar .sidebar-menu > li.active > a {
     word-wrap: break-word;
 }
 
-#output-console-logs .text-danger {
-    color: #ff6b6b !important;
-}
-
-#output-console-logs .text-warning {
-    color: #ffd93d !important;
-}
-
-#output-console-logs .text-white {
-    color: #f8f9fa !important;
+.leaflet-popup-content-wrapper,
+.leaflet-popup-content {
+    overflow: visible;
 }

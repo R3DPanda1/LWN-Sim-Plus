@@ -49,8 +49,6 @@ var TurnMap = 0;
 var Gateways = new Map();
 var Devices = new Map();
 var AvailableCodecs = [];
-var currentDeviceSubscription = null;
-
 //socket
 var socket = io({
                 path:'/socket.io/',
@@ -96,45 +94,27 @@ $(document).ready(function(){
     });
 
     socket.on('disconnect',()=>{
-        
+
         StateSimulator = false;
         $("#state").attr("src", "img/red_circle.svg")
         $(".btn-play").parent("button").removeClass("hide");
         $(".btn-stop").parent("button").addClass("hide");
-        
+        DeviceEventManager.unsubscribeAll();
+
     });
 
     // System events (auto-subscribed)
     socket.on('system-event', function(event) {
-        ConsoleRenderer.append('system-log-body', ConsoleRenderer.normalize(event, 'system'), { darkBg: true });
+        ConsoleRenderer.append('system-log-body', ConsoleRenderer.normalize(event, 'system'));
     });
 
-    // Device events (subscribed per-device)
+    // Device events — delegated to DeviceEventManager
     socket.on('device-event', function(event) {
-        var badgeClass = {
-            'up': 'badge-info', 'join': 'badge-success', 'downlink': 'badge-primary',
-            'ack': 'badge-secondary', 'mac_command': 'badge-warning',
-            'status': 'badge-light', 'error': 'badge-danger'
-        }[event.type] || 'badge-dark';
-
-        var summary = event.type;
-        if (event.fCnt !== undefined && event.fCnt !== null) summary += ' FCnt=' + event.fCnt;
-        if (event.fPort !== undefined && event.fPort !== null) summary += ' FPort=' + event.fPort;
-
-        var row = '<div class="device-event-row mb-1 p-2 border-bottom">' +
-                  '<span class="badge ' + badgeClass + '">' + event.type + '</span> ' +
-                  '<small class="text-muted">' + new Date(event.time).toLocaleTimeString() + '</small> ' +
-                  '<span>' + summary + '</span>' +
-                  '<pre class="collapse mt-1 mb-0" style="font-size:11px">' +
-                  JSON.stringify(event, null, 2) + '</pre>' +
-                  '</div>';
-        $('#device-events-body').append(row);
-        var el = document.getElementById('device-events-body');
-        if (el) el.scrollTop = el.scrollHeight;
+        DeviceEventManager.onEvent(event);
     });
 
-    // Click device event row to expand/collapse JSON
-    $('#device-events-body').on('click', '.device-event-row', function() {
+    // Click to expand/collapse device event detail
+    $(document).on('click', '.device-event-row', function() {
         $(this).find('pre').toggleClass('show');
     });
 
@@ -207,13 +187,14 @@ $(document).ready(function(){
         }).done((data)=>{
             
             if (data){
-                
+
                 StateSimulator = true;
 
                 Show_iziToast("Simulator started","");
                 $("#state").attr("src","img/green_circle.svg");
                 $(".btn-play").parent("button").toggleClass("hide");
                 $(".btn-stop").parent("button").toggleClass("hide");
+                socket.emit('stream-system-events', '');
 
             }               
             else{
@@ -340,6 +321,11 @@ $(document).ready(function(){
     
     $("#btn-clear-system-log").on("click", function(){
         ConsoleRenderer.clear('system-log-body');
+        $(this).blur();
+    });
+
+    $("#btn-clear-device-events").on("click", function(){
+        ConsoleRenderer.clear('device-events-body');
         $(this).blur();
     });
 
@@ -1630,9 +1616,15 @@ function AddMarker(Address, Name, latlng, isGw){
         });
 
         Marker = L.marker(latlng,{icon:icon});
-        Marker.bindPopup(GetMenuDevicePopup(Address,Name)).on("popupopen",RegisterEventsPopup);
+        Marker.bindPopup(GetMenuDevicePopup(Address,Name), {maxWidth: 350, minWidth: 300}).on("popupopen",RegisterEventsPopup).on("popupclose", function(e){
+            var addr = $(e.popup.getElement()).find("#menu-actions").attr("data-addr");
+            if (addr) {
+                var popupId = 'popup-events-' + addr.replace(/[^a-zA-Z0-9]/g, '');
+                DeviceEventManager.unsubscribe(popupId);
+            }
+            FadeCircle();
+        });
         Marker.on("click", Click_marker);
-        Marker.on("popupclose", FadeCircle);
     }    
     else{
 
@@ -1734,119 +1726,120 @@ function RegisterEventsPopupGw(){
 }
 
 function GetMenuDevicePopup(address, name){
+    var popupId = 'popup-events-' + address.replace(/[^a-zA-Z0-9]/g, '');
 
-    var menu = "<p id=\"name-clicked-dev\" class=\"text-center m-0 \">"+name+"</p>";
-    menu +="<div id=\"menu-actions\" data-addr=\""+address+"\" class=\"mh-100 mt-1 overflow-auto list-group list-group-flush\">";
-    menu += "<a href=\"#Turn\" class=\"list-group-item item-action p-2\" id=\"Turn\"> Toggle On/Off</a>";
-    menu += "<a href=\"#send-cdataUp\" class=\"list-group-item item-action p-2\" data-toggle=\"modal\" data-target=\"#modal-send-data\" id=\"send-cdataUp\"> Send ConfirmedDataUp</a>";
-    menu += "<a href=\"#send-uncdataUp\" class=\"list-group-item item-action p-2\" data-toggle=\"modal\" data-target=\"#modal-send-data\" id=\"send-uncdataUp\"> Send UnConfirmedDataUp</a>";
-    menu += "<a href=\"#DeviceTimeReq\" class=\"list-group-item item-action p-2 mac-command\" data-cmd=\"DeviceTimeReq\" id=\"DeviceTimeReq\"> Send DeviceTimeReq MAC Command</a>";
-    menu += "<a href=\"#LinkCheckReq\" class=\"list-group-item item-action p-2 mac-command\" data-cmd=\"LinkCheckReq\" id=\"LinkCheckReq\"> Send LinkCheckReq MAC Command</a>";
-    menu += "<a href=\"#PingSlotInfoReq\" class=\"list-group-item item-action p-2 mac-command\" data-toggle=\"modal\" data-target=\"#modal-pingSlotInfoReq\" data-cmd=\"PingSlotInfoReq\" id=\"PingSlotInfoReq\"> Send PingSlotInfoReq MAC Command</a>";
-    menu += "<a href=\"#change-location\" class=\"list-group-item item-action p-2 \" data-toggle=\"modal\" data-target=\"#modal-location\" id=\"change-location\"> Change location</a>";
-    menu += "<a href=\"#change-payload\" class=\"list-group-item item-action p-2 \" data-toggle=\"modal\" data-target=\"#modal-change-payload\" id=\"change-payload\"> Change payload</a>";
-    menu += "</div>";
+    var menu = '<div id="menu-actions" data-addr="' + address + '">';
 
+    // Header
+    menu += '<p class="text-center font-weight-bold m-0 mb-1">' + name + '</p>';
+
+    // Actions
+    menu += '<div class="list-group list-group-flush mb-1">';
+    menu += '<a href="#Turn" class="list-group-item list-group-item-action p-2" id="Turn">Toggle On/Off</a>';
+
+    menu += '<div class="dropdown">';
+    menu += '<a class="list-group-item list-group-item-action p-2 dropdown-toggle" href="#" role="button">Send Uplink</a>';
+    menu += '<div class="dropdown-menu">';
+    menu += '<a class="dropdown-item popup-send-uplink" data-mtype="confirmed" href="#">Confirmed</a>';
+    menu += '<a class="dropdown-item popup-send-uplink" data-mtype="unconfirmed" href="#">Unconfirmed</a>';
+    menu += '</div>';
+    menu += '</div>';
+
+    menu += '<div class="dropdown">';
+    menu += '<a class="list-group-item list-group-item-action p-2 dropdown-toggle" href="#" role="button">MAC Command</a>';
+    menu += '<div class="dropdown-menu">';
+    menu += '<a class="dropdown-item popup-mac-cmd" data-cmd="DeviceTimeReq" href="#">DeviceTimeReq</a>';
+    menu += '<a class="dropdown-item popup-mac-cmd" data-cmd="LinkCheckReq" href="#">LinkCheckReq</a>';
+    menu += '<a class="dropdown-item popup-mac-cmd" data-cmd="PingSlotInfoReq" href="#">PingSlotInfoReq</a>';
+    menu += '</div>';
+    menu += '</div>';
+
+    menu += '<a href="#change-location" class="list-group-item list-group-item-action p-2" data-toggle="modal" data-target="#modal-location" id="change-location">Change Location</a>';
+    menu += '<a href="#change-payload" class="list-group-item list-group-item-action p-2" data-toggle="modal" data-target="#modal-change-payload" id="change-payload">Change Payload</a>';
+    menu += '</div>';
+
+    // Mini event console (at bottom)
+    menu += '<div id="' + popupId + '" class="console-body" style="height:100px; font-size:11px;">';
+    menu += '</div>';
+
+    menu += '</div>';
     return menu;
 }
 
-function RegisterEventsPopup(){ 
+function RegisterEventsPopup(e){
+    var popup = $(e.popup.getElement()).find("#menu-actions");
+    var address = popup.attr("data-addr");
+    var popupId = 'popup-events-' + address.replace(/[^a-zA-Z0-9]/g, '');
+    var devEUI = Devices.get(address) ? Devices.get(address).info.devEUI : null;
 
-    $("#Turn").on('click',function(){
-        
+    if (devEUI) {
+        DeviceEventManager.subscribe(devEUI, popupId);
+    }
+
+    // Manually init dropdowns (Bootstrap doesn't auto-bind dynamic content)
+    popup.find('.dropdown-toggle').on('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var $menu = $(this).next('.dropdown-menu');
+        popup.find('.dropdown-menu').not($menu).removeClass('show');
+        $menu.toggleClass('show');
+    });
+
+    popup.find("#Turn").on('click', function(){
         var ok = CanExecute();
         if (ok) {
             Show_ErrorSweetToast("Simulator is stopped","");
-            return
+            return;
         }
-
-        var address = $(this).parent("#menu-actions").attr("data-addr");
-        
         socket.emit("toggleState-dev", Devices.get(address).id);
-
         MarkersHome.get(address).Marker.closePopup();
-       
     });
 
-    $("#send-cdataUp").on('click',function(){
-
-        var address = $(this).parent("#menu-actions").attr("data-addr");
-
-        $('#modal-send-data').attr("data-addr",address);
-        $('#modal-send-data').attr("data-mtype",ConfirmedData_uplink);
+    popup.find(".popup-send-uplink").on('click', function(e){
+        e.preventDefault();
+        var mtype = $(this).data('mtype') === 'confirmed' ? ConfirmedData_uplink : UnConfirmedData_uplink;
+        $('#modal-send-data').attr("data-addr", address);
+        $('#modal-send-data').attr("data-mtype", mtype);
         $("#modal-send-data").find("[name=send-payload]").val("");
-
         MarkersHome.get(address).Marker.closePopup();
-
+        $('#modal-send-data').modal('show');
     });
 
-    $("#send-uncdataUp").on('click',function(){
+    popup.find(".popup-mac-cmd").on('click', function(e){
+        e.preventDefault();
+        var cmd = $(this).data('cmd');
 
-        var address = $(this).parent("#menu-actions").attr("data-addr");
-
-        $('#modal-send-data').attr("data-addr",address);
-        $('#modal-send-data').attr("data-mtype",UnConfirmedData_uplink);
-        $("#modal-send-data").find("[name=send-payload]").val("");
-
-        MarkersHome.get(address).Marker.closePopup();
-
-    });
-
-    $(".mac-command").on('click',function(){
-
-        var address = $(this).parent("#menu-actions").attr("data-addr");
-        var cmd = $(this).attr("data-cmd");
-
-        if (cmd == "PingSlotInfoReq"){
+        if (cmd === "PingSlotInfoReq"){
             $("[name=periodicity]").removeClass("is-valid is-invalid");
             $("[name=periodicity]").val("");
-            $('#modal-pingSlotInfoReq').attr("data-addr",address);
-            
-        }else{
-
-            var ok = CanExecute();
-            if (ok){
-                Show_ErrorSweetToast("Unable send MAC Command","Simulator is stopped");
-            }else{
-
-                var data = {
-                    "id": Devices.get(address).id,
-                    "cid":cmd
-                }
-               
-                socket.emit("send-MACCommand",data);
-            }
-
+            $('#modal-pingSlotInfoReq').attr("data-addr", address);
+            MarkersHome.get(address).Marker.closePopup();
+            $('#modal-pingSlotInfoReq').modal('show');
+            return;
         }
 
+        var ok = CanExecute();
+        if (ok){
+            Show_ErrorSweetToast("Unable send MAC Command","Simulator is stopped");
+        } else {
+            socket.emit("send-MACCommand", { "id": Devices.get(address).id, "cid": cmd });
+        }
         MarkersHome.get(address).Marker.closePopup();
-
     });
 
-    $("#change-location").on("click",function(){
-
-        var address = $(this).parent("#menu-actions").attr("data-addr");
-        $('#modal-location').attr("data-addr",address);
-
+    popup.find("#change-location").on("click", function(){
+        $('#modal-location').attr("data-addr", address);
         $("#modal-location input").removeClass("is-valid is-invalid");
         $("#modal-location input").not("[type=submit]").val("");
-
         MarkersHome.get(address).Marker.closePopup();
         TurnMap = 3;
-
     });
 
-    $("#change-payload").on("click",function(){
-
-        var address = $(this).parent("#menu-actions").attr("data-addr");
-        $('#modal-change-payload').attr("data-addr",address);
-
-        $("#payload-modal").val("")
-        
+    popup.find("#change-payload").on("click", function(){
+        $('#modal-change-payload').attr("data-addr", address);
+        $("#payload-modal").val("");
         MarkersHome.get(address).Marker.closePopup();
-
     });
-  
 }
 
 function Click_marker(){
@@ -2336,19 +2329,13 @@ function ChangeStateInputDevice(value,eui){
 }
 
 function subscribeToDevice(devEUI) {
-    if (currentDeviceSubscription) {
-        socket.emit('stop-device-events', { devEUI: currentDeviceSubscription });
-    }
-    currentDeviceSubscription = devEUI;
-    $('#device-events-body').empty();
-    socket.emit('stream-device-events', { devEUI: devEUI });
+    $('#device-events-container').show();
+    DeviceEventManager.subscribe(devEUI, 'device-events-body');
 }
 
 function unsubscribeFromDevice() {
-    if (currentDeviceSubscription) {
-        socket.emit('stop-device-events', { devEUI: currentDeviceSubscription });
-        currentDeviceSubscription = null;
-    }
+    DeviceEventManager.unsubscribe('device-events-body');
+    $('#device-events-container').hide();
 }
 
 function LoadDevice(dev){

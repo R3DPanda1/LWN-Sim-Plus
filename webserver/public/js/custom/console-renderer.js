@@ -37,13 +37,18 @@ var ConsoleRenderer = {
         return e;
     },
 
+    formatTime: function(date) {
+        if (!date) return '';
+        var h = ('0' + date.getHours()).slice(-2);
+        var m = ('0' + date.getMinutes()).slice(-2);
+        var s = ('0' + date.getSeconds()).slice(-2);
+        return '[' + h + ':' + m + ':' + s + ']';
+    },
+
     renderEntry: function(event, opts) {
         opts = opts || {};
         var badgeClass = this.badgeClasses[event.type] || 'badge-dark';
-        var timeStr = event.time ? event.time.toLocaleTimeString() : '';
-
-        var textClass = opts.darkBg ? 'text-light' : '';
-        var mutedClass = opts.darkBg ? 'text-white-50' : 'text-muted';
+        var timeStr = this.formatTime(event.time);
 
         var html = '';
         if (event.detail) {
@@ -53,8 +58,8 @@ var ConsoleRenderer = {
         }
 
         html += '<span class="badge ' + badgeClass + '">' + this.escapeHtml(event.type) + '</span> ';
-        html += '<small class="' + mutedClass + '">' + timeStr + '</small> ';
-        html += '<span class="' + textClass + '">' + this.escapeHtml(event.message) + '</span>';
+        html += '<small class="console-time">' + timeStr + '</small> ';
+        html += '<span>' + this.escapeHtml(event.message) + '</span>';
 
         if (event.detail) {
             html += '<pre class="collapse mt-1 mb-0" style="font-size:11px">' +

@@ -25,12 +25,10 @@ if [ -f "$PID_FILE" ]; then
     fi
 fi
 
-# Check if binary exists
-if [ ! -f "bin/$BINARY_NAME" ]; then
-    echo "Binary not found. Building..."
-    export PATH=$PATH:~/go/bin
-    make build
-fi
+# Always rebuild to pick up latest changes
+echo "Building..."
+export PATH=$PATH:~/go/bin
+make build
 
 # Start the simulator
 nohup "./bin/$BINARY_NAME" > "$LOG_FILE" 2>&1 &

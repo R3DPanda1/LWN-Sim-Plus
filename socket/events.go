@@ -46,6 +46,7 @@ const (
 	EventStopDeviceEvents    = "stop-device-events"
 	EventStreamGatewayEvents = "stream-gateway-events"
 	EventStopGatewayEvents   = "stop-gateway-events"
+	EventStreamSystemEvents  = "stream-system-events"
 
 	// Outgoing event stream events
 	EventDeviceEvent  = "device-event"

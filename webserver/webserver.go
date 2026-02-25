@@ -228,6 +228,26 @@ func newServerSocket() *socketio.Server {
 		cleanupSocketSubscriptions(s.ID())
 	})
 
+	// System event stream — auto-subscribed by frontend on connect and after start
+	serverSocket.OnEvent("/", socket.EventStreamSystemEvents, func(s socketio.Conn, msg string) {
+		broker := simulatorController.GetEventBroker()
+		if broker == nil {
+			return
+		}
+		ch, history, unsub := broker.Subscribe(events.SystemTopic)
+		addSocketSubscription(s.ID(), unsub)
+
+		for _, evt := range history {
+			s.Emit(socket.EventSystemEvent, evt)
+		}
+
+		go func() {
+			for evt := range ch {
+				s.Emit(socket.EventSystemEvent, evt)
+			}
+		}()
+	})
+
 	return serverSocket
 }
 
