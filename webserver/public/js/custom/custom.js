@@ -1283,7 +1283,21 @@ function LoadListHome(){
     Gateways.forEach(element =>{
         $("#list-home").append("<a href=\"#map-home\" class=\"text-orange list-group-item list-group-item-action\" data-addr=\""+element.info.macAddress+"\">"+element.info.name+"</a>");
     });
-    
+
+    FitHomeMapBounds();
+}
+
+function FitHomeMapBounds(){
+    if (MarkersHome.size === 0) return;
+
+    var bounds = L.latLngBounds();
+    MarkersHome.forEach(function(entry){
+        bounds.extend(entry.Marker.getLatLng());
+    });
+
+    if (bounds.isValid()){
+        MapHome.fitBounds(bounds, {padding: [32, 32], maxZoom: 18});
+    }
 }
 
 //********************* Validation ********************* 

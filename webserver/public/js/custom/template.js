@@ -4,6 +4,7 @@
 var Templates = new Map();
 var MapBulkCreate;
 var MarkerBulkCreate;
+var BulkGatewayMarkers = [];
 
 // Region mapping for display
 var RegionNames = {
@@ -324,9 +325,9 @@ function PopulateBulkTemplateDropdown() {
 
 function InitBulkCreateMap() {
     if (MapBulkCreate) {
-        // Map already initialized, just invalidate size
         setTimeout(function() {
             MapBulkCreate.invalidateSize();
+            RefreshBulkGatewayMarkers();
         }, 200);
         return;
     }
@@ -353,6 +354,37 @@ function InitBulkCreateMap() {
         $("#input-bulk-lat").val(e.latlng.lat.toFixed(6));
         $("#input-bulk-lng").val(e.latlng.lng.toFixed(6));
     });
+
+    RefreshBulkGatewayMarkers();
+}
+
+function RefreshBulkGatewayMarkers() {
+    // Remove old gateway markers
+    BulkGatewayMarkers.forEach(function(m){ m.removeFrom(MapBulkCreate); });
+    BulkGatewayMarkers = [];
+
+    var gwIcon = L.icon({
+        iconUrl: './img/orange_marker.svg',
+        iconSize: [32, 41],
+        iconAnchor: [19, 41],
+        popupAnchor: [1, -34],
+        tooltipAnchor: [16, -28]
+    });
+
+    var bounds = L.latLngBounds();
+
+    Gateways.forEach(function(gw){
+        var latlng = L.latLng(gw.info.location.latitude, gw.info.location.longitude);
+        var marker = L.marker(latlng, {icon: gwIcon})
+            .bindPopup("<b>" + gw.info.name + "</b><br>" + gw.info.macAddress)
+            .addTo(MapBulkCreate);
+        BulkGatewayMarkers.push(marker);
+        bounds.extend(latlng);
+    });
+
+    if (bounds.isValid()) {
+        MapBulkCreate.fitBounds(bounds, {padding: [32, 32], maxZoom: 18});
+    }
 }
 
 function SubmitBulkCreate() {
