@@ -4,6 +4,7 @@
 var Templates = new Map();
 var MapBulkCreate;
 var MarkerBulkCreate;
+var BulkGatewayMarkers = [];
 
 // Region mapping for display
 var RegionNames = {
@@ -85,7 +86,8 @@ function CleanTemplateForm() {
     $("#select-template-integration").val("");
     $("#select-template-device-profile").val("");
 
-    // Reset buttons
+    // Reset buttons and validation
+    $("#add-template input").removeClass("is-valid is-invalid");
     $("#div-buttons-template").attr("data-id", "");
     $("[name=btn-delete-template]").addClass("hide");
     $("[name=btn-edit-template]").addClass("hide");
@@ -190,8 +192,11 @@ function SaveTemplate() {
     };
 
     // Validate
-    if (!template.name) {
-        Show_ErrorSweetToast("Error", "Template name is required");
+    var validName = !!template.name;
+
+    if (!validName) {
+        Show_ErrorSweetToast("Error", "Values are incorrect");
+        ValidationInput($("[name=input-template-name]"), validName);
         return;
     }
 
@@ -324,9 +329,9 @@ function PopulateBulkTemplateDropdown() {
 
 function InitBulkCreateMap() {
     if (MapBulkCreate) {
-        // Map already initialized, just invalidate size
         setTimeout(function() {
             MapBulkCreate.invalidateSize();
+            RefreshBulkGatewayMarkers();
         }, 200);
         return;
     }
@@ -350,9 +355,40 @@ function InitBulkCreateMap() {
     // Click to set location
     MapBulkCreate.on('click', function(e) {
         MarkerBulkCreate.setLatLng(e.latlng);
-        $("#input-bulk-lat").val(e.latlng.lat.toFixed(6));
-        $("#input-bulk-lng").val(e.latlng.lng.toFixed(6));
+        $("#input-bulk-lat").val(e.latlng.lat.toFixed(6)).removeClass("is-valid is-invalid");
+        $("#input-bulk-lng").val(e.latlng.lng.toFixed(6)).removeClass("is-valid is-invalid");
     });
+
+    RefreshBulkGatewayMarkers();
+}
+
+function RefreshBulkGatewayMarkers() {
+    // Remove old gateway markers
+    BulkGatewayMarkers.forEach(function(m){ m.removeFrom(MapBulkCreate); });
+    BulkGatewayMarkers = [];
+
+    var gwIcon = L.icon({
+        iconUrl: './img/orange_marker.svg',
+        iconSize: [32, 41],
+        iconAnchor: [19, 41],
+        popupAnchor: [1, -34],
+        tooltipAnchor: [16, -28]
+    });
+
+    var bounds = L.latLngBounds();
+
+    Gateways.forEach(function(gw){
+        var latlng = L.latLng(gw.info.location.latitude, gw.info.location.longitude);
+        var marker = L.marker(latlng, {icon: gwIcon})
+            .bindPopup("<b>" + gw.info.name + "</b><br>" + gw.info.macAddress)
+            .addTo(MapBulkCreate);
+        BulkGatewayMarkers.push(marker);
+        bounds.extend(latlng);
+    });
+
+    if (bounds.isValid()) {
+        MapBulkCreate.fitBounds(bounds, {padding: [32, 32], maxZoom: 18});
+    }
 }
 
 function SubmitBulkCreate() {
@@ -364,16 +400,19 @@ function SubmitBulkCreate() {
     var spreadMeters = parseFloat($("#input-bulk-spread").val());
 
     // Validate
-    if (!templateId) {
-        Show_ErrorSweetToast("Error", "Please select a template");
-        return;
-    }
-    if (!namePrefix) {
-        Show_ErrorSweetToast("Error", "Please enter a name prefix");
-        return;
-    }
-    if (count < 1 || count > 1000) {
-        Show_ErrorSweetToast("Error", "Count must be between 1 and 1000");
+    var validTemplate = !!templateId;
+    var validPrefix = !!namePrefix;
+    var validCount = count >= 1 && count <= 1000;
+    var validLat = $("#input-bulk-lat").val() !== "";
+    var validLng = $("#input-bulk-lng").val() !== "";
+
+    if (!validTemplate || !validPrefix || !validCount || !validLat || !validLng) {
+        Show_ErrorSweetToast("Error", "Values are incorrect");
+        ValidationInput($("#select-bulk-template"), validTemplate);
+        ValidationInput($("#input-bulk-prefix"), validPrefix);
+        ValidationInput($("#input-bulk-count"), validCount);
+        ValidationInput($("#input-bulk-lat"), validLat);
+        ValidationInput($("#input-bulk-lng"), validLng);
         return;
     }
 
