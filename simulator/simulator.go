@@ -279,6 +279,7 @@ func (s *Simulator) turnONDevice(Id int) {
 
 	if s.Scheduler != nil {
 		s.Devices[Id].State = util.Running
+		s.Devices[Id].Print("Turn ON", nil, util.PrintBoth)
 		shared.DebugPrint(fmt.Sprintf("Device %s scheduled", s.Devices[Id].Info.Name))
 		s.Scheduler.Schedule(&scheduler.Job{
 			ID:       s.Devices[Id].Id,
@@ -296,6 +297,7 @@ func (s *Simulator) turnOFFDevice(Id int) {
 	if s.Scheduler != nil {
 		s.Scheduler.Remove(Id)
 		s.Devices[Id].State = util.Stopped
+		s.Devices[Id].Print("Turn OFF", nil, util.PrintBoth)
 		s.Forwarder.DeleteDevice(s.Devices[Id].Info.DevEUI)
 		delete(s.ActiveDevices, Id)
 	} else {

@@ -49,8 +49,10 @@ func GetInstance() *Simulator {
 	s.ActiveGateways = make(map[int]int)
 	// Init Forwarder
 	s.Forwarder = *f.Setup()
-	// Attach console
-	s.Console = c.Console{}
+	// Attach console with watched device pointer
+	noWatch := -1
+	var ws socketio.Conn
+	s.Console = c.Console{WebSocket: &ws, WatchedID: &noWatch}
 
 	// Initialize codec manager (Phase 1-3 enhancement)
 	if dev.Codecs == nil {
@@ -90,7 +92,6 @@ func GetInstance() *Simulator {
 func (s *Simulator) AddWebSocket(WebSocket *socketio.Conn) {
 	s.Console.SetupWebSocket(WebSocket)
 	s.Resources.AddWebSocket(WebSocket)
-	s.SetupConsole()
 }
 
 // Run starts the simulation environment
@@ -136,8 +137,8 @@ func (s *Simulator) Stop() {
 		s.Scheduler.Stop()
 		s.Scheduler = nil
 		shared.DebugPrint("Scheduler stopped")
-		// Mark all devices as stopped (scheduler doesn't use Exit channel)
 		for _, id := range s.ActiveDevices {
+			s.Devices[id].Print("Turn OFF", nil, util.PrintBoth)
 			s.Devices[id].State = util.Stopped
 		}
 	}
@@ -173,6 +174,9 @@ func (s *Simulator) Stop() {
 			}
 		}
 	}
+
+	// Reset watched device
+	*s.Console.WatchedID = -1
 
 	s.Forwarder.Reset()
 	s.Print("STOPPED", nil, util.PrintBoth)
@@ -549,6 +553,18 @@ func (s *Simulator) ChangeLocation(l socket.NewLocation) bool {
 	s.Forwarder.UpdateDevice(info)
 
 	return true
+}
+
+func (s *Simulator) WatchDevice(id int) []socket.ConsoleLog {
+	*s.Console.WatchedID = id
+	if d, ok := s.Devices[id]; ok {
+		return d.GetLogBuffer()
+	}
+	return nil
+}
+
+func (s *Simulator) UnwatchDevice() {
+	*s.Console.WatchedID = -1
 }
 
 func (s *Simulator) ToggleStateGateway(Id int) {
