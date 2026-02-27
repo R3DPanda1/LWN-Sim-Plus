@@ -170,6 +170,15 @@ func newServerSocket() *socketio.Server {
 	serverSocket.OnEvent("/", socket.EventChangeLocation, func(s socketio.Conn, info socket.NewLocation) bool {
 		return simulatorController.ChangeLocation(info)
 	})
+	serverSocket.OnEvent("/", socket.EventWatchDev, func(s socketio.Conn, id int) {
+		history := simulatorController.WatchDevice(id)
+		if history != nil {
+			s.Emit(socket.EventDevLogHistory, history)
+		}
+	})
+	serverSocket.OnEvent("/", socket.EventUnwatchDev, func(s socketio.Conn) {
+		simulatorController.UnwatchDevice()
+	})
 	return serverSocket
 }
 

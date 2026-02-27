@@ -14,6 +14,8 @@ import (
 	"github.com/R3DPanda1/LWN-Sim-Plus/socket"
 )
 
+const logBufferSize = 50
+
 type Device struct {
 	State           int                      `json:"-"`
 	Exit            chan struct{}            `json:"-"`
@@ -24,6 +26,25 @@ type Device struct {
 	Resources       *res.Resources           `json:"-"`
 	Mutex           sync.Mutex               `json:"-"`
 	Console         c.Console                `json:"-"`
+	LogBuffer       []socket.ConsoleLog      `json:"-"`
+	logMu           sync.Mutex               `json:"-"`
+}
+
+func (d *Device) appendLog(entry socket.ConsoleLog) {
+	d.logMu.Lock()
+	defer d.logMu.Unlock()
+	d.LogBuffer = append(d.LogBuffer, entry)
+	if len(d.LogBuffer) > logBufferSize {
+		d.LogBuffer = d.LogBuffer[len(d.LogBuffer)-logBufferSize:]
+	}
+}
+
+func (d *Device) GetLogBuffer() []socket.ConsoleLog {
+	d.logMu.Lock()
+	defer d.logMu.Unlock()
+	buf := make([]socket.ConsoleLog, len(d.LogBuffer))
+	copy(buf, d.LogBuffer)
+	return buf
 }
 
 // *******************Intern func*******************/
@@ -146,12 +167,22 @@ func (d *Device) Print(content string, err error, printType int) {
 		Msg:  message,
 	}
 
+	if err == nil {
+		d.appendLog(data)
+	}
+
+	emitToSocket := event == socket.EventError || d.Console.IsWatched(d.Id)
+
 	switch printType {
 	case util.PrintBoth:
-		d.Console.PrintSocket(event, data)
+		if emitToSocket {
+			d.Console.PrintSocket(event, data)
+		}
 		d.Console.PrintLog(messageLog)
 	case util.PrintOnlySocket:
-		d.Console.PrintSocket(event, data)
+		if emitToSocket {
+			d.Console.PrintSocket(event, data)
+		}
 	case util.PrintOnlyConsole:
 		d.Console.PrintLog(messageLog)
 	}

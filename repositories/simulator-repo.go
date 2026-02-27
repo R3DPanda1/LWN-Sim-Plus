@@ -68,6 +68,10 @@ type SimulatorRepository interface {
 	DeleteTemplate(int) error                                                                      // Delete a template
 	CreateDevicesFromTemplate(int, int, string, float64, float64, int32, float64) ([]int, error)   // Bulk create devices from template
 
+	// Device watch
+	WatchDevice(int) []e.ConsoleLog
+	UnwatchDevice()
+
 	// Configuration
 	SetPerformance(models.PerformanceConfig)
 }
@@ -277,6 +281,14 @@ func (s *simulatorRepository) DeleteTemplate(id int) error {
 
 func (s *simulatorRepository) CreateDevicesFromTemplate(templateID int, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
 	return s.sim.CreateDevicesFromTemplate(templateID, count, namePrefix, baseLat, baseLng, baseAlt, spreadMeters)
+}
+
+func (s *simulatorRepository) WatchDevice(id int) []e.ConsoleLog {
+	return s.sim.WatchDevice(id)
+}
+
+func (s *simulatorRepository) UnwatchDevice() {
+	s.sim.UnwatchDevice()
 }
 
 func (s *simulatorRepository) SetPerformance(perf models.PerformanceConfig) {

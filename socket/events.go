@@ -40,4 +40,10 @@ const (
 	EventIntegrationDeleted = "integration-deleted"
 	// EventIntegrationUpdated represents the event emitted when an integration is updated.
 	EventIntegrationUpdated = "integration-updated"
+	// EventWatchDev is emitted by the client to start watching a device's logs.
+	EventWatchDev = "watch-dev"
+	// EventUnwatchDev is emitted by the client to stop watching a device's logs.
+	EventUnwatchDev = "unwatch-dev"
+	// EventDevLogHistory is emitted by the server with buffered log history for a watched device.
+	EventDevLogHistory = "dev-log-history"
 )

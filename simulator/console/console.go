@@ -6,24 +6,25 @@ import (
 	socketio "github.com/googollee/go-socket.io"
 )
 
-// Console represents a socket connection to send messages to the web terminal
 type Console struct {
-	WebSocket socketio.Conn
+	WebSocket *socketio.Conn // Pointer so all device/gateway copies share the same connection
+	WatchedID *int           // Pointer so all device copies share the same value
 }
 
-// PrintLog prints a message to the command line stdout
+func (c *Console) IsWatched(deviceID int) bool {
+	return c.WatchedID != nil && *c.WatchedID == deviceID
+}
+
 func (c *Console) PrintLog(message string) {
 	log.Println(message)
 }
 
-// PrintSocket prints a message to the web terminal via a socket connection
 func (c *Console) PrintSocket(eventName string, data ...interface{}) {
-	if c.WebSocket != nil {
-		c.WebSocket.Emit(eventName, data...)
+	if c.WebSocket != nil && *c.WebSocket != nil {
+		(*c.WebSocket).Emit(eventName, data...)
 	}
 }
 
-// SetupWebSocket sets the socket connection for the Console
 func (c *Console) SetupWebSocket(WebSocket *socketio.Conn) {
-	c.WebSocket = *WebSocket
+	*c.WebSocket = *WebSocket
 }
