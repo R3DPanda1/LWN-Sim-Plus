@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/iziToast.min.css">
   <link rel="stylesheet" href="css/leaflet.css"/>
   <link rel="stylesheet" href="css/Control.OSMGeocoder.css"/>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.11/css/dataTables.bootstrap4.min.css"/>
 
   <!-- Template CSS -->
   <link rel="stylesheet" href="css/custom/style.css">
@@ -200,19 +201,13 @@
                 <div id="devs" class="tab-pane fade" >
                     <div class="card">
                         <div class="card-body overflow-auto">
-                            <div id="mass-delete-controls-wrapper" style="display: none;">
-                                <div class="d-flex justify-content-between align-items-center mb-2 p-2" style="background-color: #f8fafb; border-radius: 3px;">
-                                    <span id="devices-selected-text"><span id="selected-count">0</span> Devices Selected</span>
-                                    <button type="button" class="btn btn-del btn-sm" id="btn-delete-selected-devices">Delete</button>
-                                </div>
-                            </div>
-                            <table class="table table-sm table-hover">
+                            <table id="device-table" class="table table-sm table-hover" style="width:100%">
                                 <thead>
                                 <tr>
-                                    <th scope="col" style="width: 40px; text-align: center;">
+                                    <th scope="col" class="dt-col-check">
                                         <input type="checkbox" id="select-all-devices" autocomplete="off">
                                     </th>
-                                    <th scope="col">State</th>
+                                    <th scope="col" class="dt-col-state">State</th>
                                     <th scope="col">Name</th>
                                     <th scope="col">Device EUI</th>
                                 </tr>
@@ -1072,13 +1067,13 @@
                                         <div class="col-md-6">
                                             <div class="form-group">
                                                 <label>Latitude</label>
-                                                <input type="text" id="input-bulk-lat" class="form-control" placeholder="Latitude" value="0">
+                                                <input type="text" id="input-bulk-lat" class="form-control" placeholder="Latitude" required>
                                             </div>
                                         </div>
                                         <div class="col-md-6">
                                             <div class="form-group">
                                                 <label>Longitude</label>
-                                                <input type="text" id="input-bulk-lng" class="form-control" placeholder="Longitude" value="0">
+                                                <input type="text" id="input-bulk-lng" class="form-control" placeholder="Longitude" required>
                                             </div>
                                         </div>
                                     </div>
@@ -1100,13 +1095,13 @@
 
                     <div class="card">
                         <div class="card-body overflow-auto">
-                            <table class="table table-sm table-hover">
+                            <table id="gateway-table" class="table table-sm table-hover" style="width:100%">
                                 <thead>
                                 <tr>
-                                    <th class ="w-25" scope="col">Initial state</th>  
-                                    <th class ="w-25" scope="col">Name</th>
-                                    <th class ="w-25" scope="col">MAC Address</th>
-                                    <th class ="w-25" scope="col">Type</th>
+                                    <th scope="col" class="dt-col-state">State</th>
+                                    <th scope="col">Name</th>
+                                    <th scope="col">MAC Address</th>
+                                    <th scope="col">Type</th>
                                 </tr>
                                 </thead>
                                 <tbody id="list-gateways">
@@ -1950,6 +1945,10 @@
   
   <!-- Template JS File scripts.js must be before custom.js-->
   <script src="js/custom/scripts.js"></script>
+
+  <!-- DataTables -->
+  <script src="https://cdn.datatables.net/1.13.11/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.11/js/dataTables.bootstrap4.min.js"></script>
 
   <!-- Monaco Editor -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.0/min/vs/loader.min.js"></script>

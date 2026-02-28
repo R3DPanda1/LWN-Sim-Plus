@@ -280,3 +280,79 @@ body.sidebar-mini .main-sidebar .sidebar-menu > li.active > a {
 #output-console-logs .text-white {
     color: #f8f9fa !important;
 }
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-content {
+    overflow: visible;
+}
+
+/* DataTables column sizing */
+#device-table th:nth-child(1),
+#device-table td:nth-child(1) {
+    width: 30px !important;
+    text-align: center;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.dt-col-state,
+#device-table td:nth-child(2),
+#gateway-table td:first-child {
+    width: 60px !important;
+    text-align: center;
+}
+
+/* DataTables Stisla overrides */
+.dataTables_wrapper .dataTables_filter input {
+    border: 1px solid #e4e6fc;
+    background: #fdfdff;
+    border-radius: 3px;
+    font-size: 14px;
+}
+
+.dataTables_wrapper .dataTables_filter input:focus {
+    border-color: #95a0f4;
+    outline: none;
+    box-shadow: none;
+}
+
+.dataTables_wrapper .dataTables_length select {
+    border: 1px solid #e4e6fc;
+    background: #fdfdff;
+    border-radius: 3px;
+    font-size: 14px;
+}
+
+.dataTables_wrapper .dataTables_info {
+    font-size: 13px;
+    color: #98a6ad;
+}
+
+.dataTables_wrapper .dataTables_paginate .page-link {
+    font-size: 13px;
+    color: var(--bluesea);
+}
+
+.dataTables_wrapper .dataTables_paginate .page-item.active .page-link {
+    background-color: var(--bluesea) !important;
+    border-color: var(--bluesea) !important;
+    color: white !important;
+}
+
+.dataTables_wrapper .dataTables_paginate .page-link:hover {
+    background-color: var(--bluesea) !important;
+    border-color: var(--bluesea) !important;
+    color: white !important;
+}
+
+table.dataTable thead th.sorting:after,
+table.dataTable thead th.sorting_asc:after,
+table.dataTable thead th.sorting_desc:after {
+    opacity: 0.5;
+}
+
+table.dataTable thead th.sorting_asc:after,
+table.dataTable thead th.sorting_desc:after {
+    opacity: 1;
+    color: var(--bluesea);
+}

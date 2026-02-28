@@ -48,6 +48,8 @@ var TurnMap = 0;
 
 var Gateways = new Map();
 var Devices = new Map();
+var DeviceDataTable = null;
+var GatewayDataTable = null;
 var AvailableCodecs = [];
 
 //socket
@@ -304,6 +306,13 @@ $(document).ready(function(){
 
         $(".main-content > div").removeClass("show active");
         $($(this).data("tab")).addClass("show active");
+
+        // Recalculate column widths when DataTables becomes visible
+        if ($(this).data("tab") === "#devs" && DeviceDataTable) {
+            DeviceDataTable.columns.adjust();
+        } else if ($(this).data("tab") === "#gws" && GatewayDataTable) {
+            GatewayDataTable.columns.adjust();
+        }
 
         if (this.id == "home-tab"){
             TurnMap = 0;
@@ -648,14 +657,32 @@ $(document).ready(function(){
         updateSelectedDevicesCount();
     });
 
-    $("#select-all-devices").on("change", function() {
-        var isChecked = $(this).prop("checked");
-        $(".device-checkbox").prop("checked", isChecked);
+    $("#select-all-devices").on("click", function() {
+        var anyChecked = DeviceDataTable
+            ? DeviceDataTable.$('.device-checkbox:checked').length > 0
+            : $(".device-checkbox:checked").length > 0;
+
+        if (anyChecked) {
+            // Partial or full selection — uncheck everything
+            if (DeviceDataTable) {
+                DeviceDataTable.$('.device-checkbox').prop("checked", false);
+            } else {
+                $(".device-checkbox").prop("checked", false);
+            }
+            $(this).prop("checked", false);
+        } else {
+            // Nothing selected — check current page
+            if (DeviceDataTable) {
+                DeviceDataTable.$('.device-checkbox', { page: 'current' }).prop("checked", true);
+            } else {
+                $(".device-checkbox").prop("checked", true);
+            }
+        }
         updateSelectedDevicesCount();
     });
 
-    $("#btn-delete-selected-devices").on("click", function() {
-        var count = $(".device-checkbox:checked").length;
+    $(document).on("click", "#btn-delete-selected-devices", function() {
+        var count = DeviceDataTable ? DeviceDataTable.$('.device-checkbox:checked').length : $(".device-checkbox:checked").length;
         swal({
             title: 'Delete ' + count + ' devices?',
             text: 'This action cannot be undone!',
@@ -1073,22 +1100,53 @@ function Init(){
 
         $("#list-gateways").empty();
 
+        if (GatewayDataTable) {
+            GatewayDataTable.destroy();
+            GatewayDataTable = null;
+        }
+
         data.forEach(element => {
-
             Gateways.set(element.info.macAddress, element);
-
             Add_ItemList_Gateways(element);
-   
+
             AddMarker(element.info.macAddress,element.info.name,
                 L.latLng(element.info.location.latitude, element.info.location.longitude),
-                true);           
-                  
+                true);
+        });
+
+        // https://datatables.net/forums/discussion/76816/natural-sorting-not-ordering-naturally
+        $.extend($.fn.dataTable.ext.type.order, {
+            "natural-asc": function(a, b) {
+                return a.localeCompare(b, navigator.languages[0] || navigator.language, {numeric: true, ignorePunctuation: true});
+            },
+            "natural-desc": function(a, b) {
+                return b.localeCompare(a, navigator.languages[0] || navigator.language, {numeric: true, ignorePunctuation: true});
+            }
+        });
+
+        GatewayDataTable = $('#gateway-table').DataTable({
+            order: [[1, 'asc']],
+            pageLength: 20,
+            lengthMenu: [[20, 50, 100, -1], [20, 50, 100, "All"]],
+            columnDefs: [
+                { orderable: false, targets: 0 },
+                { type: 'natural', targets: 1 }
+            ],
+            language: {
+                search: "",
+                searchPlaceholder: "Search gateways...",
+                lengthMenu: "Show _MENU_",
+                info: "Showing _START_ to _END_ of _TOTAL_",
+                infoEmpty: "No gateways",
+                emptyTable: "No gateways added yet"
+            },
+            dom: "<'d-flex justify-content-between align-items-center mb-2'lf>t<'d-flex justify-content-between align-items-center mt-2'ip>"
         });
 
         LoadListHome();
 
     }).fail((data)=>{
-        Show_ErrorSweetToast("Unable to load info of the gateways", data.statusText); 
+        Show_ErrorSweetToast("Unable to load info of the gateways", data.statusText);
     });
 
     //list of devices
@@ -1103,25 +1161,62 @@ function Init(){
 
         $("#list-devices").empty();
 
-        // Reset select-all checkbox to prevent browser caching
         $("#select-all-devices").prop("checked", false);
 
+        if (DeviceDataTable) {
+            $('#device-table').off('page.dt search.dt order.dt');
+            DeviceDataTable.destroy();
+            DeviceDataTable = null;
+        }
+
         data.forEach(element => {
-
-            Devices.set(element.info.devEUI,element)
-
+            Devices.set(element.info.devEUI, element);
             Add_ItemList_Devices(element);
 
             AddMarker(element.info.devEUI, element.info.name,
                 L.latLng(element.info.location.latitude, element.info.location.longitude),
                 false);
+        });
 
+        DeviceDataTable = $('#device-table').DataTable({
+            order: [[2, 'asc']],
+            pageLength: 20,
+            lengthMenu: [[20, 50, 100, -1], [20, 50, 100, "All"]],
+            columnDefs: [
+                { orderable: false, targets: [0, 1] },
+                { type: 'natural', targets: 2 }
+            ],
+            language: {
+                search: "",
+                searchPlaceholder: "Search devices...",
+                lengthMenu: "Show _MENU_",
+                info: "Showing _START_ to _END_ of _TOTAL_",
+                infoEmpty: "No devices",
+                emptyTable: "No devices added yet"
+            },
+            dom: "<'d-flex justify-content-between align-items-center mb-2'lf>t<'d-flex justify-content-between align-items-center mt-2'ip>"
+        });
+
+        // Inject mass-delete controls into the DataTables toolbar
+        var toolbar = $('#device-table_wrapper .d-flex').first();
+        toolbar.css('gap', '10px');
+        $('<span id="mass-delete-controls" class="justify-content-between align-items-center" style="display:none; flex:1;">' +
+            '<span class="text-muted"><span id="selected-count">0</span> selected</span>' +
+            '<button type="button" class="btn btn-del btn-sm" id="btn-delete-selected-devices">Delete</button>' +
+          '</span>').insertAfter(toolbar.find('.dataTables_length'));
+
+        // Unselect all checkboxes on page/sort/search change
+        $('#device-table').on('page.dt search.dt order.dt', function() {
+            if (!DeviceDataTable) return;
+            DeviceDataTable.$('.device-checkbox').prop("checked", false);
+            $("#select-all-devices").prop("checked", false);
+            updateSelectedDevicesCount();
         });
 
         LoadListHome();
 
     }).fail((data)=>{
-        Show_ErrorSweetToast("Unable to load info of the devices", data.statusText); 
+        Show_ErrorSweetToast("Unable to load info of the devices", data.statusText);
     });
     
     // get the current status and set the buttons and status icon accordingly
@@ -1253,7 +1348,11 @@ function Add_ItemList_Gateways(element){
                     <td id=\"type\">"+type+"</td>\
                 </tr>";
 
-    $("#list-gateways").append(item);
+    if (GatewayDataTable) {
+        GatewayDataTable.row.add($(item)).draw(false);
+    } else {
+        $("#list-gateways").append(item);
+    }
 
 }
 
@@ -1274,7 +1373,11 @@ function Add_ItemList_Devices(element){
                     <td id=\"devEUI\" > "+element.info.devEUI+"</td> \
                 </tr>";
 
-    $("#list-devices").append(item);
+    if (DeviceDataTable) {
+        DeviceDataTable.row.add($(item)).draw(false);
+    } else {
+        $("#list-devices").append(item);
+    }
 
 }
 
@@ -1324,7 +1427,13 @@ function UpdateList(element, oldAddress, isGw){
     }
         
     $("tr[data-addr="+newAddress+"] [id^=state-]").find("img").attr("src", img);
-    
+
+    if (isGw && GatewayDataTable) {
+        GatewayDataTable.row($("tr[data-addr="+newAddress+"]")).invalidate().draw(false);
+    } else if (!isGw && DeviceDataTable) {
+        DeviceDataTable.row($("tr[data-addr="+newAddress+"]")).invalidate().draw(false);
+    }
+
 }
 
 function LoadListHome(){
@@ -2045,7 +2154,11 @@ function Click_DeleteGateway(){
             
                 if (data.status){
 
-                    $("tr[data-addr=\""+macAddress+"\"]").remove();
+                    if (GatewayDataTable) {
+                        GatewayDataTable.row($("tr[data-addr=\""+macAddress+"\"]")).remove().draw(false);
+                    } else {
+                        $("tr[data-addr=\""+macAddress+"\"]").remove();
+                    }
 
                     Gateways.delete(macAddress);
 
@@ -2534,7 +2647,11 @@ function Click_DeleteDevice(){
 
                 if (data.status){
 
-                    $("tr[data-addr=\""+devEUI+"\"]").remove();
+                    if (DeviceDataTable) {
+                        DeviceDataTable.row($("tr[data-addr=\""+devEUI+"\"]")).remove().draw(false);
+                    } else {
+                        $("tr[data-addr=\""+devEUI+"\"]").remove();
+                    }
 
                     Devices.delete(devEUI);
 
@@ -2557,23 +2674,24 @@ function Click_DeleteDevice(){
 // ==================== Mass Delete Functions ====================
 
 function updateSelectedDevicesCount() {
-    var count = $(".device-checkbox:checked").length;
+    var count, totalCheckboxes;
+    if (DeviceDataTable) {
+        count = DeviceDataTable.$('.device-checkbox:checked').length;
+        totalCheckboxes = DeviceDataTable.$('.device-checkbox').length;
+    } else {
+        count = $(".device-checkbox:checked").length;
+        totalCheckboxes = $(".device-checkbox").length;
+    }
     $("#selected-count").text(count);
 
-    var wrapper = $("#mass-delete-controls-wrapper");
-
+    var controls = $("#mass-delete-controls");
     if (count > 0) {
-        if (!wrapper.is(":visible")) {
-            wrapper.stop(true, true).slideDown(200);
-        }
+        controls.css("display", "flex");
     } else {
-        if (wrapper.is(":visible")) {
-            wrapper.stop(true, true).slideUp(200);
-        }
+        controls.css("display", "none");
     }
 
     // Update select all checkbox state
-    var totalCheckboxes = $(".device-checkbox").length;
     if (totalCheckboxes > 0 && count === totalCheckboxes) {
         $("#select-all-devices").prop("checked", true);
         $("#select-all-devices").prop("indeterminate", false);
@@ -2601,7 +2719,11 @@ function deleteDeviceAsync(devEUI) {
         $.post(url + "/api/del-device", jsonData, "json")
             .done((data) => {
                 if (data.status) {
-                    $("tr[data-addr=\"" + devEUI + "\"]").remove();
+                    if (DeviceDataTable) {
+                        DeviceDataTable.row($("tr[data-addr=\"" + devEUI + "\"]")).remove().draw(false);
+                    } else {
+                        $("tr[data-addr=\"" + devEUI + "\"]").remove();
+                    }
                     Devices.delete(devEUI);
                     RemoveMarker(devEUI);
                     resolve({ success: true, devEUI: devEUI });
@@ -2617,9 +2739,15 @@ function deleteDeviceAsync(devEUI) {
 
 async function massDeleteDevices() {
     var selectedDevices = [];
-    $(".device-checkbox:checked").each(function() {
-        selectedDevices.push($(this).data("deveui"));
-    });
+    if (DeviceDataTable) {
+        DeviceDataTable.$('.device-checkbox:checked').each(function() {
+            selectedDevices.push($(this).data("deveui"));
+        });
+    } else {
+        $(".device-checkbox:checked").each(function() {
+            selectedDevices.push($(this).data("deveui"));
+        });
+    }
 
     if (selectedDevices.length === 0) {
         Show_ErrorSweetToast("Error", "No devices selected");
