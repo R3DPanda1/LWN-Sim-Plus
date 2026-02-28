@@ -126,6 +126,8 @@ function CleanIntegrationForm(){
     $("[name=input-integration-appid]").prop("disabled", false);
     $("#checkbox-integration-enabled").prop("disabled", false);
 
+    $("#add-integration input").removeClass("is-valid is-invalid");
+
     $("#div-buttons-integration").removeData("id");
     $("[name=btn-test-integration]").show();
     $("[name=btn-delete-integration]").hide();
@@ -234,8 +236,19 @@ function SaveIntegration(){
     var enabled = $("#checkbox-integration-enabled").prop("checked");
     var integrationId = $("#div-buttons-integration").data("id");
 
-    if(!name || !urlVal || !apiKey || !tenantId || !appId){
-        Show_ErrorSweetToast("Error", "All fields are required");
+    var validName = !!name;
+    var validUrl = !!urlVal;
+    var validApiKey = !!apiKey;
+    var validTenantId = !!tenantId;
+    var validAppId = !!appId;
+
+    if(!validName || !validUrl || !validApiKey || !validTenantId || !validAppId){
+        Show_ErrorSweetToast("Error", "Values are incorrect");
+        ValidationInput($("[name=input-integration-name]"), validName);
+        ValidationInput($("[name=input-integration-url]"), validUrl);
+        ValidationInput($("[name=input-integration-apikey]"), validApiKey);
+        ValidationInput($("[name=input-integration-tenantid]"), validTenantId);
+        ValidationInput($("[name=input-integration-appid]"), validAppId);
         return;
     }
 
