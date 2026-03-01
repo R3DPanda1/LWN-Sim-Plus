@@ -1011,9 +1011,27 @@
 
                             </div>
                         </div>
-                        
+
+                        <!-- Device Log (visible when editing a device) -->
+                        <div class="col-12 mt-3" id="device-log-container" style="display:none;">
+                            <div class="card">
+                                <div class="card-header bg-blue clickable p-0">
+                                    <div class="w-100 d-flex align-items-center align-self-stretch">
+                                        <div class="w-100 d-flex align-items-center align-self-stretch">
+                                            <h4 class="ml-4 w-100">Device Log</h4>
+                                        </div>
+                                        <button id="btn-clear-device-log" class="btn-clean btn pt-2 pb-2 mr-2" type="button"> <img src="img/white_delete.svg"> </button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div id="device-log-body" class="overflow-auto" style="height: 300px; background-color: var(--lightblack); padding: 10px 15px; line-height: 24px;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
-                    
+
                 </div>
 
                 <!-- add devices from template -->

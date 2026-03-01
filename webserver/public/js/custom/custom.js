@@ -51,6 +51,7 @@ var Devices = new Map();
 var DeviceDataTable = null;
 var GatewayDataTable = null;
 var AvailableCodecs = [];
+var WatchedDeviceId = null;
 
 //socket
 var socket = io({
@@ -94,6 +95,9 @@ $(document).ready(function(){
 
     socket.on('connect',()=>{
         Init();
+        if (WatchedDeviceId !== null) {
+            socket.emit("watch-dev", WatchedDeviceId);
+        }
     });
 
     socket.on('disconnect',()=>{
@@ -107,7 +111,7 @@ $(document).ready(function(){
 
     socket.on('console-sim',(data)=>{
 
-        var row = "<p class=\"text-break text-start bg-secondary m-0\">"+data.message+"</p>";
+        var row = "<p class=\"text-break text-white m-0\">"+data.message+"</p>";
         $('#console-body').append(row);
 
         $('#console-body').animate({
@@ -117,8 +121,8 @@ $(document).ready(function(){
     });
 
     socket.on('console-error',(data)=>{
-      
-        var row = "<p class=\"text-break text-white bg-danger m-0\">"+data.message+"</p>";             
+
+        var row = "<p class=\"text-break text-white bg-danger m-0\">"+data.message+"</p>";
         $('#console-body').append(row);
 
         $('#console-body').animate({
@@ -128,37 +132,28 @@ $(document).ready(function(){
     });
 
     socket.on('log-dev',(data)=>{
-
-        var classesP = $("[name=\""+data.name+"\"]").attr("class");//p
-        
-        $("span[data-name=\""+data.name+"\"]").attr("class");
-
-        var row;
-
-        if (classesP == undefined)
-            row = "<p class=\"text-break text-start text-info clickable me-1 mb-0\" name=\""+data.name+"\" data-name=\""+data.name+"\">"+data.message+"</p>";
-        else
-            row = "<p class=\""+classesP+"\" name=\""+data.name+"\" data-name=\""+data.name+"\">"+data.message+"</p>";
-    
-        $('#console-body').append(row);
-
-        $('#console-body').animate({
-            scrollTop: $('#console-body').get(0).scrollHeight
+        var row = "<p class=\"text-break text-info m-0\">"+data.message+"</p>";
+        $('#device-log-body').append(row);
+        $('#device-log-body').animate({
+            scrollTop: $('#device-log-body').get(0).scrollHeight
         }, 0);
-
     });
 
-    socket.on('log-gw',(data)=>{ 
+    socket.on('dev-log-history',(history)=>{
+        $('#device-log-body').empty();
+        if (!history || !history.length) return;
+        for (var i = 0; i < history.length; i++) {
+            var row = "<p class=\"text-break text-info m-0\">"+history[i].message+"</p>";
+            $('#device-log-body').append(row);
+        }
+        $('#device-log-body').animate({
+            scrollTop: $('#device-log-body').get(0).scrollHeight
+        }, 0);
+    });
 
-        var valueName = "gw-"+data.name;     
-        var classesP = $("[name="+valueName+"]").attr("class");//p
-        var row;
+    socket.on('log-gw',(data)=>{
 
-        if (classesP == undefined)
-            row = "<p class=\"text-break clickable text-start text-warning me-1 mb-0\" data-name=\""+valueName+"\" name=\""+valueName+"\">"+data.message+"</p>";
-        else
-            row = "<p class=\""+classesP+"\" name="+valueName+" data-name=\""+valueName+"\">"+data.message+"</p>";
-    
+        var row = "<p class=\"text-break text-warning m-0\">"+data.message+"</p>";
         $('#console-body').append(row);
 
         $('#console-body').animate({
@@ -214,7 +209,7 @@ $(document).ready(function(){
     // ********************** nav bar *********************
 
     $(".btn-play").parent("button").on("click",function(){
-        
+
         if (!socket.connected){
             Show_ErrorSweetToast("Socket not connected","");
             return;
@@ -234,9 +229,9 @@ $(document).ready(function(){
                 "Access-Control-Allow-Origin":"*"
             }
         }).done((data)=>{
-            
+
             if (data){
-                
+
                 StateSimulator = true;
 
                 Show_iziToast("Simulator started","");
@@ -244,19 +239,23 @@ $(document).ready(function(){
                 $(".btn-play").parent("button").toggleClass("hide");
                 $(".btn-stop").parent("button").toggleClass("hide");
 
-            }               
+                if (WatchedDeviceId !== null) {
+                    socket.emit("watch-dev", WatchedDeviceId);
+                }
+
+            }
             else{
 
                 Show_ErrorSweetToast("Error","Simulator didn't started");
                 $("#state").attr("src","img/red_circle.svg");
 
-            }     
-                  
+            }
+
         }).fail((data)=>{
 
             $("#state").attr("src","img/red_circle.svg");
-            Show_ErrorSweetToast("Unable to start the simulator",data.statusText); 
-            
+            Show_ErrorSweetToast("Unable to start the simulator",data.statusText);
+
         });
 
     });
@@ -267,15 +266,15 @@ $(document).ready(function(){
             Show_ErrorSweetToast("Simulator already stop","");
             return;
         }
-        
+
         StateSimulator = false;
-        
+
         $("#state").attr("src","img/yellow_circle.svg");
 
         $.get(url+"/api/stop",{
-        
+
         }).done((data)=>{
-        
+
             if (data){
 
                 $("#state").attr("src","img/red_circle.svg");
@@ -286,12 +285,12 @@ $(document).ready(function(){
             }
             else{
                 $("#state").attr("src","img/green_circle.svg");
-            }   
+            }
 
         }).fail((data)=>{
 
             $("#state").attr("src","img/green_circle.svg");
-            Show_ErrorSweetToast("Unable to stop the simulator",data.statusText); 
+            Show_ErrorSweetToast("Unable to stop the simulator",data.statusText);
 
         });
 
@@ -378,6 +377,11 @@ $(document).ready(function(){
 
     $(".btn-clean").on("click",function(){
         $("#console-body").empty();
+        $(this).blur();
+    })
+
+    $("#btn-clear-device-log").on("click",function(){
+        $("#device-log-body").empty();
         $(this).blur();
     })
 
@@ -2433,6 +2437,11 @@ function CleanInputDevice(){
     //location
     CleanMap();
 
+    $("#device-log-container").hide();
+    $("#device-log-body").empty();
+    WatchedDeviceId = null;
+    socket.emit("unwatch-dev");
+
     ChangeStateInputDevice(false,null);
 
     $("#add-dev *").removeClass("active show");
@@ -2616,6 +2625,10 @@ function LoadDevice(dev){
 
     ChangeStateInputDevice(true,dev.info.devEUI);
 
+    $("#device-log-body").empty();
+    $("#device-log-container").show();
+    WatchedDeviceId = dev.id;
+    socket.emit("watch-dev", dev.id);
 
     $("#devs").removeClass("show active");
     $("#add-dev").addClass("show active");
