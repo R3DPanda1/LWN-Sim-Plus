@@ -396,13 +396,25 @@ $(document).ready(function(){
         
     });
 
+    // card header tab switching
+    $('.card-header-tabs').on('click', '.card-header-tab', function(){
+        var $tabs = $(this).closest('.card-header-tabs');
+        $tabs.find('.card-header-tab').removeClass('active');
+        $(this).addClass('active');
+        var $body = $(this).closest('.card').find('.card-body');
+        $tabs.find('.card-header-tab').each(function(){
+            $body.find($(this).data('target')).hide();
+        });
+        $body.find($(this).data('target')).show();
+    });
+
     //click item list
-    $("#list-home").on("click","a",function(){ 
+    $("#home-devices-list, #home-gateways-list").on("click","a",function(){
 
         var address = $(this).attr("data-addr");
         var marker = MarkersHome.get(address).Marker;
         var dev = Devices.get(address);
-        
+
         ChangeView(marker.getLatLng(),11)
         marker.openPopup();
 
@@ -1441,14 +1453,15 @@ function UpdateList(element, oldAddress, isGw){
 }
 
 function LoadListHome(){
-    $("#list-home").empty();
+    $("#home-devices-list").empty();
+    $("#home-gateways-list").empty();
 
     Devices.forEach(element =>{
-        $("#list-home").append("<a href=\"#map-home\" class=\"text-blue list-group-item list-group-item-action\" data-addr=\""+element.info.devEUI+"\">"+element.info.name+"</a>");
+        $("#home-devices-list").append("<a href=\"#map-home\" class=\"text-blue list-group-item list-group-item-action\" data-addr=\""+element.info.devEUI+"\">"+element.info.name+"</a>");
     })
 
     Gateways.forEach(element =>{
-        $("#list-home").append("<a href=\"#map-home\" class=\"text-orange list-group-item list-group-item-action\" data-addr=\""+element.info.macAddress+"\">"+element.info.name+"</a>");
+        $("#home-gateways-list").append("<a href=\"#map-home\" class=\"text-orange list-group-item list-group-item-action\" data-addr=\""+element.info.macAddress+"\">"+element.info.name+"</a>");
     });
 
     FitHomeMapBounds();
