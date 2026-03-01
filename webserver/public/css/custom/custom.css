@@ -91,8 +91,35 @@ body.sidebar-mini .main-sidebar .sidebar-menu > li.active > a {
     background-color: var(--bluesea) !important;
 }
 
-#header-console{
+#header-console {
     color: white !important;
+}
+
+/* Reusable card header tabs */
+.card-header-tab {
+    flex: 1;
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: rgba(255,255,255,0.5) !important;
+    transition: background-color 0.15s;
+}
+
+.card-header-tab:hover {
+    background-color: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.8) !important;
+}
+
+.card-header-tab.active {
+    color: white !important;
+    background-color: rgba(255,255,255,0.12);
+}
+
+#home-devices-list,
+#home-gateways-list {
+    min-height: 0;
 }
 
 .clickable{
