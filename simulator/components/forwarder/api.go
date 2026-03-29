@@ -18,9 +18,10 @@ func Setup() *Forwarder {
 		shards[i] = newShard()
 	}
 	return &Forwarder{
-		shards:    shards,
-		numShards: DefaultNumShards,
-		gateways:  make(map[lorawan.EUI64]m.InfoGateway),
+		shards:     shards,
+		numShards:  DefaultNumShards,
+		gateways:   make(map[lorawan.EUI64]m.InfoGateway),
+		uplinkTmst: make(map[lorawan.EUI64]uint32),
 	}
 }
 
@@ -73,6 +74,10 @@ func (f *Forwarder) DeleteDevice(DevEUI lorawan.EUI64) {
 	clear(s.devToGw[DevEUI])
 	delete(s.devToGw, DevEUI)
 	delete(s.devices, DevEUI)
+
+	f.uplinkTmstMu.Lock()
+	delete(f.uplinkTmst, DevEUI)
+	f.uplinkTmstMu.Unlock()
 }
 
 func (f *Forwarder) DeleteGateway(g m.InfoGateway) {
@@ -139,23 +144,65 @@ func (f *Forwarder) Uplink(data pkt.RXPK, DevEUI lorawan.EUI64) {
 	defer s.mu.RUnlock()
 
 	rxpk := createPacket(data)
+
+	f.uplinkTmstMu.Lock()
+	f.uplinkTmst[DevEUI] = rxpk.Tmst
+	f.uplinkTmstMu.Unlock()
+
 	for _, up := range s.devToGw[DevEUI] {
 		up.Push(rxpk)
 	}
 }
 
-func (f *Forwarder) Downlink(data *lorawan.PHYPayload, freq uint32, macAddress lorawan.EUI64) bool {
-	anyDelivered := false
+func (f *Forwarder) Downlink(data *lorawan.PHYPayload, freq uint32,
+	macAddress lorawan.EUI64, tmst *uint32, rawData []byte) bool {
 
-	// A downlink from a gateway can target devices in any shard, so we
-	// need to check the gwtoDev map in every shard for this freq+gateway.
+	// If we have a tmst, try to match to the specific device that sent the uplink
+	if tmst != nil {
+		f.uplinkTmstMu.RLock()
+		defer f.uplinkTmstMu.RUnlock()
+
+		for _, s := range f.shards {
+			s.mu.RLock()
+			gwMap, ok := s.gwtoDev[freq][macAddress]
+			if ok {
+				for devEUI, recvDl := range gwMap {
+					deviceTmst, has := f.uplinkTmst[devEUI]
+					if !has {
+						continue
+					}
+					diff := *tmst - deviceTmst
+					if diff >= 1 && diff <= 6 {
+						buf := make([]byte, len(rawData))
+						copy(buf, rawData)
+						clone := &lorawan.PHYPayload{}
+						if err := clone.UnmarshalBinary(buf); err == nil {
+							if recvDl.Push(clone) {
+								s.mu.RUnlock()
+								return true
+							}
+						}
+					}
+				}
+			}
+			s.mu.RUnlock()
+		}
+	}
+
+	// Fallback: no tmst (imme=true) or no match — broadcast with per-device cloning
+	anyDelivered := false
 	for _, s := range f.shards {
 		s.mu.RLock()
 		gwMap, ok := s.gwtoDev[freq][macAddress]
 		if ok {
 			for _, d := range gwMap {
-				if d.Push(data) {
-					anyDelivered = true
+				buf := make([]byte, len(rawData))
+				copy(buf, rawData)
+				clone := &lorawan.PHYPayload{}
+				if err := clone.UnmarshalBinary(buf); err == nil {
+					if d.Push(clone) {
+						anyDelivered = true
+					}
 				}
 			}
 		}
@@ -177,4 +224,8 @@ func (f *Forwarder) Reset() {
 	f.gwMu.Lock()
 	clear(f.gateways)
 	f.gwMu.Unlock()
+
+	f.uplinkTmstMu.Lock()
+	clear(f.uplinkTmst)
+	f.uplinkTmstMu.Unlock()
 }

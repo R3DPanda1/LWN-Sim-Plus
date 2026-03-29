@@ -91,7 +91,7 @@ func (g *Gateway) Receiver() {
 			continue
 		}
 
-		time.Sleep(time.Second) //sync le print
+		time.Sleep(50 * time.Millisecond)
 
 		msg := fmt.Sprintf("%v received", pkt.PacketToString(receivedPack[3]))
 		g.Print(msg, nil, util.PrintBoth)
@@ -109,13 +109,13 @@ func (g *Gateway) Receiver() {
 
 		case pkt.TypePullResp:
 
-			phy, freq, err := pkt.GetInfoPullResp(receivedPack)
+			phy, freq, tmst, rawData, err := pkt.GetInfoPullResp(receivedPack)
 			if err != nil {
 				g.Print("", err, util.PrintBoth)
 				continue
 			}
 
-			delivered := g.Forwarder.Downlink(phy, *freq, g.Info.MACAddress)
+			delivered := g.Forwarder.Downlink(phy, *freq, g.Info.MACAddress, tmst, rawData)
 
 			g.Stat.RXFW++
 

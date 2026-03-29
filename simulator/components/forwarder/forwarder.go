@@ -18,6 +18,11 @@ type Forwarder struct {
 	numShards int
 	gwMu      sync.RWMutex
 	gateways  map[lorawan.EUI64]m.InfoGateway
+
+	// uplinkTmst maps DevEUI -> tmst from their most recent uplink.
+	// Used to match PULL_RESP downlinks to the correct device.
+	uplinkTmst   map[lorawan.EUI64]uint32
+	uplinkTmstMu sync.RWMutex
 }
 
 // GPSOffset compensates for the drift between UTC and GPS time

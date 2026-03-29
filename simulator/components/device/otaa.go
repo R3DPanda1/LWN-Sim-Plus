@@ -61,6 +61,8 @@ func (d *Device) OtaaActivation() {
 
 		d.Print("Unjoined", nil, util.PrintBoth)
 
+		backoff := 500 + rand.Intn(1500)
+		time.Sleep(time.Duration(backoff) * time.Millisecond)
 	}
 
 	return

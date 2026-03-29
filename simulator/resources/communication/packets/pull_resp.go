@@ -37,25 +37,26 @@ type TXPK struct {
 	Data []byte  `json:"data"`           // Base64 encoded RF packet payload, padding optional
 }
 
-func GetInfoPullResp(pullResp []byte) (*lorawan.PHYPayload, *uint32, error) {
+func GetInfoPullResp(pullResp []byte) (*lorawan.PHYPayload, *uint32, *uint32, []byte, error) {
 
 	var phy lorawan.PHYPayload
 	var packet PullRespPacket
 	var frequency uint32
 
-	//getPacket
 	if err := packet.UnmarshalBinary(pullResp); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	frequency = uint32(packet.Payload.TXPK.Freq * 1000000.0)
 
-	//getPayload
+	rawData := make([]byte, len(packet.Payload.TXPK.Data))
+	copy(rawData, packet.Payload.TXPK.Data)
+
 	if err := phy.UnmarshalBinary(packet.Payload.TXPK.Data); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
-	return &phy, &frequency, nil
+	return &phy, &frequency, packet.Payload.TXPK.Tmst, rawData, nil
 
 }
 
