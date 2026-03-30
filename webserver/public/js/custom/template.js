@@ -71,6 +71,7 @@ function GetCodecName(codecId) {
 function CleanTemplateForm() {
     $("[name=input-template-name]").val("");
     $("#select-template-region").val("1");
+    $("#radio-template-otaa").prop("checked", true);
     $("#checkbox-template-classb").prop("checked", false);
     $("#checkbox-template-classc").prop("checked", false);
     $("#checkbox-template-adr").prop("checked", true);
@@ -100,6 +101,7 @@ function CleanTemplateForm() {
 function SetTemplateFormEnabled(enabled) {
     $("[name=input-template-name]").prop("disabled", !enabled);
     $("#select-template-region").prop("disabled", !enabled);
+    $("input[name='template-activation']").prop("disabled", !enabled);
     $("#checkbox-template-classb").prop("disabled", !enabled);
     $("#checkbox-template-classc").prop("disabled", !enabled);
     $("#checkbox-template-adr").prop("disabled", !enabled);
@@ -118,6 +120,11 @@ function SetTemplateFormEnabled(enabled) {
 function LoadTemplate(template) {
     $("[name=input-template-name]").val(template.name);
     $("#select-template-region").val(template.region);
+    if (template.activationMode === "abp") {
+        $("#radio-template-abp").prop("checked", true);
+    } else {
+        $("#radio-template-otaa").prop("checked", true);
+    }
     $("#checkbox-template-classb").prop("checked", template.supportedClassB);
     $("#checkbox-template-classc").prop("checked", template.supportedClassC);
     $("#checkbox-template-adr").prop("checked", template.supportedADR);
@@ -164,6 +171,7 @@ function SaveTemplate() {
     var template = {
         id: parseInt(templateId) || 0,
         name: $("[name=input-template-name]").val(),
+        activationMode: $("input[name='template-activation']:checked").val() || "otaa",
         region: parseInt($("#select-template-region").val()),
         supportedClassB: $("#checkbox-template-classb").prop("checked"),
         supportedClassC: $("#checkbox-template-classc").prop("checked"),

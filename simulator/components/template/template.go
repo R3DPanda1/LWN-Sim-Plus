@@ -12,10 +12,12 @@ var (
 )
 
 // DeviceTemplate represents a template for bulk device creation
-// Templates use ABP activation; DevEUI, DevAddr, NwkSKey, AppSKey, and Name are auto-generated
 type DeviceTemplate struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"` // Template name (e.g., "AM319 Temperature Sensor")
+
+	// Activation mode: "otaa" or "abp" (default "otaa")
+	ActivationMode string `json:"activationMode"`
 
 	// Region configuration
 	Region int `json:"region"` // Region code (1=EU868, 2=US915, etc.)
@@ -69,6 +71,7 @@ func NewDeviceTemplate(name string) *DeviceTemplate {
 	return &DeviceTemplate{
 		Name: name,
 		// Defaults
+		ActivationMode:    "otaa",
 		Region:            1, // EU868
 		SupportedADR:      true,
 		Range:             10000, // 10km
@@ -111,6 +114,7 @@ func (t *DeviceTemplate) Clone() *DeviceTemplate {
 	return &DeviceTemplate{
 		ID:                 t.ID,
 		Name:               t.Name,
+		ActivationMode:     t.ActivationMode,
 		Region:             t.Region,
 		SupportedClassB:    t.SupportedClassB,
 		SupportedClassC:    t.SupportedClassC,
@@ -147,6 +151,7 @@ func GetDefaultTemplates(codecLookup func(name string) int) []*DeviceTemplate {
 	am319 := &DeviceTemplate{
 		ID:                1,
 		Name:              "Milesight AM319",
+		ActivationMode:    "otaa",
 		Region:            1, // EU868
 		SupportedClassB:   false,
 		SupportedClassC:   false,
@@ -177,6 +182,7 @@ func GetDefaultTemplates(codecLookup func(name string) int) []*DeviceTemplate {
 	mcfio := &DeviceTemplate{
 		ID:                2,
 		Name:              "Enginko MCF-LW13IO",
+		ActivationMode:    "otaa",
 		Region:            1, // EU868
 		SupportedClassB:   false,
 		SupportedClassC:   true, // Class C for immediate downlink response
@@ -207,6 +213,7 @@ func GetDefaultTemplates(codecLookup func(name string) int) []*DeviceTemplate {
 	sdm230 := &DeviceTemplate{
 		ID:                3,
 		Name:              "Eastron SDM230",
+		ActivationMode:    "otaa",
 		Region:            1, // EU868
 		SupportedClassB:   false,
 		SupportedClassC:   true, // Class C device

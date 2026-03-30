@@ -66,7 +66,7 @@ type SimulatorRepository interface {
 	AddTemplate(*template.DeviceTemplate) (int, error)                                             // Add a new template
 	UpdateTemplate(*template.DeviceTemplate) error                                                 // Update a template
 	DeleteTemplate(int) error                                                                      // Delete a template
-	CreateDevicesFromTemplate(int, int, string, float64, float64, int32, float64) ([]int, error)   // Bulk create devices from template
+	CreateDevicesFromTemplate(int, int, string, float64, float64, int32, float64) ([]int, error) // Bulk create devices from template
 
 	// Device watch
 	WatchDevice(int) []e.ConsoleLog
