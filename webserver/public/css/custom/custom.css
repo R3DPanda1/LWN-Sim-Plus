@@ -120,6 +120,7 @@ body.sidebar-mini .main-sidebar .sidebar-menu > li.active > a {
 #home-devices-list,
 #home-gateways-list {
     min-height: 0;
+    max-height: 450px;
 }
 
 .clickable{
