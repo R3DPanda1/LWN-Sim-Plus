@@ -90,6 +90,7 @@ func NewWebServer(config *models.ServerConfig, controller cnt.SimulatorControlle
 		apiRoutes.POST("/add-device", addDevice)       // Add a new device
 		apiRoutes.POST("/up-device", updateDevice)     // Update a device
 		apiRoutes.POST("/del-device", deleteDevice)    // Delete a device
+		apiRoutes.POST("/del-all-devices", deleteAllDevices) // Delete all devices in bulk
 		apiRoutes.POST("/del-gateway", deleteGateway)  // Delete a gateway
 		apiRoutes.POST("/add-gateway", addGateway)     // Add a new gateway
 		apiRoutes.POST("/up-gateway", updateGateway)   // Update a gateway
@@ -313,6 +314,16 @@ func deleteDevice(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": simulatorController.DeleteDevice(Identifier.Id)})
+}
+
+// deleteAllDevices deletes all devices in bulk
+func deleteAllDevices(c *gin.Context) {
+	count, err := simulatorController.DeleteAllDevices()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": count})
 }
 
 // getCodecs returns all available codecs
@@ -680,8 +691,8 @@ func createDevicesFromTemplate(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "templateId is required"})
 		return
 	}
-	if req.Count < 1 || req.Count > 1000 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "count must be between 1 and 1000"})
+	if req.Count < 1 || req.Count > 10000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "count must be between 1 and 10000"})
 		return
 	}
 	if req.NamePrefix == "" {

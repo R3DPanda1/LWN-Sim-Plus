@@ -4,6 +4,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"strconv"
 
 	cnt "github.com/R3DPanda1/LWN-Sim-Plus/controllers"

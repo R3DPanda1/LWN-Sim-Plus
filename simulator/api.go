@@ -9,6 +9,7 @@ import (
 	"math"
 	mrand "math/rand"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/brocaar/lorawan"
@@ -466,6 +467,89 @@ func (s *Simulator) DeleteDevice(Id int) bool {
 	s.Print("Device Deleted", nil, util.PrintOnlyConsole)
 
 	return true
+}
+
+// DeleteAllDevices deletes all devices in bulk.
+// Parallelizes ChirpStack deprovisioning and saves JSON once at the end.
+func (s *Simulator) DeleteAllDevices() (int, error) {
+	// Collect devices to delete (must not be running)
+	var toDelete []*dev.Device
+	for _, d := range s.Devices {
+		if d.IsOn() {
+			return 0, fmt.Errorf("device '%s' (ID %d) is still running, stop simulation first", d.Info.Name, d.Id)
+		}
+		toDelete = append(toDelete, d)
+	}
+
+	if len(toDelete) == 0 {
+		return 0, nil
+	}
+
+	total := len(toDelete)
+	s.Print(fmt.Sprintf("Bulk deleting %d devices...", total), nil, util.PrintOnlyConsole)
+
+	// Phase 1: Parallel ChirpStack deprovisioning
+	var csDevices []*dev.Device
+	for _, d := range toDelete {
+		if d.Info.Configuration.IntegrationEnabled {
+			csDevices = append(csDevices, d)
+		}
+	}
+
+	if len(csDevices) > 0 {
+		s.Print(fmt.Sprintf("Deprovisioning %d devices from ChirpStack (parallel)...", len(csDevices)), nil, util.PrintOnlyConsole)
+
+		workers := 10
+		if len(csDevices) < workers {
+			workers = len(csDevices)
+		}
+
+		jobs := make(chan *dev.Device, workers*2)
+		var wg sync.WaitGroup
+		var csErrors int64
+		var csMu sync.Mutex
+
+		for w := 0; w < workers; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for d := range jobs {
+					devEUI := hex.EncodeToString(d.Info.DevEUI[:])
+					if err := s.DeleteDeviceFromChirpStack(d.Info.Configuration.IntegrationID, devEUI); err != nil {
+						csMu.Lock()
+						csErrors++
+						csMu.Unlock()
+					}
+				}
+			}()
+		}
+
+		for _, d := range csDevices {
+			jobs <- d
+		}
+		close(jobs)
+		wg.Wait()
+
+		if csErrors > 0 {
+			s.Print(fmt.Sprintf("ChirpStack deprovisioning: %d/%d failed", csErrors, len(csDevices)), nil, util.PrintOnlyConsole)
+		} else {
+			s.Print(fmt.Sprintf("ChirpStack deprovisioning: %d/%d succeeded", len(csDevices), len(csDevices)), nil, util.PrintOnlyConsole)
+		}
+	}
+
+	// Phase 2: Remove all devices from memory
+	s.Devices = make(map[int]*dev.Device)
+	s.ActiveDevices = make(map[int]int)
+
+	// Phase 3: Single JSON persistence
+	pathDir, err := util.GetPath()
+	if err != nil {
+		log.Fatal(err)
+	}
+	s.saveComponent(pathDir+"/devices.json", &s.Devices)
+
+	s.Print(fmt.Sprintf("Bulk deletion complete: %d devices removed", total), nil, util.PrintOnlyConsole)
+	return total, nil
 }
 
 func (s *Simulator) ToggleStateDevice(Id int) {
@@ -1055,7 +1139,9 @@ func (s *Simulator) DeleteTemplate(id int) error {
 
 // ==================== Bulk Device Creation ====================
 
-// CreateDevicesFromTemplate creates multiple devices from a template
+// CreateDevicesFromTemplate creates multiple devices from a template.
+// Optimized for bulk: defers JSON persistence, parallelizes ChirpStack provisioning,
+// and uses hash sets for O(1) collision detection.
 func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePrefix string, baseLat, baseLng float64, baseAlt int32, spreadMeters float64) ([]int, error) {
 	if s.Templates == nil {
 		return nil, template.ErrTemplateNotFound
@@ -1068,10 +1154,22 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePre
 
 	useOTAA := tmpl.ActivationMode != "abp"
 
-	// Pre-check all generated names for collisions
+	// Build name and EUI sets for O(1) collision checks
+	nameSet := make(map[string]struct{}, len(s.Devices)+len(s.Gateways))
+	euiSet := make(map[lorawan.EUI64]struct{}, len(s.Devices)+len(s.Gateways))
+	for _, d := range s.Devices {
+		nameSet[d.Info.Name] = struct{}{}
+		euiSet[d.Info.DevEUI] = struct{}{}
+	}
+	for _, g := range s.Gateways {
+		nameSet[g.Info.Name] = struct{}{}
+		euiSet[g.Info.MACAddress] = struct{}{}
+	}
+
+	// Pre-check all generated names
 	for i := 1; i <= count; i++ {
 		name := fmt.Sprintf("%s-%d", namePrefix, i)
-		if _, err := s.searchName(name, -1, false); err != nil {
+		if _, exists := nameSet[name]; exists {
 			return nil, fmt.Errorf("name '%s' already exists", name)
 		}
 	}
@@ -1079,6 +1177,19 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePre
 	mrand.Seed(time.Now().UnixNano())
 
 	createdIDs := make([]int, 0, count)
+	mode := "ABP"
+	if useOTAA {
+		mode = "OTAA"
+	}
+
+	s.Print(fmt.Sprintf("Bulk creating %d %s devices from template '%s'...", count, mode, tmpl.Name), nil, util.PrintOnlyConsole)
+
+	// Phase 1: Create all devices in memory (no disk writes, no ChirpStack calls)
+	type pendingDevice struct {
+		device *dev.Device
+		id     int
+	}
+	pending := make([]pendingDevice, 0, count)
 
 	for i := 1; i <= count; i++ {
 		name := fmt.Sprintf("%s-%d", namePrefix, i)
@@ -1086,6 +1197,21 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePre
 		devEUI, err := generateRandomEUI64()
 		if err != nil {
 			s.Print(fmt.Sprintf("Failed to generate DevEUI for %s: %v", name, err), nil, util.PrintOnlyConsole)
+			continue
+		}
+
+		// O(1) EUI collision check (regenerate if collision, extremely unlikely)
+		for attempts := 0; attempts < 5; attempts++ {
+			if _, exists := euiSet[devEUI]; !exists {
+				break
+			}
+			devEUI, err = generateRandomEUI64()
+			if err != nil {
+				break
+			}
+		}
+		if _, exists := euiSet[devEUI]; exists {
+			s.Print(fmt.Sprintf("Failed to generate unique DevEUI for %s", name), nil, util.PrintOnlyConsole)
 			continue
 		}
 
@@ -1102,36 +1228,123 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePre
 		} else {
 			nwkSKey, err := generateRandomKey()
 			if err != nil {
-				s.Print(fmt.Sprintf("Failed to generate NwkSKey for %s: %v", name, err), nil, util.PrintOnlyConsole)
 				continue
 			}
 			appSKey, err := generateRandomKey()
 			if err != nil {
-				s.Print(fmt.Sprintf("Failed to generate AppSKey for %s: %v", name, err), nil, util.PrintOnlyConsole)
 				continue
 			}
 			devAddr, err := generateRandomDevAddr()
 			if err != nil {
-				s.Print(fmt.Sprintf("Failed to generate DevAddr for %s: %v", name, err), nil, util.PrintOnlyConsole)
 				continue
 			}
 			device = s.createDeviceFromTemplateABP(tmpl, name, devEUI, nwkSKey, appSKey, devAddr, lat, lng, baseAlt)
 		}
 
-		code, id, err := s.SetDevice(device, false)
-		if err != nil {
-			s.Print(fmt.Sprintf("Failed to create device %s: %v (code: %d)", name, err, code), nil, util.PrintOnlyConsole)
-			continue
-		}
+		// Assign ID and store in memory (skipping searchName/searchAddress — already checked)
+		device.Id = s.NextIDDev
+		s.NextIDDev++
+		s.Devices[device.Id] = device
 
-		createdIDs = append(createdIDs, id)
-		mode := "OTAA"
-		if !useOTAA {
-			mode = "ABP"
+		nameSet[name] = struct{}{}
+		euiSet[devEUI] = struct{}{}
+
+		pending = append(pending, pendingDevice{device: device, id: device.Id})
+		createdIDs = append(createdIDs, device.Id)
+
+		if i%1000 == 0 {
+			s.Print(fmt.Sprintf("  ...%d/%d devices created in memory", i, count), nil, util.PrintOnlyConsole)
 		}
-		s.Print(fmt.Sprintf("Created %s device %s (ID: %d)", mode, name, id), nil, util.PrintOnlyConsole)
 	}
 
+	// Phase 2: Single JSON persistence
+	pathDir, err := util.GetPath()
+	if err != nil {
+		log.Fatal(err)
+	}
+	s.saveComponent(pathDir+"/devices.json", &s.Devices)
+	s.saveComponent(pathDir+"/simulator.json", &s)
+	s.Print(fmt.Sprintf("Saved %d devices to disk", len(pending)), nil, util.PrintOnlyConsole)
+
+	// Phase 3: Parallel ChirpStack provisioning (10 workers)
+	csDevices := make([]pendingDevice, 0)
+	for _, pd := range pending {
+		if pd.device.Info.Configuration.IntegrationEnabled {
+			csDevices = append(csDevices, pd)
+		}
+	}
+
+	if len(csDevices) > 0 {
+		s.Print(fmt.Sprintf("Provisioning %d devices to ChirpStack (parallel)...", len(csDevices)), nil, util.PrintOnlyConsole)
+
+		workers := 10
+		if len(csDevices) < workers {
+			workers = len(csDevices)
+		}
+
+		jobs := make(chan pendingDevice, workers*2)
+		var wg sync.WaitGroup
+		var csErrors int64
+		var csMu sync.Mutex
+
+		for w := 0; w < workers; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for pd := range jobs {
+					devEUI := hex.EncodeToString(pd.device.Info.DevEUI[:])
+					var err error
+					if pd.device.Info.Configuration.SupportedOtaa {
+						appKey := hex.EncodeToString(pd.device.Info.AppKey[:])
+						err = s.ProvisionDevice(
+							pd.device.Info.Configuration.IntegrationID,
+							devEUI, pd.device.Info.Name,
+							pd.device.Info.Configuration.DeviceProfileID, appKey,
+						)
+					} else {
+						devAddr := hex.EncodeToString(pd.device.Info.DevAddr[:])
+						nwkSKey := hex.EncodeToString(pd.device.Info.NwkSKey[:])
+						appSKey := hex.EncodeToString(pd.device.Info.AppSKey[:])
+						err = s.ProvisionDeviceABP(
+							pd.device.Info.Configuration.IntegrationID,
+							devEUI, pd.device.Info.Name,
+							pd.device.Info.Configuration.DeviceProfileID,
+							devAddr, nwkSKey, appSKey,
+						)
+					}
+					if err != nil {
+						csMu.Lock()
+						csErrors++
+						csMu.Unlock()
+					}
+				}
+			}()
+		}
+
+		for _, pd := range csDevices {
+			jobs <- pd
+		}
+		close(jobs)
+		wg.Wait()
+
+		if csErrors > 0 {
+			s.Print(fmt.Sprintf("ChirpStack provisioning: %d/%d failed", csErrors, len(csDevices)), nil, util.PrintOnlyConsole)
+		} else {
+			s.Print(fmt.Sprintf("ChirpStack provisioning: %d/%d succeeded", len(csDevices), len(csDevices)), nil, util.PrintOnlyConsole)
+		}
+	}
+
+	// Phase 4: Activate devices (add to ActiveDevices, turn on if sim running)
+	for _, pd := range pending {
+		if pd.device.Info.Status.Active {
+			s.ActiveDevices[pd.id] = pd.id
+			if s.State == util.Running {
+				s.turnONDevice(pd.id)
+			}
+		}
+	}
+
+	s.Print(fmt.Sprintf("Bulk creation complete: %d devices created", len(createdIDs)), nil, util.PrintOnlyConsole)
 	return createdIDs, nil
 }
 
