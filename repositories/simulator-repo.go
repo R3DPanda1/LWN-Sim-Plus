@@ -36,6 +36,7 @@ type SimulatorRepository interface {
 	GetDevices() []dev.Device                  // Get the devices
 	UpdateDevice(*dev.Device) (int, error)     // Update a device
 	DeleteDevice(int) bool                     // Delete a device
+	DeleteAllDevices() (int, error)            // Delete all devices in bulk
 	ToggleStateDevice(int)                     // Toggle the state of a device
 	SendMACCommand(lorawan.CID, e.MacCommand)  // Send a MAC command
 	ChangePayload(e.NewPayload) (string, bool) // Change the payload
@@ -169,6 +170,10 @@ func (s *simulatorRepository) UpdateDevice(device *dev.Device) (int, error) {
 
 func (s *simulatorRepository) DeleteDevice(Id int) bool {
 	return s.sim.DeleteDevice(Id)
+}
+
+func (s *simulatorRepository) DeleteAllDevices() (int, error) {
+	return s.sim.DeleteAllDevices()
 }
 
 func (s *simulatorRepository) ToggleStateDevice(Id int) {
