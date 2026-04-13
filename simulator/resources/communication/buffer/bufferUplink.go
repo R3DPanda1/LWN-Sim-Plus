@@ -24,13 +24,18 @@ func NewBufferUplink(size int) *BufferUplink {
 func (bu *BufferUplink) Push(rxpk packets.RXPK) {
 	select {
 	case bu.ch <- rxpk:
+		return
 	default:
-		// buffer full -- drop oldest, push new
-		select {
-		case <-bu.ch:
-		default:
-		}
-		bu.ch <- rxpk
+	}
+	// buffer full — drop oldest, retry non-blocking
+	select {
+	case <-bu.ch:
+	default:
+	}
+	select {
+	case bu.ch <- rxpk:
+	default:
+		// still full (race with other pushers), drop this packet
 	}
 }
 

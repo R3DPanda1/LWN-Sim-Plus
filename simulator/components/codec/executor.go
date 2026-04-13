@@ -1,18 +1,14 @@
 package codec
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/dop251/goja"
 )
 
 var (
-	// ErrTimeout is returned when codec execution exceeds the timeout
-	ErrTimeout = errors.New("codec execution timeout")
 	// ErrInvalidScript is returned when the JavaScript code is invalid
 	ErrInvalidScript = errors.New("invalid JavaScript code")
 	// ErrOnUplinkNotFound is returned when OnUplink function is not defined
@@ -24,7 +20,6 @@ var (
 // Executor manages JavaScript codec execution with goja
 type Executor struct {
 	vmPool  *VMPool
-	timeout time.Duration
 	metrics *ExecutorMetrics
 }
 
@@ -39,7 +34,6 @@ type ExecutorMetrics struct {
 // ExecutorConfig holds configuration for the Executor
 type ExecutorConfig struct {
 	MaxVMs        int
-	Timeout       time.Duration
 	EnableMetrics bool
 }
 
@@ -47,7 +41,6 @@ type ExecutorConfig struct {
 func DefaultExecutorConfig() *ExecutorConfig {
 	return &ExecutorConfig{
 		MaxVMs:        100,
-		Timeout:       100 * time.Millisecond,
 		EnableMetrics: true,
 	}
 }
@@ -60,7 +53,6 @@ func NewExecutor(config *ExecutorConfig) *Executor {
 
 	return &Executor{
 		vmPool:  NewVMPool(config.MaxVMs),
-		timeout: config.Timeout,
 		metrics: &ExecutorMetrics{},
 	}
 }
@@ -80,46 +72,28 @@ func (e *Executor) ExecuteEncode(script string, state *State, device DeviceInter
 		e.metrics.mu.Unlock()
 	}
 
-	// Get a VM from the pool
+	// Get a VM from the pool (blocks until one is available)
 	vm := e.vmPool.Get()
-	defer e.vmPool.Put(vm)
+	var data []byte
+	var fPort uint8
+	var err error
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
-	defer cancel()
-
-	// Channel to receive result
-	type result struct {
-		data  []byte
-		fPort uint8
-		err   error
-	}
-	resultChan := make(chan result, 1)
-
-	// Execute in goroutine to support timeout
-	go func() {
-		data, returnedFPort, err := e.executeEncodeInVM(vm, script, state, device)
-		resultChan <- result{data: data, fPort: returnedFPort, err: err}
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("codec panic: %v", r)
+			}
+			e.vmPool.Put(vm)
+		}()
+		data, fPort, err = e.executeEncodeInVM(vm, script, state, device)
 	}()
 
-	// Wait for result or timeout
-	select {
-	case res := <-resultChan:
-		if res.err != nil && e.metrics != nil {
-			e.metrics.mu.Lock()
-			e.metrics.TotalErrors++
-			e.metrics.mu.Unlock()
-		}
-		return res.data, res.fPort, res.err
-	case <-ctx.Done():
-		if e.metrics != nil {
-			e.metrics.mu.Lock()
-			e.metrics.TotalTimeouts++
-			e.metrics.mu.Unlock()
-		}
-		// We don't have a default fPort anymore, return 1 as fallback
-		return nil, 1, ErrTimeout
+	if err != nil && e.metrics != nil {
+		e.metrics.mu.Lock()
+		e.metrics.TotalErrors++
+		e.metrics.mu.Unlock()
 	}
+	return data, fPort, err
 }
 
 // executeEncodeInVM performs the actual encoding in the VM
@@ -187,40 +161,26 @@ func (e *Executor) ExecuteDecode(script string, bytes []byte, fPort uint8, state
 		e.metrics.mu.Unlock()
 	}
 
-	// Get a VM from the pool
+	// Get a VM from the pool (blocks until one is available)
 	vm := e.vmPool.Get()
-	defer e.vmPool.Put(vm)
+	var err error
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
-	defer cancel()
-
-	// Channel to receive result
-	errChan := make(chan error, 1)
-
-	// Execute in goroutine
-	go func() {
-		err := e.executeDecodeInVM(vm, script, bytes, fPort, state, device)
-		errChan <- err
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("codec panic: %v", r)
+			}
+			e.vmPool.Put(vm)
+		}()
+		err = e.executeDecodeInVM(vm, script, bytes, fPort, state, device)
 	}()
 
-	// Wait for result or timeout
-	select {
-	case err := <-errChan:
-		if err != nil && e.metrics != nil {
-			e.metrics.mu.Lock()
-			e.metrics.TotalErrors++
-			e.metrics.mu.Unlock()
-		}
-		return err
-	case <-ctx.Done():
-		if e.metrics != nil {
-			e.metrics.mu.Lock()
-			e.metrics.TotalTimeouts++
-			e.metrics.mu.Unlock()
-		}
-		return ErrTimeout
+	if err != nil && e.metrics != nil {
+		e.metrics.mu.Lock()
+		e.metrics.TotalErrors++
+		e.metrics.mu.Unlock()
 	}
+	return err
 }
 
 // executeDecodeInVM performs the actual decoding in the VM
