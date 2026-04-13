@@ -139,15 +139,17 @@ func (f *Forwarder) UnRegister(freq uint32, devEUI lorawan.EUI64) {
 }
 
 func (f *Forwarder) Uplink(data pkt.RXPK, DevEUI lorawan.EUI64) {
-	s := f.getShard(DevEUI)
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	rxpk := createPacket(data)
 
+	// Record tmst BEFORE taking shard lock to avoid lock-ordering
+	// deadlock with Downlink (which holds uplinkTmstMu then takes shard lock).
 	f.uplinkTmstMu.Lock()
 	f.uplinkTmst[DevEUI] = rxpk.Tmst
 	f.uplinkTmstMu.Unlock()
+
+	s := f.getShard(DevEUI)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	for _, up := range s.devToGw[DevEUI] {
 		up.Push(rxpk)
