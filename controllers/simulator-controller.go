@@ -68,9 +68,6 @@ type SimulatorController interface {
 	// Device watch
 	WatchDevice(int) []e.ConsoleLog
 	UnwatchDevice()
-
-	// Configuration
-	SetPerformance(models.PerformanceConfig)
 }
 
 // simulatorController controller struct
@@ -269,9 +266,5 @@ func (c *simulatorController) WatchDevice(id int) []e.ConsoleLog {
 
 func (c *simulatorController) UnwatchDevice() {
 	c.repo.UnwatchDevice()
-}
-
-func (c *simulatorController) SetPerformance(perf models.PerformanceConfig) {
-	c.repo.SetPerformance(perf)
 }
 

@@ -72,9 +72,6 @@ type SimulatorRepository interface {
 	// Device watch
 	WatchDevice(int) []e.ConsoleLog
 	UnwatchDevice()
-
-	// Configuration
-	SetPerformance(models.PerformanceConfig)
 }
 
 // simulatorRepository repository struct
@@ -296,7 +293,4 @@ func (s *simulatorRepository) UnwatchDevice() {
 	s.sim.UnwatchDevice()
 }
 
-func (s *simulatorRepository) SetPerformance(perf models.PerformanceConfig) {
-	s.sim.Performance = perf
-}
 

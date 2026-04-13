@@ -13,46 +13,35 @@ type VMPool struct {
 	mu   sync.Mutex
 }
 
-// NewVMPool creates a new VM pool with the specified size
+// NewVMPool creates a new VM pool with the specified size.
+// All VMs are pre-created and callers block until one is available.
 func NewVMPool(size int) *VMPool {
 	if size <= 0 {
-		size = 10 // Default pool size
+		size = 10
 	}
 
-	return &VMPool{
+	p := &VMPool{
 		pool: make(chan *goja.Runtime, size),
 		size: size,
 	}
-}
-
-// Get retrieves a VM from the pool or creates a new one
-func (p *VMPool) Get() *goja.Runtime {
-	select {
-	case vm := <-p.pool:
-		// Reuse existing VM
-		return vm
-	default:
-		// Create new VM if pool is empty
-		return p.createVM()
+	for i := 0; i < size; i++ {
+		p.pool <- p.createVM()
 	}
+	return p
 }
 
-// Put returns a VM to the pool
+// Get retrieves a VM from the pool, blocking until one is available.
+func (p *VMPool) Get() *goja.Runtime {
+	return <-p.pool
+}
+
+// Put returns a VM to the pool after clearing its state.
 func (p *VMPool) Put(vm *goja.Runtime) {
 	if vm == nil {
 		return
 	}
-
-	// Clear the VM state before returning to pool
 	p.clearVM(vm)
-
-	// Try to return to pool, discard if full
-	select {
-	case p.pool <- vm:
-		// Successfully returned to pool
-	default:
-		// Pool is full, VM will be garbage collected
-	}
+	p.pool <- vm
 }
 
 // createVM creates a new goja Runtime instance
