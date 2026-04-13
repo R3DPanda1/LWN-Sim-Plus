@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chirpstack-gateway-bridge
+  namespace: lorawan
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chirpstack-gateway-bridge
+  template:
+    metadata:
+      labels:
+        app: chirpstack-gateway-bridge
+    spec:
+      initContainers:
+        - name: wait-for-mosquitto
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z mosquitto 1883; do sleep 2; done']
+      containers:
+        - name: gateway-bridge
+          image: chirpstack/chirpstack-gateway-bridge:4
+          ports:
+            - containerPort: 1700
+              protocol: UDP
+          env:
+            - name: INTEGRATION__MQTT__EVENT_TOPIC_TEMPLATE
+              value: "eu868/gateway/{{ .GatewayID }}/event/{{ .EventType }}"
+            - name: INTEGRATION__MQTT__STATE_TOPIC_TEMPLATE
+              value: "eu868/gateway/{{ .GatewayID }}/state/{{ .StateType }}"
+            - name: INTEGRATION__MQTT__COMMAND_TOPIC_TEMPLATE
+              value: "eu868/gateway/{{ .GatewayID }}/command/#"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/chirpstack-gateway-bridge
+      volumes:
+        - name: config
+          configMap:
+            name: gateway-bridge-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chirpstack-gateway-bridge
+  namespace: lorawan
+spec:
+  selector:
+    app: chirpstack-gateway-bridge
+  ports:
+    - port: 1700
+      targetPort: 1700
+      protocol: UDP

@@ -1,0 +1,22 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: lorawan
+servers: 1
+agents: 0
+ports:
+  - port: 8080:30080
+    nodeFilters: [loadbalancer]
+  - port: 8090:30090
+    nodeFilters: [loadbalancer]
+  - port: 8002:30002
+    nodeFilters: [loadbalancer]
+  - port: 8003:30003
+    nodeFilters: [loadbalancer]
+options:
+  k3d:
+    wait: true
+    timeout: "120s"
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: true
