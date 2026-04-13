@@ -593,6 +593,7 @@ func (s *Simulator) ChangeLocation(l socket.NewLocation) bool {
 
 	info := mfw.InfoDevice{
 		DevEUI:   s.Devices[l.Id].Info.DevEUI,
+		DevAddr:  s.Devices[l.Id].Info.DevAddr,
 		Location: s.Devices[l.Id].Info.Location,
 		Range:    s.Devices[l.Id].Info.Configuration.Range,
 	}

@@ -8,9 +8,10 @@ import (
 
 // InfoDevice is struct that contains information about a device
 type InfoDevice struct {
-	DevEUI   lorawan.EUI64 // Device EUI
-	Location loc.Location  // Device location
-	Range    float64       // Device range
+	DevEUI   lorawan.EUI64   // Device EUI
+	DevAddr  lorawan.DevAddr // Device address (for downlink matching)
+	Location loc.Location    // Device location
+	Range    float64         // Device range
 }
 
 // InfoGateway is struct that contains information about a gateway
