@@ -1,0 +1,10 @@
+bin/
+lwnsimulator/
+simulator.log
+.git
+.claude
+.worktrees
+docs/
+tests/
+*.md
+!README.md

@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chirpstack-config
+  namespace: lorawan
+data:
+  chirpstack.toml: |
+    [logging]
+    level = "info"
+
+    [postgresql]
+    dsn = "postgres://chirpstack:chirpstack@postgres/chirpstack?sslmode=disable"
+    max_open_connections = 10
+    min_idle_connections = 0
+
+    [redis]
+    servers = ["redis://redis/"]
+    tls_enabled = false
+    cluster = false
+
+    [network]
+    net_id = "000000"
+    enabled_regions = ["eu868"]
+
+    [monitoring]
+    bind = "0.0.0.0:8070"
+
+    [api]
+    bind = "0.0.0.0:8080"
+    secret = "you-must-replace-this-with-a-secure-secret"
+
+    [integration]
+    enabled = ["mqtt"]
+
+      [integration.mqtt]
+      server = "tcp://mosquitto:1883/"
+      json = true
+
+  region_eu868.toml: |
+    [[regions]]
+    id = "eu868"
+    description = "EU868"
+
+      [regions.gateway]
+      force_gws_private = false
+
+        [regions.gateway.backend]
+        enabled = "mqtt"
+
+          [regions.gateway.backend.mqtt]
+          topic_prefix = "eu868"
+          server = "tcp://mosquitto:1883"
+          qos = 0
+          clean_session = false
+
+      [regions.network]
+      installation_margin = 10
+      rx1_delay = 1
+      rx2_frequency = 869525000
+      rx2_dr = 0
+      gateway_prefer_min_margin = 10
+      downlink_tx_power = -1
+      adr_disabled = false
+
+        [regions.network.class_b]
+        ping_slot_dr = 0
+        ping_slot_frequency = 868100000
