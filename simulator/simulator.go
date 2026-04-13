@@ -265,6 +265,7 @@ func (s *Simulator) saveStatus() {
 func (s *Simulator) turnONDevice(Id int) {
 	infoDev := mfw.InfoDevice{
 		DevEUI:   s.Devices[Id].Info.DevEUI,
+		DevAddr:  s.Devices[Id].Info.DevAddr,
 		Location: s.Devices[Id].Info.Location,
 		Range:    s.Devices[Id].Info.Configuration.Range,
 	}

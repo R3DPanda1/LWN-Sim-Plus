@@ -4,7 +4,7 @@ import (
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/packets"
 )
 
-const DefaultBufferSize = 1000
+const DefaultBufferSize = 100000
 
 type BufferUplink struct {
 	ch   chan packets.RXPK

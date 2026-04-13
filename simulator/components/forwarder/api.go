@@ -21,7 +21,7 @@ func Setup() *Forwarder {
 		shards:     shards,
 		numShards:  DefaultNumShards,
 		gateways:   make(map[lorawan.EUI64]m.InfoGateway),
-		uplinkTmst: make(map[lorawan.EUI64]uint32),
+		devAddrMap: make(map[lorawan.DevAddr]lorawan.EUI64),
 	}
 }
 
@@ -34,6 +34,10 @@ func (f *Forwarder) AddDevice(d m.InfoDevice) {
 	s.devices[d.DevEUI] = d
 	inner := make(map[lorawan.EUI64]*buffer.BufferUplink)
 	s.devToGw[d.DevEUI] = inner
+
+	f.devAddrMapMu.Lock()
+	f.devAddrMap[d.DevAddr] = d.DevEUI
+	f.devAddrMapMu.Unlock()
 
 	f.gwMu.RLock()
 	defer f.gwMu.RUnlock()
@@ -71,13 +75,16 @@ func (f *Forwarder) DeleteDevice(DevEUI lorawan.EUI64) {
 	defer s.mu.Unlock()
 
 	shared.DebugPrint(fmt.Sprintf("Delete device %v from Forwarder", DevEUI))
+
+	if d, ok := s.devices[DevEUI]; ok {
+		f.devAddrMapMu.Lock()
+		delete(f.devAddrMap, d.DevAddr)
+		f.devAddrMapMu.Unlock()
+	}
+
 	clear(s.devToGw[DevEUI])
 	delete(s.devToGw, DevEUI)
 	delete(s.devices, DevEUI)
-
-	f.uplinkTmstMu.Lock()
-	delete(f.uplinkTmst, DevEUI)
-	f.uplinkTmstMu.Unlock()
 }
 
 func (f *Forwarder) DeleteGateway(g m.InfoGateway) {
@@ -141,12 +148,6 @@ func (f *Forwarder) UnRegister(freq uint32, devEUI lorawan.EUI64) {
 func (f *Forwarder) Uplink(data pkt.RXPK, DevEUI lorawan.EUI64) {
 	rxpk := createPacket(data)
 
-	// Record tmst BEFORE taking shard lock to avoid lock-ordering
-	// deadlock with Downlink (which holds uplinkTmstMu then takes shard lock).
-	f.uplinkTmstMu.Lock()
-	f.uplinkTmst[DevEUI] = rxpk.Tmst
-	f.uplinkTmstMu.Unlock()
-
 	s := f.getShard(DevEUI)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -159,39 +160,35 @@ func (f *Forwarder) Uplink(data pkt.RXPK, DevEUI lorawan.EUI64) {
 func (f *Forwarder) Downlink(data *lorawan.PHYPayload, freq uint32,
 	macAddress lorawan.EUI64, tmst *uint32, rawData []byte) bool {
 
-	// If we have a tmst, try to match to the specific device that sent the uplink
-	if tmst != nil {
-		f.uplinkTmstMu.RLock()
-		defer f.uplinkTmstMu.RUnlock()
+	// DevAddr-based matching for data frames
+	if macPL, ok := data.MACPayload.(*lorawan.MACPayload); ok {
+		devAddr := macPL.FHDR.DevAddr
 
-		for _, s := range f.shards {
+		f.devAddrMapMu.RLock()
+		devEUI, found := f.devAddrMap[devAddr]
+		f.devAddrMapMu.RUnlock()
+
+		if found {
+			s := f.getShard(devEUI)
 			s.mu.RLock()
 			gwMap, ok := s.gwtoDev[freq][macAddress]
 			if ok {
-				for devEUI, recvDl := range gwMap {
-					deviceTmst, has := f.uplinkTmst[devEUI]
-					if !has {
-						continue
-					}
-					diff := *tmst - deviceTmst
-					if diff >= 1 && diff <= 6 {
-						buf := make([]byte, len(rawData))
-						copy(buf, rawData)
-						clone := &lorawan.PHYPayload{}
-						if err := clone.UnmarshalBinary(buf); err == nil {
-							if recvDl.Push(clone) {
-								s.mu.RUnlock()
-								return true
-							}
-						}
+				if recvDl, ok := gwMap[devEUI]; ok {
+					buf := make([]byte, len(rawData))
+					copy(buf, rawData)
+					clone := &lorawan.PHYPayload{}
+					if err := clone.UnmarshalBinary(buf); err == nil {
+						recvDl.Push(clone)
 					}
 				}
 			}
 			s.mu.RUnlock()
+			// Device found via DevAddr — don't broadcast even if RX window closed
+			return true
 		}
 	}
 
-	// Fallback: no tmst (imme=true) or no match — broadcast with per-device cloning
+	// Fallback for join-accept and other non-data frames: broadcast
 	anyDelivered := false
 	for _, s := range f.shards {
 		s.mu.RLock()
@@ -227,7 +224,7 @@ func (f *Forwarder) Reset() {
 	clear(f.gateways)
 	f.gwMu.Unlock()
 
-	f.uplinkTmstMu.Lock()
-	clear(f.uplinkTmst)
-	f.uplinkTmstMu.Unlock()
+	f.devAddrMapMu.Lock()
+	clear(f.devAddrMap)
+	f.devAddrMapMu.Unlock()
 }

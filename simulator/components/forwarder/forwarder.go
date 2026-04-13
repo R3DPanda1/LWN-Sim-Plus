@@ -19,10 +19,9 @@ type Forwarder struct {
 	gwMu      sync.RWMutex
 	gateways  map[lorawan.EUI64]m.InfoGateway
 
-	// uplinkTmst maps DevEUI -> tmst from their most recent uplink.
-	// Used to match PULL_RESP downlinks to the correct device.
-	uplinkTmst   map[lorawan.EUI64]uint32
-	uplinkTmstMu sync.RWMutex
+	// devAddrMap maps DevAddr -> DevEUI for downlink routing.
+	devAddrMap   map[lorawan.DevAddr]lorawan.EUI64
+	devAddrMapMu sync.RWMutex
 }
 
 // GPSOffset compensates for the drift between UTC and GPS time
@@ -35,7 +34,7 @@ func createPacket(info pkt.RXPK) pkt.RXPK {
 	rxpk := pkt.RXPK{
 		Time:      now.Format(time.RFC3339),
 		Tmms:      &tmms,
-		Tmst:      uint32(now.Unix()),
+		Tmst:      uint32(now.UnixMicro()),
 		Channel:   info.Channel,
 		RFCH:      0,
 		Frequency: info.Frequency,
