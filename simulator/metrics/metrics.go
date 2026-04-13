@@ -25,21 +25,4 @@ var (
 		Name: "lwnsim_downlinks_total",
 		Help: "Total downlinks received",
 	})
-
-	WorkQueueDepth = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "lwnsim_work_queue_depth",
-		Help: "Current depth of scheduler work queue",
-	})
-
-	WorkQueueCapacity = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "lwnsim_work_queue_capacity",
-		Help: "Capacity of scheduler work queue",
-	})
-
-	JobExecutionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Name:    "lwnsim_job_execution_duration_seconds",
-		Help:    "Duration of device job execution",
-		Buckets: prometheus.DefBuckets,
-	})
-
 )

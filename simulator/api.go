@@ -32,7 +32,6 @@ import (
 	gw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway"
 	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/location"
-	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/scheduler"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/R3DPanda1/LWN-Sim-Plus/socket"
 	socketio "github.com/googollee/go-socket.io"
@@ -100,22 +99,6 @@ func (s *Simulator) Run() {
 	shared.DebugPrint("Executing Run")
 	s.State = util.Running
 	s.setup()
-
-	// Create the scheduler if workerCount > 0
-	if s.Performance.WorkerCount > 0 {
-		resolution, err := time.ParseDuration(s.Performance.SchedulerResolution)
-		if err != nil {
-			resolution = time.Second
-		}
-		queueSize := s.Performance.WorkQueueSize
-		if queueSize <= 0 {
-			queueSize = 10000
-		}
-		s.Scheduler = scheduler.New(resolution, 3600, s.Performance.WorkerCount, queueSize)
-		shared.DebugPrint(fmt.Sprintf("Scheduler started: resolution=%s workers=%d queue=%d",
-			resolution, s.Performance.WorkerCount, queueSize))
-	}
-
 	s.Print("START", nil, util.PrintBoth)
 	shared.DebugPrint("Turning ON active components")
 	for _, id := range s.ActiveGateways {
@@ -130,33 +113,13 @@ func (s *Simulator) Run() {
 func (s *Simulator) Stop() {
 	shared.DebugPrint("Executing Stop")
 	s.State = util.Stopped
-
-	schedulerWasActive := s.Scheduler != nil
-
-	// Stop the scheduler first so workers finish before we tear down components
-	if schedulerWasActive {
-		s.Scheduler.Stop()
-		s.Scheduler = nil
-		shared.DebugPrint("Scheduler stopped")
-		for _, id := range s.ActiveDevices {
-			s.Devices[id].Print("Turn OFF", nil, util.PrintBoth)
-			s.Devices[id].State = util.Stopped
-		}
-	}
-
-	devicesForExit := 0
-	if !schedulerWasActive {
-		devicesForExit = len(s.ActiveDevices) - s.ComponentsInactiveTmp
-	}
-	s.Resources.ExitGroup.Add(len(s.ActiveGateways) + devicesForExit)
+	s.Resources.ExitGroup.Add(len(s.ActiveGateways) + len(s.ActiveDevices) - s.ComponentsInactiveTmp)
 	shared.DebugPrint("Turning OFF active components")
 	for _, id := range s.ActiveGateways {
 		s.Gateways[id].TurnOFF()
 	}
-	if !schedulerWasActive {
-		for _, id := range s.ActiveDevices {
-			s.Devices[id].TurnOFF()
-		}
+	for _, id := range s.ActiveDevices {
+		s.Devices[id].TurnOFF()
 	}
 	s.Resources.ExitGroup.Wait()
 
