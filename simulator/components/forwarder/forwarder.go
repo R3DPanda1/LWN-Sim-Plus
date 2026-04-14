@@ -2,6 +2,7 @@ package forwarder
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	m "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder/models"
@@ -9,6 +10,8 @@ import (
 	loc "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/location"
 	"github.com/brocaar/lorawan"
 )
+
+var tmstCounter uint32
 
 // Forwarder allows communication between devices and gateways.
 // Routing maps are split across shards keyed by device EUI so that
@@ -38,7 +41,7 @@ func createPacket(info pkt.RXPK) pkt.RXPK {
 	rxpk := pkt.RXPK{
 		Time:      now.Format(time.RFC3339),
 		Tmms:      &tmms,
-		Tmst:      uint32(now.UnixMicro()),
+		Tmst:      atomic.AddUint32(&tmstCounter, 1),
 		Channel:   info.Channel,
 		RFCH:      0,
 		Frequency: info.Frequency,
