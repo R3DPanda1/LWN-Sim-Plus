@@ -199,32 +199,39 @@ func (f *Forwarder) Downlink(data *lorawan.PHYPayload, freq uint32,
 		}
 	}
 
-	// Try tmst-based routing for JoinAccepts
+	// Try tmst-based routing for JoinAccepts.
+	// The PULL_RESP tmst = uplink tmst + RX delay, so subtract common delays.
 	if tmst != nil {
-		f.tmstMapMu.RLock()
-		targetEUI, found := f.tmstMap[*tmst]
-		f.tmstMapMu.RUnlock()
+		rxDelays := []uint32{5000000, 6000000, 1000000, 2000000}
+		for _, delay := range rxDelays {
+			uplinkTmst := *tmst - delay
 
-		if found {
-			f.tmstMapMu.Lock()
-			delete(f.tmstMap, *tmst)
-			f.tmstMapMu.Unlock()
+			f.tmstMapMu.RLock()
+			targetEUI, found := f.tmstMap[uplinkTmst]
+			f.tmstMapMu.RUnlock()
 
-			s := f.getShard(targetEUI)
-			s.mu.RLock()
-			if gwMap, ok := s.gwtoDev[freq][macAddress]; ok {
-				if d, ok := gwMap[targetEUI]; ok {
-					buf := make([]byte, len(rawData))
-					copy(buf, rawData)
-					clone := &lorawan.PHYPayload{}
-					if err := clone.UnmarshalBinary(buf); err == nil {
-						d.Push(clone)
-						s.mu.RUnlock()
-						return true
+			if found {
+				f.tmstMapMu.Lock()
+				delete(f.tmstMap, uplinkTmst)
+				f.tmstMapMu.Unlock()
+
+				s := f.getShard(targetEUI)
+				s.mu.RLock()
+				if gwMap, ok := s.gwtoDev[freq][macAddress]; ok {
+					if d, ok := gwMap[targetEUI]; ok {
+						buf := make([]byte, len(rawData))
+						copy(buf, rawData)
+						clone := &lorawan.PHYPayload{}
+						if err := clone.UnmarshalBinary(buf); err == nil {
+							d.Push(clone)
+							s.mu.RUnlock()
+							return true
+						}
 					}
 				}
+				s.mu.RUnlock()
+				break
 			}
-			s.mu.RUnlock()
 		}
 	}
 
