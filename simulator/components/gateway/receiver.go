@@ -3,7 +3,6 @@ package gateway
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	pkt "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/packets"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources/communication/udp"
@@ -90,8 +89,6 @@ func (g *Gateway) Receiver() {
 			g.Print("Packet not supported", nil, util.PrintBoth)
 			continue
 		}
-
-		time.Sleep(50 * time.Millisecond)
 
 		msg := fmt.Sprintf("%v received", pkt.PacketToString(receivedPack[3]))
 		g.Print(msg, nil, util.PrintBoth)
