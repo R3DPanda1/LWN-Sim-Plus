@@ -9,6 +9,7 @@ import (
 	act "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/activation"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/classes"
 	dl "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device/frames/downlink"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/metrics"
 	"github.com/brocaar/lorawan"
 )
 
@@ -124,6 +125,7 @@ func (d *Device) ProcessJoinAccept(JoinAccPayload *lorawan.JoinAcceptPayload) (*
 	}
 
 	d.Info.Status.Joined = true
+	metrics.OtaaJoinsTotal.Inc()
 
 	//cflist
 	if JoinAccPayload.CFList != nil {

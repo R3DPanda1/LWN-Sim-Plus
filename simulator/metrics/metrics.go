@@ -25,4 +25,9 @@ var (
 		Name: "lwnsim_downlinks_total",
 		Help: "Total downlinks received",
 	})
+
+	OtaaJoinsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "lwnsim_otaa_joins_total",
+		Help: "Total successful OTAA joins",
+	})
 )
