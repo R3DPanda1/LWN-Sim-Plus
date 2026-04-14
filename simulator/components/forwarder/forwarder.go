@@ -22,6 +22,10 @@ type Forwarder struct {
 	// devAddrMap maps DevAddr -> DevEUI for downlink routing.
 	devAddrMap   map[lorawan.DevAddr]lorawan.EUI64
 	devAddrMapMu sync.RWMutex
+
+	// tmstMap maps uplink tmst -> DevEUI for JoinAccept routing.
+	tmstMap   map[uint32]lorawan.EUI64
+	tmstMapMu sync.RWMutex
 }
 
 // GPSOffset compensates for the drift between UTC and GPS time

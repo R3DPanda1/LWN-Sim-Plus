@@ -175,6 +175,7 @@ func (d *Device) ProcessJoinAccept(JoinAccPayload *lorawan.JoinAcceptPayload) (*
 	d.Info.JoinNonce = JoinAccPayload.JoinNonce
 	d.Info.DevAddr = JoinAccPayload.DevAddr
 	d.Info.NetID = JoinAccPayload.HomeNetID
+	d.Info.Forwarder.UpdateDevAddr(d.Info.DevEUI, d.Info.DevAddr)
 
 	Delay := 1000
 	if JoinAccPayload.RXDelay != 0 {

@@ -22,6 +22,7 @@ func Setup() *Forwarder {
 		numShards:  DefaultNumShards,
 		gateways:   make(map[lorawan.EUI64]m.InfoGateway),
 		devAddrMap: make(map[lorawan.DevAddr]lorawan.EUI64),
+		tmstMap:    make(map[uint32]lorawan.EUI64),
 	}
 }
 
@@ -108,6 +109,12 @@ func (f *Forwarder) UpdateDevice(d m.InfoDevice) {
 	f.AddDevice(d)
 }
 
+func (f *Forwarder) UpdateDevAddr(devEUI lorawan.EUI64, devAddr lorawan.DevAddr) {
+	f.devAddrMapMu.Lock()
+	f.devAddrMap[devAddr] = devEUI
+	f.devAddrMapMu.Unlock()
+}
+
 func (f *Forwarder) Register(freq uint32, devEUI lorawan.EUI64, rDownlink *dl.ReceivedDownlink) {
 	s := f.getShard(devEUI)
 	s.mu.Lock()
@@ -147,6 +154,10 @@ func (f *Forwarder) UnRegister(freq uint32, devEUI lorawan.EUI64) {
 
 func (f *Forwarder) Uplink(data pkt.RXPK, DevEUI lorawan.EUI64) {
 	rxpk := createPacket(data)
+
+	f.tmstMapMu.Lock()
+	f.tmstMap[rxpk.Tmst] = DevEUI
+	f.tmstMapMu.Unlock()
 
 	s := f.getShard(DevEUI)
 	s.mu.RLock()
@@ -188,7 +199,36 @@ func (f *Forwarder) Downlink(data *lorawan.PHYPayload, freq uint32,
 		}
 	}
 
-	// Fallback for join-accept and other non-data frames: broadcast
+	// Try tmst-based routing for JoinAccepts
+	if tmst != nil {
+		f.tmstMapMu.RLock()
+		targetEUI, found := f.tmstMap[*tmst]
+		f.tmstMapMu.RUnlock()
+
+		if found {
+			f.tmstMapMu.Lock()
+			delete(f.tmstMap, *tmst)
+			f.tmstMapMu.Unlock()
+
+			s := f.getShard(targetEUI)
+			s.mu.RLock()
+			if gwMap, ok := s.gwtoDev[freq][macAddress]; ok {
+				if d, ok := gwMap[targetEUI]; ok {
+					buf := make([]byte, len(rawData))
+					copy(buf, rawData)
+					clone := &lorawan.PHYPayload{}
+					if err := clone.UnmarshalBinary(buf); err == nil {
+						d.Push(clone)
+						s.mu.RUnlock()
+						return true
+					}
+				}
+			}
+			s.mu.RUnlock()
+		}
+	}
+
+	// Fallback broadcast for unmatched frames
 	anyDelivered := false
 	for _, s := range f.shards {
 		s.mu.RLock()
@@ -227,4 +267,8 @@ func (f *Forwarder) Reset() {
 	f.devAddrMapMu.Lock()
 	clear(f.devAddrMap)
 	f.devAddrMapMu.Unlock()
+
+	f.tmstMapMu.Lock()
+	clear(f.tmstMap)
+	f.tmstMapMu.Unlock()
 }
