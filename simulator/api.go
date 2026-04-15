@@ -99,6 +99,19 @@ func (s *Simulator) Run() {
 	shared.DebugPrint("Executing Run")
 	s.State = util.Running
 	s.setup()
+
+	// Initialize OTAA join concurrency limiter
+	if s.MaxConcurrentJoins == 0 {
+		s.MaxConcurrentJoins = 100
+	}
+	if s.MaxConcurrentJoins > 0 {
+		s.joinSemaphore = make(chan struct{}, s.MaxConcurrentJoins)
+		s.Print(fmt.Sprintf("OTAA join concurrency limited to %d", s.MaxConcurrentJoins), nil, util.PrintBoth)
+	} else {
+		s.joinSemaphore = nil
+		s.Print("OTAA join concurrency: unlimited", nil, util.PrintBoth)
+	}
+
 	s.Print("START", nil, util.PrintBoth)
 	shared.DebugPrint("Turning ON active components")
 	for _, id := range s.ActiveGateways {

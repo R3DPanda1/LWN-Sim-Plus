@@ -38,6 +38,8 @@ type Simulator struct {
 	NextIDTemplate        int                 `json:"nextIDTemplate"`    // Next template ID
 	NextIDCodec           int                 `json:"nextIDCodec"`       // Next codec ID
 	BridgeAddress         string              `json:"bridgeAddress"`     // Bridge address used to connect to a network
+	MaxConcurrentJoins    int                 `json:"maxConcurrentJoins"` // Max OTAA devices joining at once (0 = default 100, negative = unlimited)
+	joinSemaphore         chan struct{}        `json:"-"`                 // Runtime semaphore for OTAA join concurrency
 	Resources             res.Resources       `json:"-"`                 // Resources used for managing the simulator
 	Console               c.Console           `json:"-"`                 // Console instance, used for logging in the web terminal
 	// Integration management (like Devices/Gateways pattern)
@@ -271,6 +273,7 @@ func (s *Simulator) turnONDevice(Id int) {
 	}
 	s.Forwarder.AddDevice(infoDev)
 	s.Devices[Id].Setup(&s.Resources, &s.Forwarder)
+	s.Devices[Id].JoinSemaphore = s.joinSemaphore
 	s.Devices[Id].TurnON()
 	s.Console.PrintSocket(socket.EventResponseCommand, s.Devices[Id].Info.Name+" Turn ON")
 }

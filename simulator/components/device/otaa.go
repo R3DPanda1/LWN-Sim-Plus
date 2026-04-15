@@ -20,6 +20,18 @@ const (
 
 func (d *Device) OtaaActivation() {
 
+	if !d.Info.Configuration.SupportedOtaa || d.Info.Status.Joined {
+		return
+	}
+
+	// Acquire a join slot if concurrency is limited
+	if d.JoinSemaphore != nil {
+		if !d.acquireJoinSlot() {
+			return
+		}
+		defer d.releaseJoinSlot()
+	}
+
 	for !d.Info.Status.Joined {
 
 		d.Info.Status.Mode = util.Activation
@@ -67,6 +79,24 @@ func (d *Device) OtaaActivation() {
 	}
 
 	return
+}
+
+func (d *Device) acquireJoinSlot() bool {
+	d.Print("Waiting for join slot...", nil, util.PrintOnlyConsole)
+	for {
+		select {
+		case d.JoinSemaphore <- struct{}{}:
+			return true
+		case <-time.After(500 * time.Millisecond):
+			if !d.CanExecute() {
+				return false
+			}
+		}
+	}
+}
+
+func (d *Device) releaseJoinSlot() {
+	<-d.JoinSemaphore
 }
 
 func (d *Device) CreateJoinRequest() []byte {

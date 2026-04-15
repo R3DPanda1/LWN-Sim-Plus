@@ -20,6 +20,7 @@ type Device struct {
 	State           int                      `json:"-"`
 	Exit            chan struct{}            `json:"-"`
 	IntervalChanged chan struct{}            `json:"-"` // Signal to reset ticker when interval changes
+	JoinSemaphore   chan struct{}            `json:"-"` // Limits concurrent OTAA joins (nil = unlimited)
 	Id              int                      `json:"id"`
 	Info            models.InformationDevice `json:"info"`
 	Class           classes.Class            `json:"-"`
