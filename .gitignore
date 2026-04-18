@@ -8,6 +8,8 @@ webserver/statik/statik.go
 simulator.log
 *.md
 !README.md
+k8s/benchmark/__pycache__/
+k8s/benchmark/*.csv
 am319
 mcf-lw13io
 sdm230
