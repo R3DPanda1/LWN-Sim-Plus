@@ -4,6 +4,8 @@ bin
 .fleet
 lwnsimulator
 webserver/statik/statik.go
+k8s/benchmark/__pycache__/
+k8s/benchmark/*.csv
 am319
 mcf-lw13io
 sdm230

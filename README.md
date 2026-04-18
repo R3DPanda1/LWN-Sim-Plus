@@ -164,6 +164,21 @@ make run
 > Windows users should install [GnuMake for Windows](https://www.gnu.org/software/make/) to use the makefile.
 > With winget: `winget install GnuWin32.Make`
 
+### Docker
+
+```bash
+docker build -t lwn-sim-plus .
+docker run -d -p 8002:8002 -p 8003:8003 lwn-sim-plus
+```
+
+The dashboard is available at `http://localhost:8002/dashboard` and Prometheus metrics at `http://localhost:8003/metrics`.
+
+To persist device/gateway data across restarts, mount the config directory:
+
+```bash
+docker run -d -p 8002:8002 -p 8003:8003 -v lwnsim-data:/app/lwnsimulator lwn-sim-plus
+```
+
 ### Configuration file
 
 The simulator depends on a configuration file (`config.json`) which specifies some configurations for the simulator:

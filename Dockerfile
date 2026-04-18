@@ -15,9 +15,9 @@ FROM alpine:3.19
 RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
-COPY --from=builder /lwnsimulator .
+COPY --from=builder /lwnsimulator ./lwn-sim-plus
 COPY --from=builder /build/config.json .
 
 EXPOSE 8002 8003
 
-CMD ["./lwnsimulator"]
+CMD ["./lwn-sim-plus"]
