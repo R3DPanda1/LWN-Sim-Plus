@@ -26,8 +26,9 @@ function LoadIntegrationList() {
             });
         }
 
-        // Also update device integration dropdown
+        // Also update device and gateway integration dropdowns
         PopulateDeviceIntegrationDropdown();
+        PopulateGatewayIntegrationDropdown();
     }).fail((data)=>{
         console.error("Unable to load integrations", data.statusText);
     });
@@ -315,6 +316,25 @@ function PopulateDeviceIntegrationDropdown() {
     });
 }
 
+// Populate gateway integration dropdown
+function PopulateGatewayIntegrationDropdown() {
+    var dropdown = $("#select-gw-integration");
+    if (dropdown.length === 0) return;
+    var currentVal = dropdown.val();
+    dropdown.empty();
+    dropdown.append('<option value="">Select an integration...</option>');
+
+    Integrations.forEach((integration, id) => {
+        if(integration.enabled) {
+            dropdown.append('<option value="' + id + '">' + integration.name + '</option>');
+        }
+    });
+
+    if (currentVal) {
+        dropdown.val(currentVal);
+    }
+}
+
 // Load device profiles from ChirpStack
 // savedProfileId: optional - the currently saved device profile ID to preserve if API fails
 function LoadDeviceProfiles(integrationId, savedProfileId) {
@@ -385,6 +405,16 @@ $("#checkbox-dev-integration-enabled").on('change', function(){
 $("#select-dev-integration").on('change', function(){
     var integrationId = $(this).val();
     LoadDeviceProfiles(integrationId);
+});
+
+// Toggle gateway integration settings visibility
+$("#checkbox-gw-integration-enabled").on('change', function(){
+    if($(this).prop("checked")) {
+        $("#gateway-integration-settings").removeClass("hide");
+        LoadIntegrationList();
+    } else {
+        $("#gateway-integration-settings").addClass("hide");
+    }
 });
 
 // Generate random 128-bit key (32 hex chars)

@@ -21,6 +21,9 @@ type InfoGateway struct {
 	AddrIP        string        `json:"ip"`
 	Port          string        `json:"port"`
 	BridgeAddress *string       `json:"-"` //is a pointer
+
+	IntegrationEnabled bool `json:"integrationEnabled"`
+	IntegrationID      int  `json:"integrationId"`
 }
 
 func (g *InfoGateway) MarshalJSON() ([]byte, error) {

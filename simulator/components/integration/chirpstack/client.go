@@ -140,3 +140,16 @@ func (c *Client) DeviceExists(devEUI string) (bool, error) {
 	}
 	return true, nil
 }
+
+// CreateGateway creates a gateway in ChirpStack
+func (c *Client) CreateGateway(gw *Gateway) error {
+	req := GatewayCreateRequest{Gateway: *gw}
+	_, err := c.doRequest("POST", "/api/gateways", req)
+	return err
+}
+
+// DeleteGateway removes a gateway from ChirpStack
+func (c *Client) DeleteGateway(gatewayID string) error {
+	_, err := c.doRequest("DELETE", "/api/gateways/"+gatewayID, nil)
+	return err
+}
