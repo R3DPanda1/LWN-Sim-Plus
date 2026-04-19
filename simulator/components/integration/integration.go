@@ -15,8 +15,15 @@ var (
 type IntegrationType string
 
 const (
-	IntegrationTypeChirpStack IntegrationType = "chirpstack"
+	IntegrationTypeChirpStack  IntegrationType = "chirpstack"
+	IntegrationTypeThingsBoard IntegrationType = "thingsboard"
 )
+
+// DeviceProfile is the type-neutral shape returned to the UI.
+type DeviceProfile struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
 
 // Integration represents a network server integration configuration
 type Integration struct {
@@ -54,11 +61,13 @@ func (i *Integration) Validate() error {
 	if strings.TrimSpace(i.APIKey) == "" {
 		return fmt.Errorf("%w: API key is required", ErrInvalidIntegration)
 	}
-	if strings.TrimSpace(i.TenantID) == "" {
-		return fmt.Errorf("%w: tenant ID is required", ErrInvalidIntegration)
-	}
-	if strings.TrimSpace(i.ApplicationID) == "" {
-		return fmt.Errorf("%w: application ID is required", ErrInvalidIntegration)
+	if i.Type == IntegrationTypeChirpStack {
+		if strings.TrimSpace(i.TenantID) == "" {
+			return fmt.Errorf("%w: tenant ID is required", ErrInvalidIntegration)
+		}
+		if strings.TrimSpace(i.ApplicationID) == "" {
+			return fmt.Errorf("%w: application ID is required", ErrInvalidIntegration)
+		}
 	}
 	return nil
 }

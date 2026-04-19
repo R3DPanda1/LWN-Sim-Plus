@@ -2470,6 +2470,11 @@ function CleanInputDevice(){
     $("#device-integration-settings").addClass("hide");
     $("#select-dev-integration").val("");
     $("#select-dev-profile").val("");
+    $("#checkbox-dev-tb-integration-enabled").prop("checked", false);
+    $("#device-tb-integration-settings").addClass("hide");
+    $("#select-dev-tb-integration").val("");
+    $("#select-dev-tb-profile").val("");
+    $("#select-dev-tb-customer").empty().append('<option value="">No customer</option>');
 
     //location
     CleanMap();
@@ -2658,6 +2663,34 @@ function LoadDevice(dev){
         $("#device-integration-settings").addClass("hide");
         $("#select-dev-integration").val("");
         $("#select-dev-profile").val("");
+    }
+
+    // Load ThingsBoard integration configuration if present
+    if(dev.info.configuration.tbIntegrationEnabled){
+        $("#checkbox-dev-tb-integration-enabled").prop("checked", true);
+        $("#device-tb-integration-settings").removeClass("hide");
+
+        if(typeof LoadIntegrationList === 'function') {
+            LoadIntegrationList();
+        }
+        setTimeout(function(){
+            var tbIdVal = (dev.info.configuration.tbIntegrationId !== undefined && dev.info.configuration.tbIntegrationId !== null) ? dev.info.configuration.tbIntegrationId : "";
+            $("#select-dev-tb-integration").val(tbIdVal);
+            if(dev.info.configuration.tbIntegrationId !== undefined && dev.info.configuration.tbIntegrationId !== null) {
+                if(typeof LoadTbDeviceProfiles === 'function') {
+                    LoadTbDeviceProfiles(dev.info.configuration.tbIntegrationId, dev.info.configuration.tbDeviceProfileId);
+                }
+                if(typeof LoadTbCustomers === 'function') {
+                    LoadTbCustomers(dev.info.configuration.tbIntegrationId, "#select-dev-tb-customer", dev.info.configuration.tbCustomerId);
+                }
+            }
+        }, 300);
+    } else {
+        $("#checkbox-dev-tb-integration-enabled").prop("checked", false);
+        $("#device-tb-integration-settings").addClass("hide");
+        $("#select-dev-tb-integration").val("");
+        $("#select-dev-tb-profile").val("");
+        $("#select-dev-tb-customer").empty().append('<option value="">No customer</option>');
     }
 
     ChangeStateInputDevice(true,dev.info.devEUI);
@@ -3084,7 +3117,11 @@ function Click_SaveDevice(){
                 "codecID": Number($("#select-payload-generation").val()) || 0,
                 "integrationEnabled": $("#checkbox-dev-integration-enabled").prop("checked"),
                 "integrationId": Number($("#select-dev-integration").val()) || 0,
-                "deviceProfileId": $("#select-dev-profile").val() || ""
+                "deviceProfileId": $("#select-dev-profile").val() || "",
+                "tbIntegrationEnabled": $("#checkbox-dev-tb-integration-enabled").prop("checked"),
+                "tbIntegrationId": Number($("#select-dev-tb-integration").val()) || 0,
+                "tbDeviceProfileId": $("#select-dev-tb-profile").val() || "",
+                "tbCustomerId": $("#select-dev-tb-customer").val() || ""
             },
             "rxs":[
                 {

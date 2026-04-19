@@ -44,6 +44,13 @@ type Configuration struct {
 	IntegrationEnabled bool   `json:"integrationEnabled"` // Enable ChirpStack integration
 	IntegrationID      int    `json:"integrationId"`      // ID of integration to use (0 = none)
 	DeviceProfileID    string `json:"deviceProfileId"`    // ChirpStack device profile ID
+
+	// ThingsBoard Integration configuration
+	TBIntegrationEnabled bool   `json:"tbIntegrationEnabled"`
+	TBIntegrationID      int    `json:"tbIntegrationId"`
+	TBDeviceProfileID    string `json:"tbDeviceProfileId"`
+	TBCustomerID         string `json:"tbCustomerId"` // optional; empty = no customer
+	TBDeviceID           string `json:"tbDeviceId"`   // UUID assigned by ThingsBoard on create; needed for delete
 }
 
 func (c *Configuration) MarshalJSON() ([]byte, error) {

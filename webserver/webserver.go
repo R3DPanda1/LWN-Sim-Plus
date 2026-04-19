@@ -109,7 +109,8 @@ func NewWebServer(config *models.ServerConfig, controller cnt.SimulatorControlle
 		apiRoutes.POST("/update-integration", updateIntegration)           // Update an integration
 		apiRoutes.POST("/delete-integration", deleteIntegration)           // Delete an integration
 		apiRoutes.POST("/integration/:id/test", testIntegrationConnection) // Test connection to an integration
-		apiRoutes.GET("/integration/:id/device-profiles", getDeviceProfiles) // Get device profiles from ChirpStack
+		apiRoutes.GET("/integration/:id/device-profiles", getDeviceProfiles) // Get device profiles from an integration (CS or TB)
+		apiRoutes.GET("/integration/:id/customers", getTbCustomers)          // Get customers for a ThingsBoard integration
 
 		// Template management endpoints
 		apiRoutes.GET("/templates", getTemplates)                                  // Get all templates
@@ -582,6 +583,23 @@ func getDeviceProfiles(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"deviceProfiles": profiles})
+}
+
+// getTbCustomers returns the list of customers for a ThingsBoard integration
+func getTbCustomers(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid integration ID"})
+		return
+	}
+
+	customers, err := simulatorController.GetThingsBoardCustomers(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"customers": customers})
 }
 
 // ==================== Template Handlers ====================

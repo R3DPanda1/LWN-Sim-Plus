@@ -86,6 +86,11 @@ function CleanTemplateForm() {
     $("#template-integration-settings").addClass("hide");
     $("#select-template-integration").val("");
     $("#select-template-device-profile").val("");
+    $("#checkbox-template-tb-integration-enabled").prop("checked", false);
+    $("#template-tb-integration-settings").addClass("hide");
+    $("#select-template-tb-integration").val("");
+    $("#select-template-tb-device-profile").val("");
+    $("#select-template-tb-customer").empty().append('<option value="">No customer</option>');
 
     // Reset buttons and validation
     $("#add-template input").removeClass("is-valid is-invalid");
@@ -115,6 +120,10 @@ function SetTemplateFormEnabled(enabled) {
     $("#checkbox-template-integration-enabled").prop("disabled", !enabled);
     $("#select-template-integration").prop("disabled", !enabled);
     $("#select-template-device-profile").prop("disabled", !enabled);
+    $("#checkbox-template-tb-integration-enabled").prop("disabled", !enabled);
+    $("#select-template-tb-integration").prop("disabled", !enabled);
+    $("#select-template-tb-device-profile").prop("disabled", !enabled);
+    $("#select-template-tb-customer").prop("disabled", !enabled);
 }
 
 function LoadTemplate(template) {
@@ -154,6 +163,25 @@ function LoadTemplate(template) {
         $("#template-integration-settings").addClass("hide");
     }
 
+    if (template.tbIntegrationEnabled) {
+        $("#checkbox-template-tb-integration-enabled").prop("checked", true);
+        $("#template-tb-integration-settings").removeClass("hide");
+        LoadTemplateTbIntegrationList();
+        setTimeout(function() {
+            var tbIdVal = (template.tbIntegrationId !== undefined && template.tbIntegrationId !== null) ? template.tbIntegrationId : "";
+            $("#select-template-tb-integration").val(tbIdVal);
+            if (template.tbIntegrationId !== undefined && template.tbIntegrationId !== null) {
+                LoadTemplateTbDeviceProfiles(template.tbIntegrationId, template.tbDeviceProfileId);
+                if (typeof LoadTbCustomers === 'function') {
+                    LoadTbCustomers(template.tbIntegrationId, "#select-template-tb-customer", template.tbCustomerId);
+                }
+            }
+        }, 200);
+    } else {
+        $("#checkbox-template-tb-integration-enabled").prop("checked", false);
+        $("#template-tb-integration-settings").addClass("hide");
+    }
+
     // Set buttons
     $("#div-buttons-template").attr("data-id", template.id);
     $("[name=btn-delete-template]").removeClass("hide");
@@ -185,6 +213,10 @@ function SaveTemplate() {
         integrationEnabled: $("#checkbox-template-integration-enabled").prop("checked"),
         integrationId: parseInt($("#select-template-integration").val()) || 0,
         deviceProfileId: $("#select-template-device-profile").val() || "",
+        tbIntegrationEnabled: $("#checkbox-template-tb-integration-enabled").prop("checked"),
+        tbIntegrationId: parseInt($("#select-template-tb-integration").val()) || 0,
+        tbDeviceProfileId: $("#select-template-tb-device-profile").val() || "",
+        tbCustomerId: $("#select-template-tb-customer").val() || "",
         // RX window settings (read from form)
         rx1Delay: 1000,
         rx1Duration: parseInt($("[name=input-template-rx1duration]").val()) || 3000,
@@ -266,11 +298,66 @@ function LoadTemplateIntegrationList() {
 
         if (data.integrations && data.integrations.length > 0) {
             data.integrations.forEach(function(integration) {
-                if (integration.enabled) {
+                if (integration.enabled && integration.type === "chirpstack") {
                     select.append('<option value="' + integration.id + '">' + integration.name + '</option>');
                 }
             });
         }
+    });
+}
+
+function LoadTemplateTbIntegrationList() {
+    $.ajax({
+        url: url + "/api/integrations",
+        type: "GET"
+    }).done(function(data) {
+        var select = $("#select-template-tb-integration");
+        select.empty();
+        select.append('<option value="">Select integration...</option>');
+
+        if (data.integrations && data.integrations.length > 0) {
+            data.integrations.forEach(function(integration) {
+                if (integration.enabled && integration.type === "thingsboard") {
+                    select.append('<option value="' + integration.id + '">' + integration.name + '</option>');
+                }
+            });
+        }
+    });
+}
+
+function LoadTemplateTbDeviceProfiles(integrationId, savedProfileId) {
+    var select = $("#select-template-tb-device-profile");
+    select.empty();
+    select.append('<option value="">Loading device profiles...</option>');
+
+    if (integrationId === undefined || integrationId === null || integrationId === "") {
+        select.empty();
+        select.append('<option value="">Select an integration first...</option>');
+        return;
+    }
+
+    $.ajax({
+        url: url + "/api/integration/" + integrationId + "/device-profiles",
+        type: "GET"
+    }).done(function(data) {
+        select.empty();
+        select.append('<option value="">Select device profile...</option>');
+        if (data.deviceProfiles && data.deviceProfiles.length > 0) {
+            data.deviceProfiles.forEach(function(profile) {
+                select.append('<option value="' + profile.id + '">' + profile.name + ' (' + profile.id + ')</option>');
+            });
+        }
+        if (savedProfileId) select.val(savedProfileId);
+    }).fail(function(err) {
+        select.empty();
+        if (savedProfileId) {
+            select.append('<option value="">Select device profile...</option>');
+            select.append('<option value="' + savedProfileId + '">' + savedProfileId + '</option>');
+            select.val(savedProfileId);
+        } else {
+            select.append('<option value="">Failed to load profiles</option>');
+        }
+        console.error("Failed to load TB device profiles:", err);
     });
 }
 
@@ -541,6 +628,25 @@ $(document).ready(function() {
     $("#select-template-integration").on('change', function() {
         var integrationId = $(this).val();
         LoadTemplateDeviceProfiles(integrationId);
+    });
+
+    // TB integration checkbox
+    $("#checkbox-template-tb-integration-enabled").on('change', function() {
+        if ($(this).prop("checked")) {
+            $("#template-tb-integration-settings").removeClass("hide");
+            LoadTemplateTbIntegrationList();
+        } else {
+            $("#template-tb-integration-settings").addClass("hide");
+        }
+    });
+
+    // TB integration select change
+    $("#select-template-tb-integration").on('change', function() {
+        var id = $(this).val();
+        LoadTemplateTbDeviceProfiles(id);
+        if (typeof LoadTbCustomers === 'function') {
+            LoadTbCustomers(id, "#select-template-tb-customer");
+        }
     });
 
     // Bulk create tab - initialize when tab is shown

@@ -7,6 +7,13 @@
 
 var Integrations = new Map();
 
+// Display label for an integration type identifier.
+function IntegrationTypeLabel(type) {
+    if (type === "thingsboard") return "ThingsBoard";
+    if (type === "chirpstack") return "ChirpStack";
+    return type || "Integration";
+}
+
 // Load integrations from API and populate the list
 function LoadIntegrationList() {
     $.ajax({
@@ -28,6 +35,7 @@ function LoadIntegrationList() {
 
         // Also update device and gateway integration dropdowns
         PopulateDeviceIntegrationDropdown();
+        PopulateDeviceTbIntegrationDropdown();
         PopulateGatewayIntegrationDropdown();
     }).fail((data)=>{
         console.error("Unable to load integrations", data.statusText);
@@ -87,6 +95,7 @@ function LoadIntegration(integration){
     $("[name=input-integration-tenantid]").val(integration.tenantId);
     $("[name=input-integration-appid]").val(integration.applicationId);
     $("#checkbox-integration-enabled").prop("checked", integration.enabled);
+    UpdateIntegrationTypeFields();
 
     // Set all fields to disabled (view-only mode)
     $("[name=input-integration-name]").prop("disabled", true);
@@ -117,6 +126,7 @@ function CleanIntegrationForm(){
     $("[name=input-integration-tenantid]").val("");
     $("[name=input-integration-appid]").val("");
     $("#checkbox-integration-enabled").prop("checked", true);
+    UpdateIntegrationTypeFields();
 
     // Enable all fields for new integration
     $("[name=input-integration-name]").prop("disabled", false);
@@ -195,6 +205,9 @@ $("[name=btn-test-integration]").on('click', function(){
 
 // Test integration connection
 function TestIntegrationConnection(integrationId) {
+    var integ = Integrations.get(integrationId);
+    var typeLabel = integ ? IntegrationTypeLabel(integ.type) : "Integration";
+
     $.ajax({
         url: url + "/api/integration/" + integrationId + "/test",
         type: "POST",
@@ -202,7 +215,7 @@ function TestIntegrationConnection(integrationId) {
             "Access-Control-Allow-Origin": "*"
         }
     }).done((data) => {
-        Show_SweetToast("Connection successful", "ChirpStack integration is working correctly");
+        Show_SweetToast("Connection successful", typeLabel + " integration is working correctly");
     }).fail((data) => {
         var errorMsg = data.responseJSON ? data.responseJSON.error : data.statusText;
         Show_ErrorSweetToast("Connection failed", errorMsg);
@@ -240,16 +253,19 @@ function SaveIntegration(){
     var validName = !!name;
     var validUrl = !!urlVal;
     var validApiKey = !!apiKey;
-    var validTenantId = !!tenantId;
-    var validAppId = !!appId;
+    var needsTenantApp = (type === "chirpstack");
+    var validTenantId = needsTenantApp ? !!tenantId : true;
+    var validAppId = needsTenantApp ? !!appId : true;
 
     if(!validName || !validUrl || !validApiKey || !validTenantId || !validAppId){
         Show_ErrorSweetToast("Error", "Values are incorrect");
         ValidationInput($("[name=input-integration-name]"), validName);
         ValidationInput($("[name=input-integration-url]"), validUrl);
         ValidationInput($("[name=input-integration-apikey]"), validApiKey);
-        ValidationInput($("[name=input-integration-tenantid]"), validTenantId);
-        ValidationInput($("[name=input-integration-appid]"), validAppId);
+        if (needsTenantApp) {
+            ValidationInput($("[name=input-integration-tenantid]"), validTenantId);
+            ValidationInput($("[name=input-integration-appid]"), validAppId);
+        }
         return;
     }
 
@@ -303,14 +319,28 @@ function DeleteIntegration(integrationId){
     });
 }
 
-// Populate device integration dropdown
+// Populate device integration dropdown (ChirpStack only)
 function PopulateDeviceIntegrationDropdown() {
     var dropdown = $("#select-dev-integration");
     dropdown.empty();
     dropdown.append('<option value="">Select an integration...</option>');
 
     Integrations.forEach((integration, id) => {
-        if(integration.enabled) {
+        if(integration.enabled && integration.type === "chirpstack") {
+            dropdown.append('<option value="' + id + '">' + integration.name + '</option>');
+        }
+    });
+}
+
+// Populate device ThingsBoard integration dropdown
+function PopulateDeviceTbIntegrationDropdown() {
+    var dropdown = $("#select-dev-tb-integration");
+    if (dropdown.length === 0) return;
+    dropdown.empty();
+    dropdown.append('<option value="">Select a ThingsBoard integration...</option>');
+
+    Integrations.forEach((integration, id) => {
+        if(integration.enabled && integration.type === "thingsboard") {
             dropdown.append('<option value="' + id + '">' + integration.name + '</option>');
         }
     });
@@ -383,6 +413,118 @@ function LoadDeviceProfiles(integrationId, savedProfileId) {
         console.error("Unable to load device profiles", data.statusText);
     });
 }
+
+// Load ThingsBoard device profiles (same endpoint as CS; server branches by integration type)
+function LoadTbDeviceProfiles(integrationId, savedProfileId) {
+    var dropdown = $("#select-dev-tb-profile");
+    if (dropdown.length === 0) return;
+    dropdown.empty();
+    dropdown.append('<option value="">Loading device profiles...</option>');
+
+    if(integrationId === undefined || integrationId === null || integrationId === "") {
+        dropdown.empty();
+        dropdown.append('<option value="">Select an integration first...</option>');
+        return;
+    }
+
+    $.ajax({
+        url: url + "/api/integration/" + integrationId + "/device-profiles",
+        type: "GET",
+        headers: {"Access-Control-Allow-Origin": "*"}
+    }).done((data) => {
+        dropdown.empty();
+        dropdown.append('<option value="">Select a device profile...</option>');
+        if(data.deviceProfiles && data.deviceProfiles.length > 0) {
+            data.deviceProfiles.forEach(profile => {
+                dropdown.append('<option value="' + profile.id + '">' + profile.name + ' (' + profile.id + ')</option>');
+            });
+        }
+        if(savedProfileId) dropdown.val(savedProfileId);
+    }).fail((data) => {
+        dropdown.empty();
+        if(savedProfileId) {
+            dropdown.append('<option value="">Select a device profile...</option>');
+            dropdown.append('<option value="' + savedProfileId + '">' + savedProfileId + '</option>');
+            dropdown.val(savedProfileId);
+        } else {
+            dropdown.append('<option value="">Failed to load profiles</option>');
+        }
+        console.error("Unable to load TB device profiles", data.statusText);
+    });
+}
+
+// Load ThingsBoard customers for a given integration into a <select>.
+// dropdownSelector: jQuery selector for the target <select>
+// savedCustomerId: optional - preserve a specific customer if the API fails
+function LoadTbCustomers(integrationId, dropdownSelector, savedCustomerId) {
+    var dropdown = $(dropdownSelector);
+    if (dropdown.length === 0) return;
+    dropdown.empty();
+    dropdown.append('<option value="">Loading customers...</option>');
+
+    if(integrationId === undefined || integrationId === null || integrationId === "") {
+        dropdown.empty();
+        dropdown.append('<option value="">No customer</option>');
+        return;
+    }
+
+    $.ajax({
+        url: url + "/api/integration/" + integrationId + "/customers",
+        type: "GET",
+        headers: {"Access-Control-Allow-Origin": "*"}
+    }).done((data) => {
+        dropdown.empty();
+        dropdown.append('<option value="">No customer</option>');
+        if(data.customers && data.customers.length > 0) {
+            data.customers.forEach(function(cust){
+                dropdown.append('<option value="' + cust.id + '">' + cust.name + '</option>');
+            });
+        }
+        if(savedCustomerId) dropdown.val(savedCustomerId);
+    }).fail((data) => {
+        dropdown.empty();
+        dropdown.append('<option value="">No customer</option>');
+        if(savedCustomerId) {
+            dropdown.append('<option value="' + savedCustomerId + '">' + savedCustomerId + '</option>');
+            dropdown.val(savedCustomerId);
+        }
+        console.error("Unable to load TB customers", data.statusText);
+    });
+}
+
+// Toggle visibility of TB integration settings on the device modal
+$("#checkbox-dev-tb-integration-enabled").on('change', function(){
+    if($(this).prop("checked")) {
+        $("#device-tb-integration-settings").removeClass("hide");
+        LoadIntegrationList();
+    } else {
+        $("#device-tb-integration-settings").addClass("hide");
+    }
+});
+
+$("#select-dev-tb-integration").on('change', function(){
+    var id = $(this).val();
+    LoadTbDeviceProfiles(id);
+    LoadTbCustomers(id, "#select-dev-tb-customer");
+});
+
+// Toggle visibility of tenant/application fields and API-key hints based on integration type
+function UpdateIntegrationTypeFields() {
+    var type = $("#select-integration-type").val();
+    if (type === "thingsboard") {
+        $("#group-integration-tenantid").addClass("hide");
+        $("#group-integration-appid").addClass("hide");
+        $("#integration-apikey-hint-chirpstack").addClass("hide");
+        $("#integration-apikey-hint-thingsboard").removeClass("hide");
+    } else {
+        $("#group-integration-tenantid").removeClass("hide");
+        $("#group-integration-appid").removeClass("hide");
+        $("#integration-apikey-hint-chirpstack").removeClass("hide");
+        $("#integration-apikey-hint-thingsboard").addClass("hide");
+    }
+}
+$("#select-integration-type").on('change', UpdateIntegrationTypeFields);
+$(document).ready(UpdateIntegrationTypeFields);
 
 // Toggle device integration settings visibility
 $("#checkbox-dev-integration-enabled").on('change', function(){
