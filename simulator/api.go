@@ -18,6 +18,7 @@ import (
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/codec"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration/chirpstack"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration/thingsboard"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/template"
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
@@ -379,13 +380,63 @@ func (s *Simulator) SetDevice(device *dev.Device, update bool) (int, int, error)
 
 	s.Print("Device Saved", nil, util.PrintOnlyConsole)
 
+	// Dual-provisioning order: TB first so its access token can be baked
+	// into the CS device's Variables map in a single POST.
+	tbProvisioned := false
+	tbToken := ""
+
+	if !update && device.Info.Configuration.TBIntegrationEnabled && device.Info.Configuration.TBDeviceID == "" {
+		devEUI := hex.EncodeToString(device.Info.DevEUI[:])
+		tbDevID, err := s.ProvisionDeviceToThingsBoard(
+			device.Info.Configuration.TBIntegrationID,
+			devEUI,
+			device.Info.Name,
+			device.Info.Configuration.TBDeviceProfileID,
+			device.Info.Configuration.TBCustomerID,
+		)
+		if err != nil {
+			s.Print("ThingsBoard provisioning failed: "+err.Error(), nil, util.PrintOnlyConsole)
+		} else {
+			device.Info.Configuration.TBDeviceID = tbDevID
+			s.saveComponent(pathDir+"/devices.json", &s.Devices)
+			s.Print("Device provisioned to ThingsBoard", nil, util.PrintOnlyConsole)
+			tbProvisioned = true
+
+			if device.Info.Configuration.IntegrationEnabled {
+				tbClient, ok := s.ThingsBoardClients[device.Info.Configuration.TBIntegrationID]
+				if !ok {
+					_ = s.DeleteDeviceFromThingsBoard(device.Info.Configuration.TBIntegrationID, tbDevID)
+					device.Info.Configuration.TBDeviceID = ""
+					s.saveComponent(pathDir+"/devices.json", &s.Devices)
+					tbProvisioned = false
+					s.Print("ThingsBoard client lookup failed after create; rolled back TB device", nil, util.PrintOnlyConsole)
+				} else {
+					token, terr := tbClient.GetDeviceCredentials(tbDevID)
+					if terr != nil {
+						_ = s.DeleteDeviceFromThingsBoard(device.Info.Configuration.TBIntegrationID, tbDevID)
+						device.Info.Configuration.TBDeviceID = ""
+						s.saveComponent(pathDir+"/devices.json", &s.Devices)
+						tbProvisioned = false
+						s.Print("ThingsBoard access-token fetch failed; rolled back TB device: "+terr.Error(), nil, util.PrintOnlyConsole)
+					} else {
+						tbToken = token
+					}
+				}
+			}
+		}
+	}
+
 	// Provision device to ChirpStack if integration is enabled (only for new devices)
 	if !update && device.Info.Configuration.IntegrationEnabled {
 		devEUI := hex.EncodeToString(device.Info.DevEUI[:])
 
+		var variables map[string]string
+		if tbToken != "" {
+			variables = map[string]string{"ThingsBoardAccessToken": tbToken}
+		}
+
 		var err error
 		if device.Info.Configuration.SupportedOtaa {
-			// OTAA: provision with AppKey
 			appKey := hex.EncodeToString(device.Info.AppKey[:])
 			err = s.ProvisionDevice(
 				device.Info.Configuration.IntegrationID,
@@ -393,9 +444,9 @@ func (s *Simulator) SetDevice(device *dev.Device, update bool) (int, int, error)
 				device.Info.Name,
 				device.Info.Configuration.DeviceProfileID,
 				appKey,
+				variables,
 			)
 		} else {
-			// ABP: provision with session keys and activate immediately
 			devAddr := hex.EncodeToString(device.Info.DevAddr[:])
 			nwkSKey := hex.EncodeToString(device.Info.NwkSKey[:])
 			appSKey := hex.EncodeToString(device.Info.AppSKey[:])
@@ -407,11 +458,21 @@ func (s *Simulator) SetDevice(device *dev.Device, update bool) (int, int, error)
 				devAddr,
 				nwkSKey,
 				appSKey,
+				variables,
 			)
 		}
 
 		if err != nil {
 			s.Print("ChirpStack provisioning failed: "+err.Error(), nil, util.PrintOnlyConsole)
+			if tbProvisioned {
+				if rerr := s.DeleteDeviceFromThingsBoard(device.Info.Configuration.TBIntegrationID, device.Info.Configuration.TBDeviceID); rerr != nil {
+					s.Print("ThingsBoard rollback failed: "+rerr.Error(), nil, util.PrintOnlyConsole)
+				} else {
+					device.Info.Configuration.TBDeviceID = ""
+					s.saveComponent(pathDir+"/devices.json", &s.Devices)
+					s.Print("Rolled back ThingsBoard device after ChirpStack failure", nil, util.PrintOnlyConsole)
+				}
+			}
 		} else {
 			activationType := "OTAA"
 			if !device.Info.Configuration.SupportedOtaa {
@@ -453,6 +514,15 @@ func (s *Simulator) DeleteDevice(Id int) bool {
 			s.Print("ChirpStack deletion failed: "+err.Error(), nil, util.PrintOnlyConsole)
 		} else {
 			s.Print("Device deleted from ChirpStack", nil, util.PrintOnlyConsole)
+		}
+	}
+
+	// Delete device from ThingsBoard if enabled and we have its UUID
+	if device.Info.Configuration.TBIntegrationEnabled && device.Info.Configuration.TBDeviceID != "" {
+		if err := s.DeleteDeviceFromThingsBoard(device.Info.Configuration.TBIntegrationID, device.Info.Configuration.TBDeviceID); err != nil {
+			s.Print("ThingsBoard deletion failed: "+err.Error(), nil, util.PrintOnlyConsole)
+		} else {
+			s.Print("Device deleted from ThingsBoard", nil, util.PrintOnlyConsole)
 		}
 	}
 
@@ -537,6 +607,54 @@ func (s *Simulator) DeleteAllDevices() (int, error) {
 			s.Print(fmt.Sprintf("ChirpStack deprovisioning: %d/%d failed", csErrors, len(csDevices)), nil, util.PrintOnlyConsole)
 		} else {
 			s.Print(fmt.Sprintf("ChirpStack deprovisioning: %d/%d succeeded", len(csDevices), len(csDevices)), nil, util.PrintOnlyConsole)
+		}
+	}
+
+	// Phase 1b: Parallel ThingsBoard deprovisioning
+	var tbDevices []*dev.Device
+	for _, d := range toDelete {
+		if d.Info.Configuration.TBIntegrationEnabled && d.Info.Configuration.TBDeviceID != "" {
+			tbDevices = append(tbDevices, d)
+		}
+	}
+
+	if len(tbDevices) > 0 {
+		s.Print(fmt.Sprintf("Deprovisioning %d devices from ThingsBoard (parallel)...", len(tbDevices)), nil, util.PrintOnlyConsole)
+
+		workers := 10
+		if len(tbDevices) < workers {
+			workers = len(tbDevices)
+		}
+
+		jobs := make(chan *dev.Device, workers*2)
+		var wg sync.WaitGroup
+		var tbErrors int64
+		var tbMu sync.Mutex
+
+		for w := 0; w < workers; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for d := range jobs {
+					if err := s.DeleteDeviceFromThingsBoard(d.Info.Configuration.TBIntegrationID, d.Info.Configuration.TBDeviceID); err != nil {
+						tbMu.Lock()
+						tbErrors++
+						tbMu.Unlock()
+					}
+				}
+			}()
+		}
+
+		for _, d := range tbDevices {
+			jobs <- d
+		}
+		close(jobs)
+		wg.Wait()
+
+		if tbErrors > 0 {
+			s.Print(fmt.Sprintf("ThingsBoard deprovisioning: %d/%d failed", tbErrors, len(tbDevices)), nil, util.PrintOnlyConsole)
+		} else {
+			s.Print(fmt.Sprintf("ThingsBoard deprovisioning: %d/%d succeeded", len(tbDevices), len(tbDevices)), nil, util.PrintOnlyConsole)
 		}
 	}
 
@@ -818,6 +936,9 @@ func (s *Simulator) AddIntegration(name string, intType integration.IntegrationT
 	if s.IntegrationClients == nil {
 		s.IntegrationClients = make(map[int]*chirpstack.Client)
 	}
+	if s.ThingsBoardClients == nil {
+		s.ThingsBoardClients = make(map[int]*thingsboard.Client)
+	}
 
 	integ := integration.NewIntegration(name, intType, url, apiKey, tenantID, appID)
 	if err := integ.Validate(); err != nil {
@@ -829,12 +950,13 @@ func (s *Simulator) AddIntegration(name string, intType integration.IntegrationT
 
 	s.Integrations[integ.ID] = integ
 
-	// Create ChirpStack client
-	if intType == integration.IntegrationTypeChirpStack {
+	switch intType {
+	case integration.IntegrationTypeChirpStack:
 		s.IntegrationClients[integ.ID] = chirpstack.NewClient(integ.URL, integ.APIKey)
+	case integration.IntegrationTypeThingsBoard:
+		s.ThingsBoardClients[integ.ID] = thingsboard.NewClient(integ.URL, integ.APIKey)
 	}
 
-	// Save to disk
 	s.saveStatus()
 	return integ.ID, nil
 }
@@ -861,12 +983,16 @@ func (s *Simulator) UpdateIntegration(id int, name, url, apiKey, tenantID, appID
 		return err
 	}
 
-	// Update ChirpStack client
-	if existing.Type == integration.IntegrationTypeChirpStack {
+	switch existing.Type {
+	case integration.IntegrationTypeChirpStack:
 		s.IntegrationClients[id] = chirpstack.NewClient(existing.URL, existing.APIKey)
+	case integration.IntegrationTypeThingsBoard:
+		if s.ThingsBoardClients == nil {
+			s.ThingsBoardClients = make(map[int]*thingsboard.Client)
+		}
+		s.ThingsBoardClients[id] = thingsboard.NewClient(existing.URL, existing.APIKey)
 	}
 
-	// Save to disk
 	s.saveStatus()
 	return nil
 }
@@ -881,7 +1007,6 @@ func (s *Simulator) DeleteIntegration(id int) error {
 		return integration.ErrIntegrationNotFound
 	}
 
-	// Check if any devices are using this integration
 	devicesUsingIntegration := s.GetDevicesUsingIntegration(id)
 	if len(devicesUsingIntegration) > 0 {
 		return fmt.Errorf("cannot delete integration: used by %d device(s)", len(devicesUsingIntegration))
@@ -889,8 +1014,8 @@ func (s *Simulator) DeleteIntegration(id int) error {
 
 	delete(s.Integrations, id)
 	delete(s.IntegrationClients, id)
+	delete(s.ThingsBoardClients, id)
 
-	// Save to disk
 	s.saveStatus()
 	return nil
 }
@@ -906,16 +1031,25 @@ func (s *Simulator) TestIntegrationConnection(id int) error {
 		return integration.ErrIntegrationNotFound
 	}
 
-	client, exists := s.IntegrationClients[id]
-	if !exists {
-		return errors.New("client not initialized for this integration")
+	switch integ.Type {
+	case integration.IntegrationTypeChirpStack:
+		client, ok := s.IntegrationClients[id]
+		if !ok {
+			return errors.New("client not initialized for this integration")
+		}
+		return client.TestConnection(integ.TenantID)
+	case integration.IntegrationTypeThingsBoard:
+		client, ok := s.ThingsBoardClients[id]
+		if !ok {
+			return errors.New("client not initialized for this integration")
+		}
+		return client.TestConnection()
 	}
-
-	return client.TestConnection(integ.TenantID)
+	return fmt.Errorf("unsupported integration type: %s", integ.Type)
 }
 
-// GetDeviceProfiles returns device profiles for an integration
-func (s *Simulator) GetDeviceProfiles(id int) ([]chirpstack.DeviceProfile, error) {
+// GetDeviceProfiles returns a type-neutral {ID,Name} list of profiles for the given integration.
+func (s *Simulator) GetDeviceProfiles(id int) ([]integration.DeviceProfile, error) {
 	if s.Integrations == nil {
 		return nil, integration.ErrIntegrationNotFound
 	}
@@ -925,27 +1059,55 @@ func (s *Simulator) GetDeviceProfiles(id int) ([]chirpstack.DeviceProfile, error
 		return nil, integration.ErrIntegrationNotFound
 	}
 
-	client, exists := s.IntegrationClients[id]
-	if !exists {
-		return nil, errors.New("client not initialized for this integration")
+	switch integ.Type {
+	case integration.IntegrationTypeChirpStack:
+		client, ok := s.IntegrationClients[id]
+		if !ok {
+			return nil, errors.New("client not initialized for this integration")
+		}
+		raw, err := client.ListDeviceProfiles(integ.TenantID, 100)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]integration.DeviceProfile, 0, len(raw))
+		for _, p := range raw {
+			out = append(out, integration.DeviceProfile{ID: p.ID, Name: p.Name})
+		}
+		return out, nil
+	case integration.IntegrationTypeThingsBoard:
+		client, ok := s.ThingsBoardClients[id]
+		if !ok {
+			return nil, errors.New("client not initialized for this integration")
+		}
+		raw, err := client.ListDeviceProfiles(100)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]integration.DeviceProfile, 0, len(raw))
+		for _, p := range raw {
+			out = append(out, integration.DeviceProfile{ID: p.ID, Name: p.Name})
+		}
+		return out, nil
 	}
-
-	return client.ListDeviceProfiles(integ.TenantID, 100)
+	return nil, fmt.Errorf("unsupported integration type: %s", integ.Type)
 }
 
 // GetDevicesUsingIntegration returns a list of device EUIs using the specified integration
+// (either ChirpStack or ThingsBoard side).
 func (s *Simulator) GetDevicesUsingIntegration(integrationID int) []string {
 	devicesUsingIntegration := []string{}
 	for _, device := range s.Devices {
-		if device.Info.Configuration.IntegrationID == integrationID {
+		cfg := device.Info.Configuration
+		if cfg.IntegrationID == integrationID || cfg.TBIntegrationID == integrationID {
 			devicesUsingIntegration = append(devicesUsingIntegration, device.Info.DevEUI.String())
 		}
 	}
 	return devicesUsingIntegration
 }
 
-// ProvisionDevice provisions a device to ChirpStack using OTAA
-func (s *Simulator) ProvisionDevice(integrationID int, devEUI, name, deviceProfileID, appKey string) error {
+// ProvisionDevice provisions a device to ChirpStack using OTAA.
+// `variables` is written to the CS device's Variables map — pass nil for none.
+func (s *Simulator) ProvisionDevice(integrationID int, devEUI, name, deviceProfileID, appKey string, variables map[string]string) error {
 	if s.Integrations == nil {
 		return integration.ErrIntegrationNotFound
 	}
@@ -964,21 +1126,19 @@ func (s *Simulator) ProvisionDevice(integrationID int, devEUI, name, deviceProfi
 		return errors.New("client not initialized for this integration")
 	}
 
-	// Create device
 	device := &chirpstack.Device{
 		DevEUI:          devEUI,
 		Name:            name,
 		ApplicationID:   integ.ApplicationID,
 		DeviceProfileID: deviceProfileID,
+		Variables:       variables,
 	}
 
 	if err := client.CreateDevice(device); err != nil {
 		return fmt.Errorf("failed to create device: %w", err)
 	}
 
-	// Set device keys
 	if err := client.SetDeviceKeys(devEUI, appKey); err != nil {
-		// Rollback: delete the device
 		_ = client.DeleteDevice(devEUI)
 		return fmt.Errorf("failed to set device keys: %w", err)
 	}
@@ -986,8 +1146,9 @@ func (s *Simulator) ProvisionDevice(integrationID int, devEUI, name, deviceProfi
 	return nil
 }
 
-// ProvisionDeviceABP provisions a device to ChirpStack using ABP
-func (s *Simulator) ProvisionDeviceABP(integrationID int, devEUI, name, deviceProfileID, devAddr, nwkSKey, appSKey string) error {
+// ProvisionDeviceABP provisions a device to ChirpStack using ABP.
+// `variables` is written to the CS device's Variables map — pass nil for none.
+func (s *Simulator) ProvisionDeviceABP(integrationID int, devEUI, name, deviceProfileID, devAddr, nwkSKey, appSKey string, variables map[string]string) error {
 	if s.Integrations == nil {
 		return integration.ErrIntegrationNotFound
 	}
@@ -1006,22 +1167,20 @@ func (s *Simulator) ProvisionDeviceABP(integrationID int, devEUI, name, devicePr
 		return errors.New("client not initialized for this integration")
 	}
 
-	// Create device
 	device := &chirpstack.Device{
 		DevEUI:          devEUI,
 		Name:            name,
 		ApplicationID:   integ.ApplicationID,
 		DeviceProfileID: deviceProfileID,
 		SkipFcntCheck:   true,
+		Variables:       variables,
 	}
 
 	if err := client.CreateDevice(device); err != nil {
 		return fmt.Errorf("failed to create device: %w", err)
 	}
 
-	// Activate device with ABP keys
 	if err := client.ActivateDeviceABP(devEUI, devAddr, nwkSKey, appSKey); err != nil {
-		// Rollback: delete the device
 		_ = client.DeleteDevice(devEUI)
 		return fmt.Errorf("failed to activate device (ABP): %w", err)
 	}
@@ -1050,6 +1209,67 @@ func (s *Simulator) DeleteDeviceFromChirpStack(integrationID int, devEUI string)
 	}
 
 	return client.DeleteDevice(devEUI)
+}
+
+// ProvisionDeviceToThingsBoard creates a device in ThingsBoard and returns its UUID.
+// Name = devEUI (hex), label = simulator-side friendly name, customerID optional.
+func (s *Simulator) ProvisionDeviceToThingsBoard(integrationID int, devEUI, label, profileID, customerID string) (string, error) {
+	if s.Integrations == nil {
+		return "", integration.ErrIntegrationNotFound
+	}
+	integ, exists := s.Integrations[integrationID]
+	if !exists {
+		return "", integration.ErrIntegrationNotFound
+	}
+	if !integ.Enabled {
+		return "", errors.New("integration is disabled")
+	}
+	if integ.Type != integration.IntegrationTypeThingsBoard {
+		return "", fmt.Errorf("integration %d is not a ThingsBoard integration", integrationID)
+	}
+	client, ok := s.ThingsBoardClients[integrationID]
+	if !ok {
+		return "", errors.New("client not initialized for this integration")
+	}
+	return client.CreateDevice(devEUI, label, profileID, customerID)
+}
+
+// GetThingsBoardCustomers returns the customer list for a TB integration.
+func (s *Simulator) GetThingsBoardCustomers(integrationID int) ([]thingsboard.Customer, error) {
+	if s.Integrations == nil {
+		return nil, integration.ErrIntegrationNotFound
+	}
+	integ, exists := s.Integrations[integrationID]
+	if !exists {
+		return nil, integration.ErrIntegrationNotFound
+	}
+	if integ.Type != integration.IntegrationTypeThingsBoard {
+		return nil, fmt.Errorf("integration %d is not a ThingsBoard integration", integrationID)
+	}
+	client, ok := s.ThingsBoardClients[integrationID]
+	if !ok {
+		return nil, errors.New("client not initialized for this integration")
+	}
+	return client.ListCustomers(100)
+}
+
+// DeleteDeviceFromThingsBoard removes a device from ThingsBoard by its UUID.
+func (s *Simulator) DeleteDeviceFromThingsBoard(integrationID int, tbDeviceID string) error {
+	if s.Integrations == nil {
+		return nil
+	}
+	integ, exists := s.Integrations[integrationID]
+	if !exists {
+		return nil
+	}
+	if !integ.Enabled {
+		return nil
+	}
+	client, ok := s.ThingsBoardClients[integrationID]
+	if !ok {
+		return nil
+	}
+	return client.DeleteDevice(tbDeviceID)
 }
 
 // ProvisionGateway provisions a virtual gateway to ChirpStack
@@ -1333,7 +1553,94 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePre
 	s.saveComponent(pathDir+"/simulator.json", &s)
 	s.Print(fmt.Sprintf("Saved %d devices to disk", len(pending)), nil, util.PrintOnlyConsole)
 
-	// Phase 3: Parallel ChirpStack provisioning (10 workers)
+	// Phase 3: Parallel ThingsBoard provisioning (10 workers) — runs first so
+	// its access token can be fed into the CS device's Variables map.
+	tbTokens := make(map[int]string)
+	var tbTokensMu sync.Mutex // guards writes in Phase 3; Phase 4 reads after wg.Wait()
+
+	tbDevices := make([]pendingDevice, 0)
+	for _, pd := range pending {
+		if pd.device.Info.Configuration.TBIntegrationEnabled {
+			tbDevices = append(tbDevices, pd)
+		}
+	}
+
+	if len(tbDevices) > 0 {
+		s.Print(fmt.Sprintf("Provisioning %d devices to ThingsBoard (parallel)...", len(tbDevices)), nil, util.PrintOnlyConsole)
+
+		workers := 10
+		if len(tbDevices) < workers {
+			workers = len(tbDevices)
+		}
+
+		jobs := make(chan pendingDevice, workers*2)
+		var wg sync.WaitGroup
+		var tbErrors int64
+		var tbMu sync.Mutex
+
+		for w := 0; w < workers; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for pd := range jobs {
+					devEUI := hex.EncodeToString(pd.device.Info.DevEUI[:])
+					tbID, err := s.ProvisionDeviceToThingsBoard(
+						pd.device.Info.Configuration.TBIntegrationID,
+						devEUI, pd.device.Info.Name,
+						pd.device.Info.Configuration.TBDeviceProfileID,
+						pd.device.Info.Configuration.TBCustomerID,
+					)
+					if err != nil {
+						tbMu.Lock()
+						tbErrors++
+						tbMu.Unlock()
+						continue
+					}
+					pd.device.Info.Configuration.TBDeviceID = tbID
+
+					if pd.device.Info.Configuration.IntegrationEnabled {
+						tbClient, ok := s.ThingsBoardClients[pd.device.Info.Configuration.TBIntegrationID]
+						if !ok {
+							_ = s.DeleteDeviceFromThingsBoard(pd.device.Info.Configuration.TBIntegrationID, tbID)
+							pd.device.Info.Configuration.TBDeviceID = ""
+							tbMu.Lock()
+							tbErrors++
+							tbMu.Unlock()
+							continue
+						}
+						token, terr := tbClient.GetDeviceCredentials(tbID)
+						if terr != nil {
+							_ = s.DeleteDeviceFromThingsBoard(pd.device.Info.Configuration.TBIntegrationID, tbID)
+							pd.device.Info.Configuration.TBDeviceID = ""
+							tbMu.Lock()
+							tbErrors++
+							tbMu.Unlock()
+							continue
+						}
+						tbTokensMu.Lock()
+						tbTokens[pd.id] = token
+						tbTokensMu.Unlock()
+					}
+				}
+			}()
+		}
+
+		for _, pd := range tbDevices {
+			jobs <- pd
+		}
+		close(jobs)
+		wg.Wait()
+
+		s.saveComponent(pathDir+"/devices.json", &s.Devices)
+
+		if tbErrors > 0 {
+			s.Print(fmt.Sprintf("ThingsBoard provisioning: %d/%d failed", tbErrors, len(tbDevices)), nil, util.PrintOnlyConsole)
+		} else {
+			s.Print(fmt.Sprintf("ThingsBoard provisioning: %d/%d succeeded", len(tbDevices), len(tbDevices)), nil, util.PrintOnlyConsole)
+		}
+	}
+
+	// Phase 4: Parallel ChirpStack provisioning (10 workers), using the TB tokens gathered above.
 	csDevices := make([]pendingDevice, 0)
 	for _, pd := range pending {
 		if pd.device.Info.Configuration.IntegrationEnabled {
@@ -1360,6 +1667,13 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePre
 				defer wg.Done()
 				for pd := range jobs {
 					devEUI := hex.EncodeToString(pd.device.Info.DevEUI[:])
+
+					token := tbTokens[pd.id]
+					var variables map[string]string
+					if token != "" {
+						variables = map[string]string{"ThingsBoardAccessToken": token}
+					}
+
 					var err error
 					if pd.device.Info.Configuration.SupportedOtaa {
 						appKey := hex.EncodeToString(pd.device.Info.AppKey[:])
@@ -1367,6 +1681,7 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePre
 							pd.device.Info.Configuration.IntegrationID,
 							devEUI, pd.device.Info.Name,
 							pd.device.Info.Configuration.DeviceProfileID, appKey,
+							variables,
 						)
 					} else {
 						devAddr := hex.EncodeToString(pd.device.Info.DevAddr[:])
@@ -1377,12 +1692,17 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePre
 							devEUI, pd.device.Info.Name,
 							pd.device.Info.Configuration.DeviceProfileID,
 							devAddr, nwkSKey, appSKey,
+							variables,
 						)
 					}
 					if err != nil {
 						csMu.Lock()
 						csErrors++
 						csMu.Unlock()
+						if pd.device.Info.Configuration.TBIntegrationEnabled && pd.device.Info.Configuration.TBDeviceID != "" {
+							_ = s.DeleteDeviceFromThingsBoard(pd.device.Info.Configuration.TBIntegrationID, pd.device.Info.Configuration.TBDeviceID)
+							pd.device.Info.Configuration.TBDeviceID = ""
+						}
 					}
 				}
 			}()
@@ -1394,6 +1714,8 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePre
 		close(jobs)
 		wg.Wait()
 
+		s.saveComponent(pathDir+"/devices.json", &s.Devices)
+
 		if csErrors > 0 {
 			s.Print(fmt.Sprintf("ChirpStack provisioning: %d/%d failed", csErrors, len(csDevices)), nil, util.PrintOnlyConsole)
 		} else {
@@ -1401,7 +1723,7 @@ func (s *Simulator) CreateDevicesFromTemplate(templateID int, count int, namePre
 		}
 	}
 
-	// Phase 4: Activate devices (add to ActiveDevices, turn on if sim running)
+	// Phase 5: Activate devices (add to ActiveDevices, turn on if sim running)
 	for _, pd := range pending {
 		if pd.device.Info.Status.Active {
 			s.ActiveDevices[pd.id] = pd.id
@@ -1471,6 +1793,10 @@ func (s *Simulator) buildDeviceFromTemplate(tmpl *template.DeviceTemplate, name 
 				IntegrationEnabled:   tmpl.IntegrationEnabled,
 				IntegrationID:        tmpl.IntegrationID,
 				DeviceProfileID:      tmpl.DeviceProfileID,
+				TBIntegrationEnabled: tmpl.TBIntegrationEnabled,
+				TBIntegrationID:      tmpl.TBIntegrationID,
+				TBDeviceProfileID:    tmpl.TBDeviceProfileID,
+				TBCustomerID:         tmpl.TBCustomerID,
 			},
 			RX: []devFeatures.Window{
 				{

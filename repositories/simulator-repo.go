@@ -8,7 +8,7 @@ import (
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/codec"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration"
-	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration/chirpstack"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration/thingsboard"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/template"
 	e "github.com/R3DPanda1/LWN-Sim-Plus/socket"
 
@@ -58,7 +58,8 @@ type SimulatorRepository interface {
 	UpdateIntegration(int, string, string, string, string, string, bool) error                      // Update an integration (id, name, url, apiKey, tenantId, appId, enabled)
 	DeleteIntegration(int) error                                                                    // Delete an integration
 	TestIntegrationConnection(int) error                                                            // Test connection to an integration
-	GetDeviceProfiles(int) ([]chirpstack.DeviceProfile, error)                                      // Get device profiles from ChirpStack
+	GetDeviceProfiles(int) ([]integration.DeviceProfile, error)                                     // Get device profiles from an integration (CS or TB)
+	GetThingsBoardCustomers(int) ([]thingsboard.Customer, error)                                    // Get customers for a ThingsBoard integration
 	EmitIntegrationEvent(string, interface{})                                                       // Emit a WebSocket event for integration operations
 
 	// Template management
@@ -251,8 +252,12 @@ func (s *simulatorRepository) TestIntegrationConnection(id int) error {
 	return s.sim.TestIntegrationConnection(id)
 }
 
-func (s *simulatorRepository) GetDeviceProfiles(id int) ([]chirpstack.DeviceProfile, error) {
+func (s *simulatorRepository) GetDeviceProfiles(id int) ([]integration.DeviceProfile, error) {
 	return s.sim.GetDeviceProfiles(id)
+}
+
+func (s *simulatorRepository) GetThingsBoardCustomers(id int) ([]thingsboard.Customer, error) {
+	return s.sim.GetThingsBoardCustomers(id)
 }
 
 func (s *simulatorRepository) EmitIntegrationEvent(eventName string, data interface{}) {

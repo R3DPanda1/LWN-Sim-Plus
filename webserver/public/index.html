@@ -1008,6 +1008,72 @@
                                             </div>
                                         </div>
                                     </div>
+
+                                    <div class="card" id="settings-card-tb">
+
+                                        <div class="card-header">
+                                        <h4>ThingsBoard Integration</h4>
+                                        </div>
+
+                                        <div class="card-body">
+                                            <!--TB Integration Enabled Flag-->
+                                            <div class="form-group row d-flex align-items-center flex-row-reverse">
+                                                <div class="col-xl-2">
+                                                </div>
+
+                                                <div class="col-xl-10 ml-3">
+                                                    <input class="form-check-input text-xl-right" type="checkbox" id="checkbox-dev-tb-integration-enabled">
+                                                    <label class="form-control-label " for="checkbox-dev-tb-integration-enabled">
+                                                        Integrate with ThingsBoard
+                                                    </label>
+                                                    <div class="form-text mt-0">
+                                                        When enabled, the device will be created in ThingsBoard on save and deleted on removal
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!--TB Integration Settings (shown when enabled)-->
+                                            <div id="device-tb-integration-settings" class="hide">
+
+                                                <!--Select TB Integration-->
+                                                <div class="form-group row align-items-center">
+                                                    <label class="form-control-label col-xl-2 text-xl-right">Integration</label>
+                                                    <div class="col-xl-10">
+                                                        <select id="select-dev-tb-integration" class="form-control">
+                                                            <option value="">Select a ThingsBoard integration...</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <!--TB Device Profile-->
+                                                <div class="form-group row align-items-center">
+                                                    <label class="form-control-label col-xl-2 text-xl-right">Device Profile</label>
+                                                    <div class="col-xl-10">
+                                                        <select id="select-dev-tb-profile" class="form-control">
+                                                            <option value="">Select a device profile...</option>
+                                                        </select>
+                                                        <div class="form-text mt-0">
+                                                            The device profile in ThingsBoard
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!--TB Customer (optional)-->
+                                                <div class="form-group row align-items-center">
+                                                    <label class="form-control-label col-xl-2 text-xl-right">Customer</label>
+                                                    <div class="col-xl-10">
+                                                        <select id="select-dev-tb-customer" class="form-control">
+                                                            <option value="">No customer</option>
+                                                        </select>
+                                                        <div class="form-text mt-0">
+                                                            Optional: assign the device to a ThingsBoard customer
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <!--buttons-->
@@ -1522,6 +1588,7 @@
                                 <label>Type</label>
                                 <select id="select-integration-type" class="form-control" name="select-integration-type">
                                     <option value="chirpstack">ChirpStack</option>
+                                    <option value="thingsboard">ThingsBoard</option>
                                 </select>
                             </div>
 
@@ -1530,7 +1597,7 @@
                                 <label>Server URL</label>
                                 <input type="text" class="form-control" name="input-integration-url" placeholder="e.g., http://localhost:8080" required="">
                                 <div class="form-text mt-0">
-                                    The ChirpStack Application Server URL (include http:// or https://)
+                                    Application server URL (include http:// or https://)
                                 </div>
                             </div>
 
@@ -1538,27 +1605,30 @@
                             <div class="form-group">
                                 <label>API Key</label>
                                 <div class="input-group">
-                                    <input type="password" class="form-control mr-1" name="input-integration-apikey" placeholder="ChirpStack API Key" required="">
+                                    <input type="password" class="form-control mr-1" name="input-integration-apikey" placeholder="API Key" required="">
                                     <button name="btn-watch-apikey" class="btn btn-classic btn-watch" type="button"><img heigh="16" src=""/></button>
                                 </div>
-                                <div class="form-text mt-0">
+                                <div class="form-text mt-0" id="integration-apikey-hint-chirpstack">
                                     Generate an API key in ChirpStack under API Keys section
+                                </div>
+                                <div class="form-text mt-0 hide" id="integration-apikey-hint-thingsboard">
+                                    Generate an API key in ThingsBoard under Account → Security → API keys
                                 </div>
                             </div>
 
-                            <!--Tenant ID-->
-                            <div class="form-group">
+                            <!--Tenant ID (ChirpStack only)-->
+                            <div id="group-integration-tenantid" class="form-group">
                                 <label>Tenant ID</label>
-                                <input type="text" class="form-control" name="input-integration-tenantid" placeholder="e.g., a1b2c3d4-e5f6-7890-abcd-ef1234567890" required="">
+                                <input type="text" class="form-control" name="input-integration-tenantid" placeholder="e.g., a1b2c3d4-e5f6-7890-abcd-ef1234567890">
                                 <div class="form-text mt-0">
                                     The UUID of your ChirpStack Tenant (found in Tenants section)
                                 </div>
                             </div>
 
-                            <!--Application ID-->
-                            <div class="form-group">
+                            <!--Application ID (ChirpStack only)-->
+                            <div id="group-integration-appid" class="form-group">
                                 <label>Application ID</label>
-                                <input type="text" class="form-control" name="input-integration-appid" placeholder="e.g., a1b2c3d4-e5f6-7890-abcd-ef1234567890" required="">
+                                <input type="text" class="form-control" name="input-integration-appid" placeholder="e.g., a1b2c3d4-e5f6-7890-abcd-ef1234567890">
                                 <div class="form-text mt-0">
                                     The UUID of your ChirpStack Application
                                 </div>
@@ -1773,6 +1843,38 @@
                                 <div class="form-group">
                                     <label>Device Profile</label>
                                     <select id="select-template-device-profile" class="form-control" name="select-template-device-profile">
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!--ThingsBoard Integration Enabled-->
+                            <div class="form-group">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="checkbox-template-tb-integration-enabled">
+                                    <label class="form-check-label" for="checkbox-template-tb-integration-enabled">
+                                        Enable ThingsBoard Integration
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!--ThingsBoard Integration Selection-->
+                            <div id="template-tb-integration-settings" class="hide">
+                                <div class="form-group">
+                                    <label>Integration</label>
+                                    <select id="select-template-tb-integration" class="form-control" name="select-template-tb-integration">
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Device Profile</label>
+                                    <select id="select-template-tb-device-profile" class="form-control" name="select-template-tb-device-profile">
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Customer <span class="text-muted font-weight-normal">(optional)</span></label>
+                                    <select id="select-template-tb-customer" class="form-control" name="select-template-tb-customer">
+                                        <option value="">No customer</option>
                                     </select>
                                 </div>
                             </div>

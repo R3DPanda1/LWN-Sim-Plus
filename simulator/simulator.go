@@ -11,6 +11,7 @@ import (
 	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration/chirpstack"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/integration/thingsboard"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/template"
 	dev "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/device"
 	f "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder"
@@ -45,6 +46,7 @@ type Simulator struct {
 	// Integration management (like Devices/Gateways pattern)
 	Integrations       map[int]*integration.Integration `json:"-"` // A collection of integrations
 	IntegrationClients map[int]*chirpstack.Client       `json:"-"` // ChirpStack clients for each integration
+	ThingsBoardClients map[int]*thingsboard.Client      `json:"-"` // ThingsBoard clients for each integration
 	// Template management (like Devices/Gateways pattern)
 	Templates map[int]*template.DeviceTemplate `json:"-"` // A collection of device templates
 }
@@ -127,11 +129,16 @@ func (s *Simulator) setupIntegrations() {
 	if s.IntegrationClients == nil {
 		s.IntegrationClients = make(map[int]*chirpstack.Client)
 	}
+	if s.ThingsBoardClients == nil {
+		s.ThingsBoardClients = make(map[int]*thingsboard.Client)
+	}
 	for _, i := range s.Integrations {
-		if i.Type == integration.IntegrationTypeChirpStack {
+		switch i.Type {
+		case integration.IntegrationTypeChirpStack:
 			s.IntegrationClients[i.ID] = chirpstack.NewClient(i.URL, i.APIKey)
+		case integration.IntegrationTypeThingsBoard:
+			s.ThingsBoardClients[i.ID] = thingsboard.NewClient(i.URL, i.APIKey)
 		}
-		// Track highest ID for NextIDIntegration
 		if i.ID >= s.NextIDIntegration {
 			s.NextIDIntegration = i.ID + 1
 		}

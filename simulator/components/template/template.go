@@ -64,6 +64,12 @@ type DeviceTemplate struct {
 	IntegrationEnabled bool   `json:"integrationEnabled"`
 	IntegrationID      int    `json:"integrationId"`
 	DeviceProfileID    string `json:"deviceProfileId"`
+
+	// ThingsBoard Integration configuration
+	TBIntegrationEnabled bool   `json:"tbIntegrationEnabled"`
+	TBIntegrationID      int    `json:"tbIntegrationId"`
+	TBDeviceProfileID    string `json:"tbDeviceProfileId"`
+	TBCustomerID         string `json:"tbCustomerId"`
 }
 
 // NewDeviceTemplate creates a new template (ID must be set by the registry)
@@ -136,9 +142,13 @@ func (t *DeviceTemplate) Clone() *DeviceTemplate {
 		SupportedFragment:  t.SupportedFragment,
 		UseCodec:           t.UseCodec,
 		CodecID:            t.CodecID,
-		IntegrationEnabled: t.IntegrationEnabled,
-		IntegrationID:      t.IntegrationID,
-		DeviceProfileID:    t.DeviceProfileID,
+		IntegrationEnabled:   t.IntegrationEnabled,
+		IntegrationID:        t.IntegrationID,
+		DeviceProfileID:      t.DeviceProfileID,
+		TBIntegrationEnabled: t.TBIntegrationEnabled,
+		TBIntegrationID:      t.TBIntegrationID,
+		TBDeviceProfileID:    t.TBDeviceProfileID,
+		TBCustomerID:         t.TBCustomerID,
 	}
 }
 
