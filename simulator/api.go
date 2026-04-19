@@ -257,6 +257,23 @@ func (s *Simulator) SetGateway(gateway *gw.Gateway, update bool) (int, int, erro
 
 	s.Print("Gateway Saved", nil, util.PrintOnlyConsole)
 
+	if !update && !gateway.Info.TypeGateway && gateway.Info.IntegrationEnabled {
+		gwID := hex.EncodeToString(gateway.Info.MACAddress[:])
+		err := s.ProvisionGateway(
+			gateway.Info.IntegrationID,
+			gwID,
+			gateway.Info.Name,
+			gateway.Info.Location.Latitude,
+			gateway.Info.Location.Longitude,
+			gateway.Info.Location.Altitude,
+		)
+		if err != nil {
+			s.Print("ChirpStack gateway provisioning failed: "+err.Error(), nil, util.PrintOnlyConsole)
+		} else {
+			s.Print("Gateway provisioned to ChirpStack", nil, util.PrintOnlyConsole)
+		}
+	}
+
 	if gateway.Info.Active {
 
 		s.ActiveGateways[gateway.Id] = gateway.Id
@@ -280,6 +297,16 @@ func (s *Simulator) DeleteGateway(Id int) bool {
 
 	if s.Gateways[Id].IsOn() {
 		return false
+	}
+
+	gateway := s.Gateways[Id]
+	if gateway != nil && !gateway.Info.TypeGateway && gateway.Info.IntegrationEnabled {
+		gwID := hex.EncodeToString(gateway.Info.MACAddress[:])
+		if err := s.DeleteGatewayFromChirpStack(gateway.Info.IntegrationID, gwID); err != nil {
+			s.Print("ChirpStack gateway deletion failed: "+err.Error(), nil, util.PrintOnlyConsole)
+		} else {
+			s.Print("Gateway deleted from ChirpStack", nil, util.PrintOnlyConsole)
+		}
 	}
 
 	delete(s.Gateways, Id)
@@ -1023,6 +1050,69 @@ func (s *Simulator) DeleteDeviceFromChirpStack(integrationID int, devEUI string)
 	}
 
 	return client.DeleteDevice(devEUI)
+}
+
+// ProvisionGateway provisions a virtual gateway to ChirpStack
+func (s *Simulator) ProvisionGateway(integrationID int, gatewayID, name string, lat, lng float64, alt int32) error {
+	if s.Integrations == nil {
+		return integration.ErrIntegrationNotFound
+	}
+
+	integ, exists := s.Integrations[integrationID]
+	if !exists {
+		return integration.ErrIntegrationNotFound
+	}
+
+	if !integ.Enabled {
+		return errors.New("integration is disabled")
+	}
+
+	client, exists := s.IntegrationClients[integrationID]
+	if !exists {
+		return errors.New("client not initialized for this integration")
+	}
+
+	gw := &chirpstack.Gateway{
+		GatewayID:     gatewayID,
+		Name:          name,
+		TenantID:      integ.TenantID,
+		StatsInterval: 30,
+		Location: chirpstack.GatewayLocation{
+			Latitude:  lat,
+			Longitude: lng,
+			Altitude:  float64(alt),
+			Source:    "UNKNOWN",
+		},
+	}
+
+	if err := client.CreateGateway(gw); err != nil {
+		return fmt.Errorf("failed to create gateway: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteGatewayFromChirpStack removes a gateway from ChirpStack
+func (s *Simulator) DeleteGatewayFromChirpStack(integrationID int, gatewayID string) error {
+	if s.Integrations == nil {
+		return nil
+	}
+
+	integ, exists := s.Integrations[integrationID]
+	if !exists {
+		return nil
+	}
+
+	if !integ.Enabled {
+		return nil
+	}
+
+	client, exists := s.IntegrationClients[integrationID]
+	if !exists {
+		return nil
+	}
+
+	return client.DeleteGateway(gatewayID)
 }
 
 // ==================== Template Management ====================

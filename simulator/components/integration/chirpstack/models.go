@@ -63,3 +63,28 @@ type DeviceActivation struct {
 	FNwkSIntKey string `json:"fNwkSIntKey"` // LoRaWAN 1.1 (set to NwkSKey for 1.0.x)
 	SNwkSIntKey string `json:"sNwkSIntKey"` // LoRaWAN 1.1 (set to NwkSKey for 1.0.x)
 }
+
+// GatewayCreateRequest represents the ChirpStack v4 gateway creation request
+type GatewayCreateRequest struct {
+	Gateway Gateway `json:"gateway"`
+}
+
+// Gateway represents a ChirpStack gateway
+type Gateway struct {
+	GatewayID     string            `json:"gatewayId"`
+	Name          string            `json:"name"`
+	Description   string            `json:"description,omitempty"`
+	TenantID      string            `json:"tenantId"`
+	StatsInterval int               `json:"statsInterval,omitempty"`
+	Location      GatewayLocation   `json:"location"`
+	Tags          map[string]string `json:"tags,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+}
+
+// GatewayLocation represents a gateway's geographic location
+type GatewayLocation struct {
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+	Altitude  float64 `json:"altitude"`
+	Source    string  `json:"source,omitempty"`
+}

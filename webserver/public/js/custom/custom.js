@@ -366,6 +366,10 @@ $(document).ready(function(){
 
         CleanInputGateway();
 
+        if (typeof LoadIntegrationList === 'function') {
+            LoadIntegrationList();
+        }
+
         $(".section-header h1").text($(this).text())
     });
 
@@ -2079,6 +2083,10 @@ function CleanInputGateway(){
 
     $("#div-buttons-gw").removeData("addr");
 
+    $("#checkbox-gw-integration-enabled").prop("checked", false);
+    $("#gateway-integration-settings").addClass("hide");
+    $("#select-gw-integration").val("");
+
     CleanMap();
 
     ChangeStateInputGateway(false, null);
@@ -2105,6 +2113,20 @@ function LoadGateway(gw) {
 
     //virtual
     $("[name=input-KeepAlive]").val(gw.info.keepAlive);
+
+    if (gw.info.integrationEnabled) {
+        $("#checkbox-gw-integration-enabled").prop("checked", true);
+        $("#gateway-integration-settings").removeClass("hide");
+        if (typeof LoadIntegrationList === 'function') {
+            LoadIntegrationList();
+            var intIdVal = (gw.info.integrationId !== undefined && gw.info.integrationId !== null) ? gw.info.integrationId : "";
+            $("#select-gw-integration").val(intIdVal);
+        }
+    } else {
+        $("#checkbox-gw-integration-enabled").prop("checked", false);
+        $("#gateway-integration-settings").addClass("hide");
+        $("#select-gw-integration").val("");
+    }
 
     //real
     $("[name=input-IP-gw]").val(gw.info.ip);
@@ -2292,7 +2314,9 @@ function Click_SaveGateway(){
             "typeGateway":TypeGateway,
             "ip":IPGateway.val(),
             "port": PortGateway.val(),
-            "location":location
+            "location":location,
+            "integrationEnabled": $("#checkbox-gw-integration-enabled").prop("checked"),
+            "integrationId": Number($("#select-gw-integration").val()) || 0
         }
     };
 
