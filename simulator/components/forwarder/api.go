@@ -199,11 +199,11 @@ func (f *Forwarder) Downlink(data *lorawan.PHYPayload, freq uint32,
 		}
 	}
 
-	// Try tmst-based routing for JoinAccepts.
-	// The PULL_RESP tmst = uplink tmst + RX delay, so subtract common delays.
-	if tmst != nil {
-		rxDelays := []uint32{5000000, 6000000, 1000000, 2000000}
-		for _, delay := range rxDelays {
+	// Join-Accepts only: tmst routing with spec-mandated delays.
+	// RX1 = 5 s, RX2 = 6 s (LoRaWAN §6.2.6, non-configurable).
+	// Data frames are resolved by DevAddr above or fall through to broadcast below.
+	if data.MHDR.MType == lorawan.JoinAccept && tmst != nil {
+		for _, delay := range [...]uint32{5_000_000, 6_000_000} {
 			uplinkTmst := *tmst - delay
 
 			f.tmstMapMu.RLock()
