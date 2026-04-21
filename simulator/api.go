@@ -105,9 +105,18 @@ func (s *Simulator) Run() {
 	for _, id := range s.ActiveGateways {
 		s.turnONGateway(id)
 	}
+	jitterMs := s.DeviceStartJitterMs
+	if jitterMs > 0 {
+		s.Print(fmt.Sprintf("Device start spread: triangular[0,%.1fms]", jitterMs), nil, util.PrintBoth)
+	}
 	for _, id := range s.ActiveDevices {
+		if jitterMs > 0 {
+			u := (mrand.Float64() + mrand.Float64()) * 0.5
+			s.Devices[id].StartDelay = time.Duration(u * jitterMs * float64(time.Millisecond))
+		}
 		s.turnONDevice(id)
 	}
+	s.DeviceStartJitterMs = 0
 }
 
 // Stop terminates the simulation environment

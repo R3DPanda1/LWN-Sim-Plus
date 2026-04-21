@@ -28,6 +28,7 @@ type Device struct {
 	Console         c.Console                `json:"-"`
 	LogBuffer       []socket.ConsoleLog      `json:"-"`
 	logMu           sync.Mutex               `json:"-"`
+	StartDelay      time.Duration            `json:"-"` // Per-device random jitter before Run() begins
 }
 
 func (d *Device) appendLog(entry socket.ConsoleLog) {
@@ -51,6 +52,16 @@ func (d *Device) GetLogBuffer() []socket.ConsoleLog {
 func (d *Device) Run() {
 
 	defer d.Resources.ExitGroup.Done()
+
+	if d.StartDelay > 0 {
+		select {
+		case <-time.After(d.StartDelay):
+		case <-d.Exit:
+			d.Print("Turn OFF", nil, util.PrintBoth)
+			return
+		}
+		d.StartDelay = 0
+	}
 
 	d.OtaaActivation()
 

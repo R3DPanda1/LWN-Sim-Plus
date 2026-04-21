@@ -36,7 +36,7 @@ func main() {
 	// If the autoStart flag is set to true, start the simulator automatically.
 	if cfg.AutoStart {
 		log.Println("Auto-starting the simulation")
-		simulatorController.Run()
+		simulatorController.Run(0)
 	} else {
 		log.Println("Autostart not enabled")
 	}

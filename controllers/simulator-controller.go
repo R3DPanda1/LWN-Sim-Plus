@@ -17,7 +17,7 @@ import (
 
 // SimulatorController is the interface that defines the methods that the simulator controller must implement.
 type SimulatorController interface {
-	Run() bool                                 // Run the simulator
+	Run(jitterMs float64) bool                 // Run the simulator
 	Stop() bool                                // Stop the simulator
 	Status() bool                              // Get the status of the simulator
 	GetInstance()                              // Get the instance of the simulator repository
@@ -93,8 +93,8 @@ func (c *simulatorController) AddWebSocket(socket *socketio.Conn) {
 	c.repo.AddWebSocket(socket)
 }
 
-func (c *simulatorController) Run() bool {
-	return c.repo.Run()
+func (c *simulatorController) Run(jitterMs float64) bool {
+	return c.repo.Run(jitterMs)
 }
 
 func (c *simulatorController) Stop() bool {

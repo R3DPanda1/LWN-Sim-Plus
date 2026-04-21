@@ -47,6 +47,11 @@ type Simulator struct {
 	ThingsBoardClients map[int]*thingsboard.Client      `json:"-"` // ThingsBoard clients for each integration
 	// Template management (like Devices/Gateways pattern)
 	Templates map[int]*template.DeviceTemplate `json:"-"` // A collection of device templates
+	// DeviceStartJitterMs controls per-device randomized startup spread.
+	// If > 0, each device's start delay is drawn from a triangular distribution
+	// on [0, DeviceStartJitterMs] ms, peaked at the midpoint.
+	// Transient per-run setting; reset after Run().
+	DeviceStartJitterMs float64 `json:"-"`
 }
 
 // setup loads and initializes the simulator maps for gateways and devices. It also initializes the console

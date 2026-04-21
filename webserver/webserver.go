@@ -196,9 +196,17 @@ func (ws *WebServer) Run() {
 }
 
 // --- API Handlers ---
-// startSimulator starts the simulator
+// startSimulator starts the simulator. Optional query param `jitter` (ms) enables
+// Poisson-process device-start spread: each device's startup delay is drawn from
+// an exponential distribution with the given mean (in milliseconds).
 func startSimulator(c *gin.Context) {
-	c.JSON(http.StatusOK, simulatorController.Run())
+	jitterMs := 0.0
+	if s := c.Query("jitter"); s != "" {
+		if v, err := strconv.ParseFloat(s, 64); err == nil && v > 0 {
+			jitterMs = v
+		}
+	}
+	c.JSON(http.StatusOK, simulatorController.Run(jitterMs))
 }
 
 // stopSimulator stops the simulator

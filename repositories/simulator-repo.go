@@ -21,7 +21,7 @@ import (
 
 // SimulatorRepository is the interface that defines the methods that the simulator repository must implement.
 type SimulatorRepository interface {
-	Run() bool                                 // Run the simulator
+	Run(jitterMs float64) bool                 // Run the simulator
 	Stop() bool                                // Stop the simulator
 	Status() bool                              // Get the status of the simulator
 	GetInstance()                              // Get the instance of the simulator
@@ -97,12 +97,13 @@ func (s *simulatorRepository) AddWebSocket(socket *socketio.Conn) {
 }
 
 // Run If the simulator is stopped, it starts it and returns True, otherwise it prints an error message and returns False.
-func (s *simulatorRepository) Run() bool {
+func (s *simulatorRepository) Run(jitterMs float64) bool {
 	switch s.sim.State {
 	case util.Running:
 		s.sim.Print("", errors.New("Already run"), util.PrintOnlyConsole)
 		return false
 	default: // State = util.Stopped
+		s.sim.DeviceStartJitterMs = jitterMs
 		s.sim.Run()
 	}
 	return true

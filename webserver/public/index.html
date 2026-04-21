@@ -127,9 +127,15 @@
                 <div class="mr-auto"></div>
                 <div class="navbar-nav navbar-right d-flex">
                     <span class="text-white align-self-center font-weight-bold mr-2">Status:</span>
-                    <img id="state" src="img/red_circle.svg"  title="Simulator's status" class="mr-3 align-self-center">
+                    <img id="state" src="img/red_circle.svg"  title="Simulator's status" class="mr-4 align-self-center">
+                    <span class="text-white align-self-center font-weight-bold mr-2">Spread over:</span>
+                    <input id="startJitter" type="number" min="0" step="1" value="0"
+                        placeholder="0 = off"
+                        class="form-control form-control-sm mr-1 align-self-center"
+                        style="width:90px">
+                    <span class="text-white align-self-center mr-2">ms</span>
                     <button class="btn btn-sim" ><img class="btn-play"></button>
-                    <button class="btn btn-sim hide" ><img class="btn-stop"></button>        
+                    <button class="btn btn-sim hide" ><img class="btn-stop"></button>
         
                 </div>
 

@@ -222,8 +222,13 @@ $(document).ready(function(){
 
         $("#state").attr("src","img/yellow_circle.svg");
 
+        var jitterMs = parseFloat($("#startJitter").val());
+        var startUrl = url + "/api/start";
+        if (!isNaN(jitterMs) && jitterMs > 0) {
+            startUrl += "?jitter=" + encodeURIComponent(jitterMs);
+        }
         $.ajax({
-            url:url+"/api/start",
+            url:startUrl,
             type:"GET",
             headers:{
                 "Access-Control-Allow-Origin":"*"
