@@ -87,6 +87,8 @@ func GetInstance() *Simulator {
 	// Initialize templates (direct map pattern like Devices/Gateways)
 	s.setupTemplates()
 
+	s.updateStateMetrics()
+
 	return &s
 }
 
@@ -117,6 +119,7 @@ func (s *Simulator) Run() {
 		s.turnONDevice(id)
 	}
 	s.DeviceStartJitterMs = 0
+	s.updateStateMetrics()
 }
 
 // Stop terminates the simulation environment
@@ -155,6 +158,7 @@ func (s *Simulator) Stop() {
 	s.Forwarder.Reset()
 	s.Print("STOPPED", nil, util.PrintBoth)
 	s.reset()
+	s.updateStateMetrics()
 }
 
 // SaveBridgeAddress stores the bridge address in the simulator struct and saves it to the simulator.json file
@@ -287,6 +291,7 @@ func (s *Simulator) SetGateway(gateway *gw.Gateway, update bool) (int, int, erro
 		}
 	}
 	s.NextIDGw++
+	s.updateStateMetrics()
 	return codes.CodeOK, gateway.Id, nil
 }
 
@@ -318,6 +323,7 @@ func (s *Simulator) DeleteGateway(Id int) bool {
 	s.saveComponent(path, &s.Gateways)
 
 	s.Print("Gateway Deleted", nil, util.PrintOnlyConsole)
+	s.updateStateMetrics()
 
 	return true
 }
@@ -493,6 +499,7 @@ func (s *Simulator) SetDevice(device *dev.Device, update bool) (int, int, error)
 		}
 	}
 
+	s.updateStateMetrics()
 	return codes.CodeOK, device.Id, nil
 }
 
@@ -534,6 +541,7 @@ func (s *Simulator) DeleteDevice(Id int) bool {
 	s.saveComponent(path, &s.Devices)
 
 	s.Print("Device Deleted", nil, util.PrintOnlyConsole)
+	s.updateStateMetrics()
 
 	return true
 }
@@ -666,6 +674,7 @@ func (s *Simulator) DeleteAllDevices() (int, error) {
 	s.saveComponent(pathDir+"/devices.json", &s.Devices)
 
 	s.Print(fmt.Sprintf("Bulk deletion complete: %d devices removed", total), nil, util.PrintOnlyConsole)
+	s.updateStateMetrics()
 	return total, nil
 }
 
@@ -676,6 +685,7 @@ func (s *Simulator) ToggleStateDevice(Id int) {
 	} else if s.Devices[Id].State == util.Running {
 		s.turnOFFDevice(Id)
 	}
+	s.updateStateMetrics()
 
 }
 
@@ -776,6 +786,7 @@ func (s *Simulator) ToggleStateGateway(Id int) {
 	} else {
 		s.turnOFFGateway(Id)
 	}
+	s.updateStateMetrics()
 
 }
 

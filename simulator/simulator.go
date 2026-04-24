@@ -18,6 +18,7 @@ import (
 	mfw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/forwarder/models"
 	gw "github.com/R3DPanda1/LWN-Sim-Plus/simulator/components/gateway"
 	c "github.com/R3DPanda1/LWN-Sim-Plus/simulator/console"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/metrics"
 	res "github.com/R3DPanda1/LWN-Sim-Plus/simulator/resources"
 	"github.com/R3DPanda1/LWN-Sim-Plus/simulator/util"
 	"github.com/R3DPanda1/LWN-Sim-Plus/socket"
@@ -59,7 +60,33 @@ func (s *Simulator) setup() {
 	s.setupGateways()
 	s.setupDevices()
 	s.SetupConsole()
+	s.updateStateMetrics()
 	s.Print("SETUP OK!", nil, util.PrintBoth)
+}
+
+// updateStateMetrics recomputes the lwnsim_devices_total and lwnsim_gateways_total
+// gauges from the current device/gateway state maps.
+func (s *Simulator) updateStateMetrics() {
+	var runningDev, stoppedDev int
+	for _, d := range s.Devices {
+		if d.State == util.Running {
+			runningDev++
+		} else {
+			stoppedDev++
+		}
+	}
+	var runningGw, stoppedGw int
+	for _, g := range s.Gateways {
+		if g.State == util.Running {
+			runningGw++
+		} else {
+			stoppedGw++
+		}
+	}
+	metrics.DevicesTotal.WithLabelValues("running").Set(float64(runningDev))
+	metrics.DevicesTotal.WithLabelValues("stopped").Set(float64(stoppedDev))
+	metrics.GatewaysTotal.WithLabelValues("running").Set(float64(runningGw))
+	metrics.GatewaysTotal.WithLabelValues("stopped").Set(float64(stoppedGw))
 }
 
 // setupGateways initializes the gateways by setting their state to Stopped and adding them to the ActiveGateways map if they are active
