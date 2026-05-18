@@ -14,6 +14,8 @@ type ServerConfig struct {
 	ConfigDirname string `json:"configDirname"` // Directory name for configuration files
 	AutoStart     bool   `json:"autoStart"`     // Flag to automatically start the simulation when the server starts
 	Verbose       bool   `json:"verbose"`       // Flag to enable verbose logging
+	MaxCodecVMs    int `json:"maxCodecVMs"`    // VM pool size for JS codec execution (0 = default 100)
+	CodecTimeoutMs int `json:"codecTimeoutMs"` // Per-execution timeout in milliseconds (0 = default 100, negative = no timeout)
 }
 
 // GetConfigFile loads the configuration from the specified file path, parses it as JSON,

@@ -11,6 +11,7 @@ import (
 	"github.com/R3DPanda1/LWN-Sim-Plus/models"
 	repo "github.com/R3DPanda1/LWN-Sim-Plus/repositories"
 	"github.com/R3DPanda1/LWN-Sim-Plus/shared"
+	"github.com/R3DPanda1/LWN-Sim-Plus/simulator"
 	ws "github.com/R3DPanda1/LWN-Sim-Plus/webserver"
 )
 
@@ -26,6 +27,7 @@ func main() {
 		shared.Verbose = true
 		shared.DebugPrint("Verbose mode enabled")
 	}
+	simulator.SetCodecConfig(cfg)
 	// Create a new simulator controller and repository.
 	simulatorRepository := repo.NewSimulatorRepository()
 	simulatorController := cnt.NewSimulatorController(simulatorRepository)

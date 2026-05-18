@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/dop251/goja"
 )
@@ -15,12 +16,15 @@ var (
 	ErrOnUplinkNotFound = errors.New("OnUplink function not found")
 	// ErrInvalidReturnType is returned when the codec returns an invalid type
 	ErrInvalidReturnType = errors.New("invalid return type from codec")
+	// ErrExecutionTimeout is returned when codec execution exceeds the configured timeout
+	ErrExecutionTimeout = errors.New("codec execution timeout")
 )
 
 // Executor manages JavaScript codec execution with goja
 type Executor struct {
 	vmPool  *VMPool
 	metrics *ExecutorMetrics
+	timeout time.Duration
 }
 
 // ExecutorMetrics tracks codec execution statistics
@@ -35,6 +39,7 @@ type ExecutorMetrics struct {
 type ExecutorConfig struct {
 	MaxVMs        int
 	EnableMetrics bool
+	TimeoutMs     int
 }
 
 // DefaultExecutorConfig returns default configuration
@@ -42,6 +47,7 @@ func DefaultExecutorConfig() *ExecutorConfig {
 	return &ExecutorConfig{
 		MaxVMs:        100,
 		EnableMetrics: true,
+		TimeoutMs:     100,
 	}
 }
 
@@ -51,9 +57,25 @@ func NewExecutor(config *ExecutorConfig) *Executor {
 		config = DefaultExecutorConfig()
 	}
 
+	maxVMs := config.MaxVMs
+	if maxVMs == 0 {
+		maxVMs = 100
+	}
+
+	var timeout time.Duration
+	switch {
+	case config.TimeoutMs == 0:
+		timeout = 100 * time.Millisecond
+	case config.TimeoutMs < 0:
+		timeout = 0
+	default:
+		timeout = time.Duration(config.TimeoutMs) * time.Millisecond
+	}
+
 	return &Executor{
-		vmPool:  NewVMPool(config.MaxVMs),
+		vmPool:  NewVMPool(maxVMs),
 		metrics: &ExecutorMetrics{},
+		timeout: timeout,
 	}
 }
 
@@ -78,6 +100,13 @@ func (e *Executor) ExecuteEncode(script string, state *State, device DeviceInter
 	var fPort uint8
 	var err error
 
+	if e.timeout > 0 {
+		timer := time.AfterFunc(e.timeout, func() {
+			vm.Interrupt("codec execution timeout")
+		})
+		defer timer.Stop()
+	}
+
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -87,6 +116,18 @@ func (e *Executor) ExecuteEncode(script string, state *State, device DeviceInter
 		}()
 		data, fPort, err = e.executeEncodeInVM(vm, script, state, device)
 	}()
+
+	if err != nil {
+		var interrupted *goja.InterruptedError
+		if errors.As(err, &interrupted) {
+			if e.metrics != nil {
+				e.metrics.mu.Lock()
+				e.metrics.TotalTimeouts++
+				e.metrics.mu.Unlock()
+			}
+			err = ErrExecutionTimeout
+		}
+	}
 
 	if err != nil && e.metrics != nil {
 		e.metrics.mu.Lock()
@@ -165,6 +206,13 @@ func (e *Executor) ExecuteDecode(script string, bytes []byte, fPort uint8, state
 	vm := e.vmPool.Get()
 	var err error
 
+	if e.timeout > 0 {
+		timer := time.AfterFunc(e.timeout, func() {
+			vm.Interrupt("codec execution timeout")
+		})
+		defer timer.Stop()
+	}
+
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -174,6 +222,18 @@ func (e *Executor) ExecuteDecode(script string, bytes []byte, fPort uint8, state
 		}()
 		err = e.executeDecodeInVM(vm, script, bytes, fPort, state, device)
 	}()
+
+	if err != nil {
+		var interrupted *goja.InterruptedError
+		if errors.As(err, &interrupted) {
+			if e.metrics != nil {
+				e.metrics.mu.Lock()
+				e.metrics.TotalTimeouts++
+				e.metrics.mu.Unlock()
+			}
+			err = ErrExecutionTimeout
+		}
+	}
 
 	if err != nil && e.metrics != nil {
 		e.metrics.mu.Lock()

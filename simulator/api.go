@@ -57,28 +57,7 @@ func GetInstance() *Simulator {
 
 	// Initialize codec manager (Phase 1-3 enhancement)
 	if dev.Codecs == nil {
-		dev.Codecs = codec.NewRegistry(codec.DefaultExecutorConfig())
-
-		// Load codec library from disk
-		pathDir, err := util.GetPath()
-		codecLibLoaded := false
-		if err == nil {
-			codecLibPath := pathDir + "/codecs.json"
-			if err := dev.Codecs.Load(codecLibPath); err != nil {
-				shared.DebugPrint(fmt.Sprintf("Warning: %v", err))
-			} else {
-				shared.DebugPrint("Codec library loaded from disk")
-				codecLibLoaded = true
-			}
-		}
-
-		// If no codecs loaded from disk, load defaults
-		if !codecLibLoaded || dev.Codecs.GetCodecCount() == 0 {
-			dev.Codecs.LoadDefaults()
-			shared.DebugPrint("Default codecs loaded")
-		}
-
-		shared.DebugPrint("Codec manager initialized")
+		initCodecRegistry(codec.DefaultExecutorConfig())
 	}
 
 	// Initialize integrations (direct map pattern like Devices/Gateways)
