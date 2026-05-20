@@ -1411,11 +1411,6 @@ function ShowList(selector, title, update){
     selector.addClass("active show");
     selector.siblings().removeClass("active show");
     $(".section-header h1").text(title);
-    
-    if (!update){
-        $("a[id *=dev]").parents("li").toggleClass("active");
-        $("a[id *=gw]").parents("li").toggleClass("active");  
-    }
 }
 
 function UpdateList(element, oldAddress, isGw){
