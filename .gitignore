@@ -10,3 +10,5 @@ am319
 mcf-lw13io
 sdm230
 paper
+*.csv
+k8s/benchmark/v2/

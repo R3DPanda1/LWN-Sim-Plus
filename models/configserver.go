@@ -10,7 +10,7 @@ import (
 type ServerConfig struct {
 	Address       string `json:"address"`       // Address to bind to (e.g., "localhost")
 	Port          int    `json:"port"`          // Port to bind to (default is 8000)
-	MetricsPort   int    `json:"metricsPort"`   // Port to bind to for metrics (default is 8081)
+	MetricsPort   int    `json:"metricsPort"`   // Port to bind to for metrics (default is 8001)
 	ConfigDirname string `json:"configDirname"` // Directory name for configuration files
 	AutoStart     bool   `json:"autoStart"`     // Flag to automatically start the simulation when the server starts
 	Verbose       bool   `json:"verbose"`       // Flag to enable verbose logging
