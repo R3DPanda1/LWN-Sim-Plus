@@ -717,8 +717,8 @@ func createDevicesFromTemplate(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "templateId is required"})
 		return
 	}
-	if req.Count < 1 || req.Count > 10000 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "count must be between 1 and 10000"})
+	if req.Count < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "count must be at least 1"})
 		return
 	}
 	if req.NamePrefix == "" {

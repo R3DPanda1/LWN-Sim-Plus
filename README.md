@@ -35,7 +35,7 @@ This fork adds the following features to the original LWN-Simulator:
 
 **Device Templates**
 - Pre-configured templates for real LoRaWAN devices
-- Bulk device creation (up to 1000 devices from a single template)
+- Bulk device creation from a single template
 - ABP activation with auto-generated credentials
 - Geographic randomization for coverage testing
 

@@ -497,7 +497,7 @@ function SubmitBulkCreate() {
     // Validate
     var validTemplate = !!templateId;
     var validPrefix = !!namePrefix;
-    var validCount = count >= 1 && count <= 1000;
+    var validCount = count >= 1;
     var validLat = $("#input-bulk-lat").val() !== "";
     var validLng = $("#input-bulk-lng").val() !== "";
 
