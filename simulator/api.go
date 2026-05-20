@@ -128,6 +128,12 @@ func (s *Simulator) Stop() {
 			} else {
 				shared.DebugPrint("Codec library saved to disk")
 			}
+			statesPath := pathDir + "/codec_states.json"
+			if err := dev.Codecs.SaveStates(statesPath); err != nil {
+				shared.DebugPrint(fmt.Sprintf("Warning: failed to save codec states: %v", err))
+			} else {
+				shared.DebugPrint("Codec states saved to disk")
+			}
 		}
 	}
 
@@ -508,8 +514,12 @@ func (s *Simulator) DeleteDevice(Id int) bool {
 		}
 	}
 
+	devEUIHex := hex.EncodeToString(device.Info.DevEUI[:])
 	delete(s.Devices, Id)
 	delete(s.ActiveDevices, Id)
+	if dev.Codecs != nil {
+		dev.Codecs.RemoveState(devEUIHex)
+	}
 
 	pathDir, err := util.GetPath()
 	if err != nil {

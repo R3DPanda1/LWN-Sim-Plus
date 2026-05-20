@@ -1,6 +1,7 @@
 package codec
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -176,6 +177,63 @@ func (r *Registry) Save(filepath string) error {
 		return fmt.Errorf("failed to write codec library file: %w", err)
 	}
 
+	return nil
+}
+
+// RemoveState removes the persisted state for a device (e.g. on device deletion)
+func (r *Registry) RemoveState(devEUI string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.states, devEUI)
+}
+
+// SaveStates writes per-device codec state to disk as a JSON map keyed by DevEUI.
+func (r *Registry) SaveStates(filepath string) error {
+	r.mu.RLock()
+	snapshot := make(map[string]*State, len(r.states))
+	for k, v := range r.states {
+		v.mu.RLock()
+		vars := make(map[string]interface{}, len(v.Variables))
+		for kk, vv := range v.Variables {
+			vars[kk] = vv
+		}
+		snapshot[k] = &State{
+			DevEUI:    v.DevEUI,
+			Variables: vars,
+			CreatedAt: v.CreatedAt,
+			UpdatedAt: v.UpdatedAt,
+		}
+		v.mu.RUnlock()
+	}
+	r.mu.RUnlock()
+
+	data, err := json.MarshalIndent(snapshot, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to serialize codec states: %w", err)
+	}
+	if err := os.WriteFile(filepath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write codec states file: %w", err)
+	}
+	return nil
+}
+
+// LoadStates replaces the in-memory state map with the contents of the given
+// file. Missing file is non-fatal and leaves the map empty.
+func (r *Registry) LoadStates(filepath string) error {
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to read codec states file: %w", err)
+	}
+	loaded := make(map[string]*State)
+	if err := json.Unmarshal(data, &loaded); err != nil {
+		return fmt.Errorf("failed to parse codec states file: %w", err)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.states = loaded
 	return nil
 }
 

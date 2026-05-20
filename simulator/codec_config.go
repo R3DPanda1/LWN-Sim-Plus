@@ -50,5 +50,14 @@ func initCodecRegistry(ec *codec.ExecutorConfig) {
 		shared.DebugPrint("Default codecs loaded")
 	}
 
+	if err == nil {
+		statesPath := pathDir + "/codec_states.json"
+		if err := dev.Codecs.LoadStates(statesPath); err != nil {
+			shared.DebugPrint(fmt.Sprintf("Warning: %v", err))
+		} else {
+			shared.DebugPrint("Codec states loaded from disk")
+		}
+	}
+
 	shared.DebugPrint("Codec manager initialized")
 }
