@@ -1,0 +1,66 @@
+
+=== N=10000  spread=0ms ===
+  hard reset...
+Traceback (most recent call last):
+  File "/root/lwn-benchmarks/seed.py", line 494, in <module>
+    main()
+  File "/root/lwn-benchmarks/seed.py", line 287, in main
+    profiles = cs_get("/api/device-profiles?limit=100&tenantId=" + tenant_id, api_key)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/lwn-benchmarks/seed.py", line 219, in cs_get
+    r.raise_for_status()
+  File "/usr/lib/python3/dist-packages/requests/models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 503 Server Error: Service Unavailable for url: http://localhost:8090/api/device-profiles?limit=100&tenantId=708ab85d-36f2-4168-b093-0bd35fc747bc
+FAIL N=10000 spread=0ms: CalledProcessError: Command '['python3', '/root/lwn-benchmarks/seed.py']' returned non-zero exit status 1.
+
+=== N=10000  spread=100ms ===
+  hard reset...
+  created 10000 sim devices, CS totalCount=10000
+  sim started at t=0 (spread=100ms)
+  t=7min: lastSeenAt=251/10000 (2.51%)  [query 2.2s]
+
+=== N=8000  spread=100ms ===
+  hard reset...
+  created 8000 sim devices, CS totalCount=8000
+  sim started at t=0 (spread=100ms)
+  t=7min: lastSeenAt=5213/8000 (65.16%)  [query 1.5s]
+
+=== N=8000  spread=1000ms ===
+  hard reset...
+Traceback (most recent call last):
+  File "/root/lwn-benchmarks/seed.py", line 380, in main
+    cs_get(f"/api/gateways/{gw_id}", api_key)
+  File "/root/lwn-benchmarks/seed.py", line 219, in cs_get
+    r.raise_for_status()
+  File "/usr/lib/python3/dist-packages/requests/models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 503 Server Error: Service Unavailable for url: http://localhost:8090/api/gateways/7ef9d3ce197336f1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/lwn-benchmarks/seed.py", line 494, in <module>
+    main()
+  File "/root/lwn-benchmarks/seed.py", line 383, in main
+    cs_post("/api/gateways", {
+  File "/root/lwn-benchmarks/seed.py", line 227, in cs_post
+    r.raise_for_status()
+  File "/usr/lib/python3/dist-packages/requests/models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 503 Server Error: Service Unavailable for url: http://localhost:8090/api/gateways
+FAIL N=8000 spread=1000ms: CalledProcessError: Command '['python3', '/root/lwn-benchmarks/seed.py']' returned non-zero exit status 1.
+
+=== N=8000  spread=10000ms ===
+  hard reset...
+  created 8000 sim devices, CS totalCount=8000
+  sim started at t=0 (spread=10000ms)
+  t=7min: lastSeenAt=8000/8000 (100.00%)  [query 1.5s]
+
+=== summary ===
+     N    spread      seen/total      pct
+ 10000       0ms  FAIL: Command '['python3', '/root/lwn-benchmarks/seed.py']' returned non-zero exit status 1.
+ 10000     100ms    251/10000     2.51%
+  8000     100ms   5213/8000     65.16%
+  8000    1000ms  FAIL: Command '['python3', '/root/lwn-benchmarks/seed.py']' returned non-zero exit status 1.
+  8000   10000ms   8000/8000    100.00%

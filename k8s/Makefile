@@ -18,6 +18,7 @@ build:
 deploy:
 	kubectl apply -f namespace.yaml
 	kubectl apply -f configmaps/
+	kubectl apply -f host-tuning.yaml
 	kubectl apply -f infrastructure/
 	@echo "Waiting for infrastructure..."
 	kubectl wait -n $(NAMESPACE) --for=condition=ready pod -l app=postgres --timeout=60s
@@ -28,6 +29,7 @@ deploy:
 teardown:
 	-kubectl delete -f applications/ --ignore-not-found
 	-kubectl delete -f infrastructure/ --ignore-not-found
+	-kubectl delete -f host-tuning.yaml --ignore-not-found
 	-kubectl delete -f configmaps/ --ignore-not-found
 	-kubectl delete pvc -n $(NAMESPACE) --all
 	-kubectl delete -f namespace.yaml --ignore-not-found

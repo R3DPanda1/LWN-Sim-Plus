@@ -1,0 +1,3 @@
+sim,n,devaddr,last_seen,wait_sec,spread_ms
+upstream,10,10,0,60,0
+fork,2000,2000,2000,120,10000

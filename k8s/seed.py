@@ -21,9 +21,15 @@ import sys
 import json
 import os
 
+from pathlib import Path
+
 CS_URL = os.environ.get("CS_URL", "http://localhost:8090")
 SIM_URL = os.environ.get("SIM_URL", "http://localhost:8002/api")
+METRICS_URL = os.environ.get("METRICS_URL", "http://localhost:8003/metrics")
 NAMESPACE = os.environ.get("NAMESPACE", "lorawan")
+# Where the docker-compose stack and bench_config.json live (also used to find
+# the chirpstack service for the compose API-key path).
+COMPOSE_DIR = Path(os.environ.get("BENCH_ROOT", Path(__file__).resolve().parent.parent / "benchmark"))
 
 AM319_CODEC_DECODE = """
 function decodeUplink(input) {
@@ -132,17 +138,51 @@ def wait_for(name, check_fn, timeout=120):
     return False
 
 
-def create_api_key_via_kubectl():
-    result = subprocess.run(
-        ["kubectl", "exec", "-n", NAMESPACE, "deployment/chirpstack", "--",
-         "chirpstack", "-c", "/etc/chirpstack", "create-api-key", "--name", "benchmark"],
-        capture_output=True, text=True, timeout=30
-    )
-    output = result.stdout + result.stderr
+def _parse_token(output):
     for line in output.split("\n"):
         if line.startswith("token:"):
             return line.split(":", 1)[1].strip()
     raise RuntimeError(f"Failed to create API key. Output:\n{output}")
+
+
+def create_api_key():
+    """Create a ChirpStack API key by running the chirpstack CLI inside the
+    server container. Works on k3d (kubectl exec) and docker compose."""
+    cli = ["chirpstack", "-c", "/etc/chirpstack", "create-api-key", "--name", "benchmark"]
+    try:
+        probe = subprocess.run(["kubectl", "get", "ns", NAMESPACE],
+                               capture_output=True, timeout=10)
+        if probe.returncode == 0:
+            r = subprocess.run(["kubectl", "exec", "-n", NAMESPACE,
+                                "deployment/chirpstack", "--", *cli],
+                               capture_output=True, text=True, timeout=30)
+            return _parse_token(r.stdout + r.stderr)
+    except Exception:
+        pass
+    r = subprocess.run(["docker", "compose", "exec", "-T", "chirpstack", *cli],
+                       capture_output=True, text=True, timeout=30, cwd=str(COMPOSE_DIR))
+    return _parse_token(r.stdout + r.stderr)
+
+
+def thingsboard_api_key(tb_url):
+    """Mint a ThingsBoard tenant API key for the demo tenant. Returns the key,
+    or None if ThingsBoard is not running (the TB integration is then skipped)."""
+    user = os.environ.get("TB_USER", "tenant@thingsboard.org")
+    pw = os.environ.get("TB_PASS", "tenant")
+    try:
+        r = requests.post(f"{tb_url}/api/auth/login",
+                          json={"username": user, "password": pw}, timeout=5)
+        if r.status_code != 200:
+            return None
+        hdr = {"X-Authorization": f"Bearer {r.json()['token']}"}
+        uid = requests.get(f"{tb_url}/api/auth/user", headers=hdr, timeout=10).json()["id"]["id"]
+        r = requests.post(f"{tb_url}/api/apiKey", headers=hdr, timeout=10,
+                          json={"description": "benchmark", "enabled": True,
+                                "userId": {"id": uid, "entityType": "USER"}})
+        r.raise_for_status()
+        return r.json().get("value")
+    except Exception:
+        return None
 
 
 def cs_headers(api_key):
@@ -195,9 +235,9 @@ def main():
             f"{SIM_URL}/status", timeout=3).status_code == 200):
         sys.exit(1)
 
-    # Step 1: Create API key via kubectl exec
+    # Step 1: Create API key (kubectl exec on k3d, docker compose exec otherwise)
     print("\n--- Creating API key ---")
-    api_key = create_api_key_via_kubectl()
+    api_key = create_api_key()
     print(f"  Key: {api_key[:20]}...")
 
     # Step 2: Get tenant
@@ -399,6 +439,30 @@ def main():
             sys.exit(1)
         print(f"  Created integration: {bench_intg_id}")
 
+    # Step 6b: ThingsBoard integration (only if ThingsBoard is reachable)
+    tb_api_key = thingsboard_api_key(os.environ.get("TB_URL", "http://localhost:9090"))
+    tb_intg_id = None
+    if tb_api_key:
+        print("\n--- ThingsBoard integration ---")
+        tb_internal = os.environ.get("TB_INTERNAL_URL", "http://thingsboard:9090")
+        ints = requests.get(f"{SIM_URL}/integrations", timeout=10).json()
+        ilist = (ints or {}).get("integrations", []) if isinstance(ints, dict) else (ints or [])
+        payload = {"name": "Benchmark ThingsBoard", "type": "thingsboard",
+                   "url": tb_internal, "apiKey": tb_api_key, "enabled": True}
+        existing_tb = find_existing(ilist, "Benchmark ThingsBoard")
+        if existing_tb:
+            payload["id"] = existing_tb["id"]
+            sim_post("/update-integration", payload)
+            tb_intg_id = existing_tb["id"]
+        else:
+            sim_post("/add-integration", payload)
+            ints = requests.get(f"{SIM_URL}/integrations", timeout=10).json()
+            ilist = (ints or {}).get("integrations", []) if isinstance(ints, dict) else (ints or [])
+            tb_intg_id = next((i["id"] for i in ilist if i["name"] == "Benchmark ThingsBoard"), None)
+        print(f"  ThingsBoard integration id={tb_intg_id}")
+    else:
+        print("\n--- ThingsBoard not reachable; skipping TB integration ---")
+
     # Update templates
     template_profiles = [
         (1, "AM319", abp_profile_id),
@@ -416,6 +480,27 @@ def main():
         tmpl["integrationId"] = bench_intg_id
         tmpl["deviceProfileId"] = profile_id
         sim_post("/update-template", tmpl)
+
+    # Write bench_config.json for the benchmark drivers (k8s/benchmark/*.py).
+    cfg = {
+        "cs_url": CS_URL,
+        "cs_api_key": api_key,
+        "cs_tenant_id": tenant_id,
+        "cs_app_id": app_id,
+        "cs_abp_profile_id": abp_profile_id,
+        "cs_otaa_profile_id": otaa_profile_id,
+        "cs_mcf_profile_id": mcf_profile_id,
+        "cs_sdm_profile_id": sdm_profile_id,
+        "sim_url": SIM_URL,
+        "metrics_url": METRICS_URL,
+        "sim_integration_id": bench_intg_id,
+        "tb_url": os.environ.get("TB_URL", "http://localhost:9090"),
+        "tb_api_key": tb_api_key or "",
+        "sim_tb_integration_id": tb_intg_id,
+    }
+    COMPOSE_DIR.mkdir(parents=True, exist_ok=True)
+    (COMPOSE_DIR / "bench_config.json").write_text(json.dumps(cfg, indent=2))
+    print(f"  Wrote {COMPOSE_DIR / 'bench_config.json'}")
 
     print(f"\n--- Seed complete ---")
     print(f"  ChirpStack UI: http://localhost:8080 (admin/admin)")

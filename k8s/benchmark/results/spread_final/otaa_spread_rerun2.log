@@ -1,0 +1,12 @@
+
+=== N=10000  spread=0ms ===
+  hard reset...
+  created 10000 sim devices, CS totalCount=10000
+  sim started at t=0 (spread=0ms)
+  t=7min: lastSeenAt=5669/10000 (56.69%)  [query 14.4s]
+
+=== N=8000  spread=1000ms ===
+  hard reset...
+  created 8000 sim devices, CS totalCount=8000
+  sim started at t=0 (spread=1000ms)
+  t=7min: lastSeenAt=7429/8000 (92.86%)  [query 1.4s]

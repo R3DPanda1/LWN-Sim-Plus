@@ -8,3 +8,11 @@ docs/
 tests/
 *.md
 !README.md
+*.html
+paper/
+k8s/
+benchmark/
+clean_benchmark/
+am319/
+mcf-lw13io/
+sdm230/

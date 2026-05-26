@@ -1,0 +1,15 @@
+{
+    "address": "0.0.0.0",
+    "port": 8002,
+    "metricsPort": 8003,
+    "configDirname": "data",
+    "autoStart": false,
+    "verbose": true,
+    "performance": {
+        "forwarderShards": 16,
+        "uplinkBufferSize": 1000,
+        "workerCount": 100,
+        "schedulerResolution": "1s",
+        "workQueueSize": 10000
+    }
+}
